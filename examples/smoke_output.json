@@ -1,0 +1,293 @@
+{
+  "case_id": "smoke-test",
+  "status": "partial",
+  "pipeline": {
+    "normalize": {
+      "status": "success",
+      "entries": [
+        {
+          "id": "wang2020",
+          "authors": [
+            "Wang, J.",
+            "Li, H."
+          ],
+          "title": "CO2 flooding and phase behavior in reservoirs",
+          "year": 2020,
+          "journal": "Fuel",
+          "volume": 281,
+          "pages": "118-126",
+          "doi": "10.1016/j.fuel.2020.118032",
+          "type": "article",
+          "_source_index": 0,
+          "dedup_group": 1,
+          "merged_from": [
+            1
+          ],
+          "_eid": "wang2020"
+        },
+        {
+          "id": "zhang2019",
+          "authors": [
+            "Zhang, M.",
+            "Chen, Y."
+          ],
+          "title": "Biomarker geochemistry of natural gas",
+          "year": 2019,
+          "journal": "Organic Geochemistry",
+          "volume": 130,
+          "pages": "1-15",
+          "type": "article",
+          "_source_index": 2,
+          "dedup_group": 2,
+          "merged_from": [],
+          "_eid": "zhang2019"
+        },
+        {
+          "id": "smith2021",
+          "authors": [
+            "Smith, A. B."
+          ],
+          "title": "A review of CO2 sequestration",
+          "year": 2021,
+          "type": "article",
+          "_source_index": 3,
+          "dedup_group": 3,
+          "merged_from": [],
+          "_eid": "smith2021"
+        }
+      ],
+      "decisions": [
+        {
+          "kept_index": 0,
+          "dropped_index": 1,
+          "rule": "doi_exact",
+          "confidence": 0.99,
+          "evidence": "DOI 均为 10.1016/j.fuel.2020.118032"
+        }
+      ],
+      "issues": [],
+      "stats": {
+        "input_count": 4,
+        "output_count": 3,
+        "merged_count": 1,
+        "needs_review_count": 0
+      }
+    },
+    "renumber": {
+      "status": "partial",
+      "mapping": {
+        "wang2020": 1,
+        "zhang2019": 2,
+        "smith2021": 3
+      },
+      "entries": [
+        {
+          "id": "wang2020",
+          "authors": [
+            "Wang, J.",
+            "Li, H."
+          ],
+          "title": "CO2 flooding and phase behavior in reservoirs",
+          "year": 2020,
+          "journal": "Fuel",
+          "volume": 281,
+          "pages": "118-126",
+          "doi": "10.1016/j.fuel.2020.118032",
+          "type": "article",
+          "_source_index": 0,
+          "dedup_group": 1,
+          "merged_from": [
+            1
+          ],
+          "new_number": 1
+        },
+        {
+          "id": "zhang2019",
+          "authors": [
+            "Zhang, M.",
+            "Chen, Y."
+          ],
+          "title": "Biomarker geochemistry of natural gas",
+          "year": 2019,
+          "journal": "Organic Geochemistry",
+          "volume": 130,
+          "pages": "1-15",
+          "type": "article",
+          "_source_index": 2,
+          "dedup_group": 2,
+          "merged_from": [],
+          "new_number": 2
+        },
+        {
+          "id": "smith2021",
+          "authors": [
+            "Smith, A. B."
+          ],
+          "title": "A review of CO2 sequestration",
+          "year": 2021,
+          "type": "article",
+          "_source_index": 3,
+          "dedup_group": 3,
+          "merged_from": [],
+          "new_number": 3
+        }
+      ],
+      "order": [
+        "wang2020",
+        "zhang2019",
+        "smith2021"
+      ],
+      "occurrences": [
+        {
+          "line": 1,
+          "token": "[2]",
+          "eids": [],
+          "unresolved_numbers": [
+            2
+          ]
+        },
+        {
+          "line": 1,
+          "token": "[3]",
+          "eids": [],
+          "unresolved_numbers": [
+            3
+          ]
+        },
+        {
+          "line": 1,
+          "token": "[1,3]",
+          "eids": [],
+          "unresolved_numbers": [
+            1,
+            3
+          ]
+        },
+        {
+          "line": 1,
+          "token": "[2]",
+          "eids": [],
+          "unresolved_numbers": [
+            2
+          ]
+        }
+      ],
+      "unresolved": [
+        {
+          "line": 1,
+          "token": "[2]",
+          "number": 2
+        },
+        {
+          "line": 1,
+          "token": "[3]",
+          "number": 3
+        },
+        {
+          "line": 1,
+          "token": "[1,3]",
+          "number": 1
+        },
+        {
+          "line": 1,
+          "token": "[1,3]",
+          "number": 3
+        },
+        {
+          "line": 1,
+          "token": "[2]",
+          "number": 2
+        }
+      ],
+      "stats": {
+        "total_entries": 3,
+        "cited_entries": 3,
+        "unresolved_refs": 5
+      }
+    },
+    "format": {
+      "status": "success",
+      "references": [
+        "[1] Wang, J, Li, H. CO2 flooding and phase behavior in reservoirs[J]. Fuel, 2020, 281: 118-126. DOI: 10.1016/j.fuel.2020.118032.",
+        "[2] Zhang, M, Chen, Y. Biomarker geochemistry of natural gas[J]. Organic Geochemistry, 2019, 130: 1-15.",
+        "[3] Smith, A. B. A review of CO2 sequestration[J]. 2021."
+      ],
+      "warnings": [],
+      "standard": "GB/T 7714-2015 (顺序编码制)"
+    },
+    "verify": {
+      "status": "success",
+      "consistent": true,
+      "cited_numbers": [
+        1,
+        2,
+        3
+      ],
+      "listed_numbers": [
+        1,
+        2,
+        3
+      ],
+      "dangling_citations": [],
+      "uncited_entries": [],
+      "duplicate_numbers": [],
+      "numbering_gaps": [],
+      "problems": []
+    }
+  },
+  "result": {
+    "bibliography": [
+      "[1] Wang, J, Li, H. CO2 flooding and phase behavior in reservoirs[J]. Fuel, 2020, 281: 118-126. DOI: 10.1016/j.fuel.2020.118032.",
+      "[2] Zhang, M, Chen, Y. Biomarker geochemistry of natural gas[J]. Organic Geochemistry, 2019, 130: 1-15.",
+      "[3] Smith, A. B. A review of CO2 sequestration[J]. 2021."
+    ],
+    "number_mapping": {
+      "wang2020": 1,
+      "zhang2019": 2,
+      "smith2021": 3
+    },
+    "consistency": {
+      "consistent": true,
+      "problems": []
+    },
+    "evidence": {
+      "dedup_decisions": [
+        {
+          "kept_index": 0,
+          "dropped_index": 1,
+          "rule": "doi_exact",
+          "confidence": 0.99,
+          "evidence": "DOI 均为 10.1016/j.fuel.2020.118032"
+        }
+      ],
+      "dedup_issues": [],
+      "unresolved_citations": [
+        {
+          "line": 1,
+          "token": "[2]",
+          "number": 2
+        },
+        {
+          "line": 1,
+          "token": "[3]",
+          "number": 3
+        },
+        {
+          "line": 1,
+          "token": "[1,3]",
+          "number": 1
+        },
+        {
+          "line": 1,
+          "token": "[1,3]",
+          "number": 3
+        },
+        {
+          "line": 1,
+          "token": "[2]",
+          "number": 2
+        }
+      ]
+    }
+  }
+}
