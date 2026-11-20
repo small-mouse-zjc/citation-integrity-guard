@@ -2,6 +2,8 @@
 
 一个面向「参考文献与引用管理」任务的 Agent Skill。核心思想：把基础 Agent 最容易出错的**去重、编号同步、格式转换**固化为确定性脚本，做到准确、可解释、可回溯；对无法判断的项显式标注，绝不臆造。
 
+**公开仓库**：https://github.com/small-mouse-zjc/citation-integrity-guard （无需登录可访问）
+
 ## 目录结构
 
 ```
