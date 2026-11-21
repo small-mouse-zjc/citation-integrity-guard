@@ -1,0 +1,78 @@
+{
+  "case_id": "smoke",
+  "status": "draft_skeleton",
+  "note": "可编辑成稿骨架，非最终稿件；脚本不生成材料外事实，最终文字须由 Agent 依 source_map 填写并核对",
+  "sections": {
+    "研究背景": [],
+    "相关工作": [
+      {
+        "group": "深度学习路线",
+        "works": [
+          "a",
+          "b"
+        ],
+        "compare_on_dimensions": [
+          "数据与评价: a=accuracy 0.9; b=F1 0.85",
+          "局限: a=标注成本高; b=标注成本高"
+        ],
+        "action": "在同一维度上横向比较取舍，勿逐篇摘要"
+      }
+    ],
+    "研究空白": [
+      {
+        "type": "共同限制",
+        "gap_statement_hint": "标注成本高是多篇工作共有的限制",
+        "supporting_works": [
+          "a",
+          "b"
+        ],
+        "reasoning": "2 篇已引工作均报告该限制（见 supporting_works），构成领域共同缺口",
+        "bridged_by": [],
+        "action": "用支撑文献的缺口推出空白，并点明本文工作如何填补"
+      }
+    ],
+    "贡献表述": [
+      {
+        "claim_id": "c1",
+        "text": "本文提出首个方法",
+        "evidence_refs": [],
+        "action": "含强断言词但锚点不足，须补证据或下调表述",
+        "downgrade_required": true
+      }
+    ]
+  },
+  "source_map": [
+    {
+      "work_id": "a",
+      "title": "DL facies",
+      "year": 2023,
+      "source": "Fuel",
+      "doi": "",
+      "used_in": "相关工作/研究空白"
+    },
+    {
+      "work_id": "b",
+      "title": "GAN model",
+      "year": 2024,
+      "source": "Sedimentology",
+      "doi": "",
+      "used_in": "相关工作/研究空白"
+    },
+    {
+      "claim_id": "c1",
+      "text": "本文提出首个方法",
+      "evidence_refs": [],
+      "used_in": "贡献表述"
+    }
+  ],
+  "pending_confirmation": [
+    "价值判断：转述忠实度、空白成立性、元数据真实性须 Agent 结合原文复核"
+  ],
+  "check_summary": {
+    "holds_up": true,
+    "group_count": 1,
+    "gap_count": 1,
+    "claims_backed": 0,
+    "claims_unbacked": 1
+  }
+}

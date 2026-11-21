@@ -1,0 +1,55 @@
+{
+  "case_id": "smoke",
+  "status": "comparison",
+  "protocol": "同一输入、同一模型与预算下，基线流程=不做四问结构化检查直接写；Skill 流程=先跑确定性引擎再成稿。对照只度量'缺陷检出/拦截能力'，不编造平台质量分数；正式质量对照由平台固定白板给出。",
+  "baseline": {
+    "baseline_defects": {
+      "空转铺垫未检出": 0,
+      "相关工作逐篇摘要无分组": 2,
+      "研究空白无支撑文献": 1,
+      "贡献无证据锚点": 1
+    },
+    "baseline_defect_count": 4
+  },
+  "skill_detections": {
+    "空转铺垫检出": 0,
+    "相关工作组数": 1,
+    "有支撑的空白数": 1,
+    "悬空贡献拦截数": 1,
+    "夸大断言拦截数": 1
+  },
+  "dimensions": [
+    {
+      "dimension": "立得住",
+      "baseline": "空转铺垫 0 处未标出",
+      "skill": "标出 0 处并要求补锚点",
+      "gate": "holds_up=false 不得进入下一步"
+    },
+    {
+      "dimension": "分得清",
+      "baseline": "2 篇平铺为逐篇摘要（1 组）",
+      "skill": "按统一维度分为 1 组并给同维比较视图",
+      "gate": "无法自动分组者列入 needs_review"
+    },
+    {
+      "dimension": "说得实",
+      "baseline": "空白无支撑文献（断言式）",
+      "skill": "1 条空白附真实 supporting_works 与推理链",
+      "gate": "证据不足不生成空白"
+    },
+    {
+      "dimension": "对得上",
+      "baseline": "1 条贡献无锚点仍照写",
+      "skill": "拦截悬空 1 条、夸大 1 条",
+      "gate": "all_backed=false 不得成稿"
+    }
+  ],
+  "gain": {
+    "defects_baseline_would_miss": 4,
+    "defects_skill_detects": 3,
+    "groups_added": 0,
+    "claims_gated": 2
+  },
+  "verifiable": true,
+  "limits": "基线缺陷模型按题面四类常见失败构造，用于方法对照演示与复现；真实 Agent 间对照、质量分与耗时由平台评测给出，本表不替代。"
+}

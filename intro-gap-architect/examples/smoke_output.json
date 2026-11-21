@@ -1,0 +1,163 @@
+{
+  "case_id": "smoke",
+  "status": "needs_attention",
+  "result": {
+    "background_check": {
+      "hype_sentences": [],
+      "hype_count": 0,
+      "concrete_anchor_count": 4,
+      "holds_up": true,
+      "advice": "背景含具体锚点，立得住"
+    },
+    "related_work_matrix": {
+      "dimensions": [
+        "问题设定",
+        "方法路线",
+        "数据与评价",
+        "适用条件",
+        "局限"
+      ],
+      "groups": [
+        {
+          "group": "深度学习路线",
+          "count": 2,
+          "works": [
+            {
+              "id": "a",
+              "title": "DL facies",
+              "first_author": "Smith",
+              "year": 2023,
+              "problem": "",
+              "method": "",
+              "data_eval": "accuracy 0.9",
+              "applicability": "",
+              "limitations": "标注成本高"
+            },
+            {
+              "id": "b",
+              "title": "GAN model",
+              "first_author": "Li",
+              "year": 2024,
+              "problem": "",
+              "method": "",
+              "data_eval": "F1 0.85",
+              "applicability": "",
+              "limitations": "标注成本高"
+            }
+          ],
+          "comparison": {
+            "问题设定": [],
+            "方法路线": [],
+            "数据与评价": [
+              {
+                "id": "a",
+                "value": "accuracy 0.9"
+              },
+              {
+                "id": "b",
+                "value": "F1 0.85"
+              }
+            ],
+            "适用条件": [],
+            "局限": [
+              {
+                "id": "a",
+                "value": "标注成本高"
+              },
+              {
+                "id": "b",
+                "value": "标注成本高"
+              }
+            ]
+          }
+        }
+      ],
+      "group_count": 1,
+      "works_covered": 2,
+      "needs_review": [],
+      "advice": "已按统一维度分组比较；'comparison' 提供同维度横向视图"
+    },
+    "research_gap": {
+      "gaps": [
+        {
+          "type": "共同限制",
+          "gap": "标注成本高是多篇工作共有的限制",
+          "supporting_works": [
+            "a",
+            "b"
+          ],
+          "strength": "medium",
+          "reasoning": "2 篇已引工作均报告该限制（见 supporting_works），构成领域共同缺口"
+        }
+      ],
+      "gap_count": 1,
+      "needs_review": [],
+      "advice": "空白由已引工作缺口推出，每条附支撑文献"
+    },
+    "contribution_alignment": {
+      "aligned": [],
+      "unbacked": [
+        {
+          "id": "c1",
+          "text": "本文提出首个方法",
+          "evidence_refs": [],
+          "ref_count": 0,
+          "reason": "无任何证据锚点，贡献断言悬空"
+        }
+      ],
+      "inflated": [
+        {
+          "id": "c1",
+          "text": "本文提出首个方法",
+          "evidence_refs": [],
+          "ref_count": 0,
+          "reason": "含强断言词（首个/唯一/SOTA 等）但证据锚点不足 2 处"
+        }
+      ],
+      "claim_count": 1,
+      "aligned_count": 0,
+      "all_backed": false,
+      "advice": "1 条贡献缺证据或锚点悬空，须补正文对应处或删除断言"
+    },
+    "citation_coverage": {
+      "total": 2,
+      "years_covered": [
+        2023,
+        2024
+      ],
+      "recent_count_within_years": 2,
+      "has_recent": true,
+      "missing_metadata": [],
+      "advice": "关键/代表/近期工作覆盖与元数据需 Agent 结合领域判断；本检查仅保证字段齐全与存在近期文献，元数据真实性须逐条核验"
+    },
+    "gap_to_contribution": [
+      {
+        "gap": "标注成本高是多篇工作共有的限制",
+        "addressed_by": [],
+        "bridged": false
+      }
+    ]
+  },
+  "evidence": {
+    "principles": {
+      "立得住": "背景须落到具体脉络/问题并带锚点",
+      "分得清": "相关工作按统一维度分组比较",
+      "说得实": "空白由已引文献缺口推出并附支撑",
+      "对得上": "贡献与正文证据逐条对齐"
+    },
+    "gap_support": {
+      "标注成本高是多篇工作共有的限制": [
+        "a",
+        "b"
+      ]
+    },
+    "unbacked_claims": [
+      "c1"
+    ]
+  },
+  "uncertainty": {
+    "auto_grouped": 0,
+    "needs_review": [],
+    "note": "转述是否忠实、空白是否真正成立、元数据是否真实属价值判断，须 Agent 结合原文复核并给出定位"
+  }
+}

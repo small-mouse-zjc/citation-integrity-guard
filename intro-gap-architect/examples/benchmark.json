@@ -1,0 +1,98 @@
+{
+  "schema": "intro-gap-benchmark/v1",
+  "purpose": "公平对照协议的本地可复现示例。注意：这不是平台正式案例或白板，也不是参赛者答案；仅为证明'同一输入、同一模型、同一预算下 Skill 相对基线的缺陷检出/拦截增益'如何被确定性复现。平台正式对照由组织方固定案例与白板给出。",
+  "protocol": {
+    "same_input": "基线与 Skill 使用完全相同的 case 输入（事实底稿/受众/文体/格式约束）",
+    "same_budget": "相同模型、相同请求数上限、相同 token 预算",
+    "baseline": "不加载本 Skill，直接按指令写引言与相关工作（题面描述的四类常见失败：空转铺垫、逐篇摘要、无据空白、悬空/夸大贡献）",
+    "skill": "加载本 Skill，先跑 intro_engine 确定性检查与门禁，再按 compose 骨架成稿",
+    "metric": "只度量可确定性复核的'缺陷检出数/拦截数/分组增益/元数据完整度'；质量分与效率耗时由平台给出，本集不编造",
+    "reproduce": "将每个 case 的 input 原样喂给 python scripts/intro_engine.py compare input.json 即可复算 gain 字段"
+  },
+  "cases": [
+    {
+      "case_id": "bench-geochem",
+      "domain": "地球化学/油气",
+      "language": "zh",
+      "citation_style": "顺序编码制",
+      "task": "为'烃源岩有机质成熟度评价'写引言与相关工作",
+      "input": {
+        "case_id": "bench-geochem",
+        "background": "近年来烃源岩评价受到广泛关注，具有重要意义，成为研究热点。但已有工作在 applicable 条件上缺乏统一口径。",
+        "works": [
+          {"id": "w1", "title": "Rock-Eval 参数评价有机质成熟度", "authors": ["Smith, A."], "year": 2021, "source": "Fuel", "route": "地球化学指标路线", "problem": "成熟度评价", "method": "Rock-Eval Tmax", "data_eval": "Ro 相关 r=0.85", "limitations": "标注成本高", "conclusion": "有效", "applicability": "海相泥岩"},
+          {"id": "w2", "title": "镜质体反射率成熟度量板", "authors": ["李, M."], "year": 2022, "source": "石油学报", "route": "地球化学指标路线", "problem": "成熟度标定", "method": "Ro 测定", "data_eval": "", "limitations": "标注成本高", "conclusion": "优于指标法", "applicability": "陆相煤系"},
+          {"id": "w3", "title": "深度学习预测 TOC", "authors": ["张, Q."], "year": 2025, "source": "Geoscience", "route": "深度学习路线", "problem": "TOC 预测", "method": "CNN", "data_eval": "acc 0.91", "limitations": "泛化能力弱", "conclusion": "有效", "applicability": "测井曲线"}
+        ],
+        "claims": [
+          {"id": "c1", "text": "本文提出分组比较驱动的成熟度评价框架", "evidence_refs": ["表2"]},
+          {"id": "c2", "text": "本文首个通用方法显著优于所有基线", "evidence_refs": ["图3"]}
+        ],
+        "evidence_index": {"表2": "分组比较矩阵", "图3": "成熟度对比流程"},
+        "contribution_links": [{"gap_type": "共同限制", "claim_id": "c1"}],
+        "current_year": 2026
+      },
+      "expect": {
+        "hype_unanchored_at_least": 1,
+        "group_count_at_least": 2,
+        "gap_with_support_at_least": 1,
+        "inflated_flagged_at_least": 1,
+        "recent_exists": true
+      }
+    },
+    {
+      "case_id": "bench-medical-imaging",
+      "domain": "医学影像",
+      "language": "en",
+      "citation_style": "APA 7th",
+      "task": "Write introduction and related work for 'CNN-based tumor segmentation'",
+      "input": {
+        "case_id": "bench-medical-imaging",
+        "background": "Deep learning has attracted increasing attention in recent years and plays an important role. However, cross-domain generalization remains a challenge.",
+        "works": [
+          {"id": "s1", "title": "U-Net for segmentation", "authors": ["Ronneberger, O."], "year": 2015, "source": "MICCAI", "route": "CNN architecture", "problem": "segmentation", "method": "U-Net", "data_eval": "IoU 0.86", "limitations": "limited data", "conclusion": "effective", "applicability": "cell images"},
+          {"id": "s2", "title": "Attention U-Net", "authors": ["Oktay, O."], "year": 2018, "source": "MICCAI", "route": "CNN architecture", "problem": "segmentation", "method": "attention gate", "data_eval": "", "limitations": "computational cost", "conclusion": "outperform baseline", "applicability": "CT"},
+          {"id": "s3", "title": "Transformer segmentation", "authors": ["Dosovitskiy, A."], "year": 2025, "source": "CVPR", "route": "Transformer", "problem": "segmentation", "method": "ViT", "data_eval": "IoU 0.90", "limitations": "generalization weak", "conclusion": "effective", "applicability": "MRI"}
+        ],
+        "claims": [
+          {"id": "k1", "text": "We propose a grouped comparison framework", "evidence_refs": ["Table 1"]},
+          {"id": "k2", "text": "This is the first state-of-the-art method", "evidence_refs": []}
+        ],
+        "evidence_index": {"Table 1": "group matrix"},
+        "current_year": 2026
+      },
+      "expect": {
+        "hype_unanchored_at_least": 1,
+        "group_count_at_least": 2,
+        "unbacked_claim_at_least": 1,
+        "inflated_flagged_at_least": 1,
+        "recent_exists": true
+      }
+    },
+    {
+      "case_id": "bench-social-science",
+      "domain": "社会科学/教育政策",
+      "language": "zh",
+      "citation_style": "GB/T 7714",
+      "task": "为'教育公平的政策效应'写研究背景与相关工作（材料稀少场景）",
+      "input": {
+        "case_id": "bench-social-science",
+        "background": "教育公平问题近年来受到学者们广泛关注。",
+        "works": [
+          {"id": "e1", "title": "政策A的效应评估", "authors": ["王, L."], "year": 2020, "source": "教育研究", "route": "计量路线", "problem": "政策效应", "method": "DID", "data_eval": "", "limitations": "样本不足"}
+        ],
+        "claims": [
+          {"id": "m1", "text": "本文填补了教育公平空白", "evidence_refs": []}
+        ],
+        "evidence_index": {},
+        "current_year": 2026
+      },
+      "expect": {
+        "material_insufficient_flagged": true,
+        "gap_count_zero_when_no_evidence": true,
+        "unbacked_claim_at_least": 1,
+        "no_fabricated_gap": true
+      }
+    }
+  ]
+}
