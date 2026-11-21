@@ -1,0 +1,26 @@
+PASS T1 六要素齐全 
+PASS T2 缺要素被检出 ['方法步骤', '实验设置', '参数', '数据集与划分', '对照实验', '可复现与限制']
+PASS T3 自定义必查项 
+PASS T4 来源中存在的数值被定位 ['0.001', '42']
+PASS T5 补造数值被检出 ['64']
+PASS T6 全部有来源时 all_supported 
+PASS T7 来源为空时数值全不支持 
+PASS T8 复现清单齐全 []
+PASS T9 复现缺项被检出 
+PASS T10 缺口转追问 
+PASS T11 套话限制被标 
+PASS T12 具体限制不误报 
+PASS T13 参数表行数正确 
+PASS T14 无来源参数被标 
+PASS T15 全有来源时 all_sourced 
+PASS T16 pipeline 字段齐全 
+PASS T17 case_id 保留 
+PASS T18 evidence 含补造数值 
+PASS T19 uncertainty 含 gap_count 
+PASS T20 status 合理 
+PASS T21 干净案例可达 ok unsup=0 repro=0
+PASS TC1 对照benchmark可复现 
+PASS TC2 四问对照完整 
+
+24/24 通过
+全部通过 ✓

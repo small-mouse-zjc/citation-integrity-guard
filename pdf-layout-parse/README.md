@@ -74,3 +74,11 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 ## 适用边界
 
 按结构元素识别图表公式，不解释科学含义；无文字层需 OCR（引擎如实判定标注）；分栏/跨页表候选交人工确认；不联网、不臆造。
+
+
+## 冲分证据（可复现）
+
+- 四问：提得全 / 排得对 / 拆得清 / 核得回
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

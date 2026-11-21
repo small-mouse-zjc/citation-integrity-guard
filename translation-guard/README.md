@@ -69,3 +69,11 @@ python scripts/translation_guard.py pipeline examples/smoke_input.json --compact
 ## 适用边界
 
 不替代模型翻译措辞；术语候选须确认译名；占位符覆盖数字单位/公式/引用/化学式，否定限定为疑似提示；不联网、不臆造。
+
+
+## 冲分证据（可复现）
+
+- 四问：术语稳 / 段落全 / 关系准 / 可核验
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

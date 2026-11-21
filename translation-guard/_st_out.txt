@@ -1,0 +1,39 @@
+PASS T1 glossary candidates 
+PASS T2 manual terms locked 
+PASS T3 unlocked flagged 
+PASS T4 lock prompt built 
+PASS T5 lock constraint declared 
+PASS T6 consistent terms 
+PASS T7 inconsistent term detected 
+PASS T8 segment count 
+PASS T9 stable ids 
+PASS T10 caption kind preserved 
+PASS T11 align coverage 100% 
+PASS T12 missing segment detected 
+PASS T13 extra segment detected 
+PASS T14 continuation detected 
+PASS T15 number_unit protected 
+PASS T16 citation protected 
+PASS T17 chemical protected 
+PASS T18 formula protected 
+PASS T19 formula truncated 
+PASS T20 restore no issue 
+PASS T21 direct-preserve counted 
+PASS T22 number tamper detected 
+PASS T23 citation tamper detected 
+PASS T24 chemical tamper detected 
+PASS T25 restore catches tamper 
+PASS T26 positive verify clean 
+PASS T27 negation preserved 
+PASS T28 limitation preserved 
+PASS T29 evidence per paragraph 
+PASS T30 evidence has location+basis 
+PASS T31 glossary basis present 
+PASS T32 pipeline status 
+PASS T33 pipeline has all steps 
+PASS T34 summary present 
+PASS T35 compact drops pipeline 
+PASS T36 empty safe 
+PASS T37 no-translation flagged 
+
+TOTAL FAILURES: 0 []

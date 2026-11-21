@@ -1,0 +1,45 @@
+PASS T1 合法实体通过且落地原文 
+PASS T2 未出现的实体被标 not_grounded 
+PASS T3 非法实体类型被拒 
+PASS T4 伪PDF页码被拒 
+PASS T5 未知来源被拒 
+PASS T6 转述身份被区分 
+PASS T7 非法表述身份被拒 
+PASS T8 批量抽取计数正确 
+PASS T9 合法直接关系通过 
+PASS T10 共现不能当直接关系 
+PASS T11 综述转述不能当直接关系 
+PASS T12 非法关系类型被拒 
+PASS T13 悬空端点被拒 
+PASS T14 自环关系被拒 
+PASS T15 未声明适用条件有告警 
+PASS T16 跨篇关系未标注被拒 
+PASS T17 跨篇弱证据关系被拒 
+PASS T18 跨篇直接证据关系可通过 
+PASS T19 批量关系计数正确 
+PASS T20 同篇别名被合并 
+PASS T21 跨篇相同surface不合并 
+PASS T22 跨篇命中规则仍保留冲突 
+PASS T23 同名不同类型不合并 
+PASS T24 显式双篇别名规则可合并 
+PASS T25 来源绑定通过 
+PASS T26 原文短引不匹配被标记 
+PASS T27 来源绑定拒伪页码 
+PASS T28 三查询均执行 
+PASS T29 查询有答案且可回查 
+PASS T30 弱证据关系进unresolved 
+PASS T31 增量保留既有编号 
+PASS T32 增量同篇合并/跨篇保留冲突 
+PASS T33 增量新增节点与边 
+PASS T34 合规图谱导出通过 
+PASS T35 缺字段导出被检出 
+PASS T36 非法导出格式被检出 
+PASS T37 pipeline端到端ok ok
+PASS T38 pipeline含四问证据 
+PASS T39 pipeline图被构建 
+PASS T40 坏实体触发needs_attention 
+PASS TC1 对照benchmark可复现 
+PASS TC2 四问对照完整 
+
+42/42 通过
+全部通过 ✓

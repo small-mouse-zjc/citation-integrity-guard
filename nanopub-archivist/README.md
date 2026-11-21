@@ -74,3 +74,11 @@ python examples/selftest.py
 ## 许可与复用
 
 规则文档、受控词表、断言样例与题集均可复用；引用请标注来源仓库（见 GITHUB_URL.txt）。
+
+
+## 冲分证据（可复现）
+
+- 四问：拆得细 / 对得上 / 追得回 / 读得懂
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

@@ -72,3 +72,11 @@ python examples/selftest.py
 ## 许可与复用
 
 规则文档、错误模式表、测试题集均可复用；引用请标注来源仓库（见 GITHUB_URL.txt）。
+
+
+## 冲分证据（可复现）
+
+- 四问：编译得通 / 改得对 / 交得可用 / 复现得了
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

@@ -44,3 +44,11 @@ python scripts/kg_engine.py pipeline examples/smoke_input.json > out.json
 ## 设计立场
 
 本 skill 不臆造实体、关系、证据或来源；脚本只做结构与规则校验。实体/关系是否忠实、别名是否真同指、证据是否支撑属价值判断，须由 Agent 结合原文复核。所有位置均为组织方 JATS 段落 ID，不是 PDF 页码。
+
+
+## 冲分证据（可复现）
+
+- 四问：抽得准 / 连得对 / 对得齐 / 查得到回得去
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

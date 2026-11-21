@@ -112,3 +112,20 @@ python scripts/translation_guard.py --help
 - 本技能不替代模型翻译措辞，只保证术语锁定、段落对齐、事实保真与可核验；译文质量由人工最终确认。
 - 术语抽取是候选，译名须人工/模型确认后锁定；占位符保护覆盖数字单位/公式/引用/化学式，否定限定为"疑似"提示需人工判断。
 - 不联网、不臆造译文或术语译名；所有核验结论可回到原文段号。
+
+
+## 可复现证据与冲分材料
+
+本 Skill 针对四问（术语稳 / 段落全 / 关系准 / 可核验）配置了确定性检查机制，并提供可复现的公平对照证据：
+
+- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
+  ```bash
+  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
+  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
+  ```
+- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
+- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
+- `references/comparison_protocol.md`：公平对照协议与度量边界。
+- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
+
+创新边界摘要：`translation_guard.py` 把 "术语稳 / 段落全 / 关系准 / 可核验" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。

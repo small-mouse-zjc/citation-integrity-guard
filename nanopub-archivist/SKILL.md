@@ -119,3 +119,20 @@ python scripts/nanopub_engine.py pipeline input.json > result.json
 - `examples/`：最小调用示例与 23 项自验收（`python examples/selftest.py`）。
 
 本技能与 `citation-integrity`、`intro-gap-architect`、`methods-repro-guard`、`paper-note-archivist`、`latex-build-guard` 互补：分别管引用、引言、方法实验、阅读笔记、LaTeX 编译、纳米出版物，串联覆盖论文"读→写→核验→结构化"全流程。
+
+
+## 可复现证据与冲分材料
+
+本 Skill 针对四问（拆得细 / 对得上 / 追得回 / 读得懂）配置了确定性检查机制，并提供可复现的公平对照证据：
+
+- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
+  ```bash
+  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
+  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
+  ```
+- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
+- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
+- `references/comparison_protocol.md`：公平对照协议与度量边界。
+- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
+
+创新边界摘要：`nanopub_engine.py` 把 "拆得细 / 对得上 / 追得回 / 读得懂" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。

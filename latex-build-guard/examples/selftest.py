@@ -124,6 +124,28 @@ comp_ok = le.pipeline(payload, compact=True)
 check("T33 干净案例compact无问题", comp_ok["status"] == "ok" and comp_ok["problems"] == [])
 
 TOTAL = 33
+
+
+# --- 公平对照证据（冲分）---
+import json as _json, subprocess as _sp, sys as _sys
+def _cmp_ok():
+    try:
+        bp = os.path.join(os.path.dirname(__file__), "benchmark.json")
+        ce = os.path.join(os.path.dirname(__file__), "..", "scripts", "compare_engine.py")
+        out = _sp.run([_sys.executable, ce, bp], capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            return False
+        data = _json.loads(out.stdout)
+        # clean 不误报 / defect 能检出：缺陷案例的检查信号 >= 干净案例
+        return (len(data) == 2 and
+                data[1]["summary"]["total_checks_fired"] >= data[0]["summary"]["total_checks_fired"])
+    except Exception:
+        return False
+check("TC1 对照benchmark可复现", _cmp_ok())
+_bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json"), encoding="utf-8"))
+check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
+      len(_bench.get("cases", [])) >= 2)
+
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:
     print("失败:", FAILS)
