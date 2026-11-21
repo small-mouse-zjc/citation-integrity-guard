@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "name": "translation-guard 边界测试集",
+    "version": "1.0",
+    "note": "可复用回归题集。每题含输入与期望判定，覆盖术语稳/段落全/关系准/可核验四类陷阱。均为构造示例，非正式评测案例。",
+    "usage": "python scripts/translation_guard.py <command> <input>；或用 selftest.py 自动断言。"
+  },
+  "cases": [
+    {
+      "id": "G01_term_lock",
+      "focus": "术语稳",
+      "input": {"paragraphs": [{"id":"P1","text":"Carbonate reservoirs are important."},{"id":"P2","text":"We study carbonate reservoirs."}],
+                "glossary":[{"source":"Carbonate reservoirs","target":"碳酸盐岩储层"}]},
+      "expected": {"command": "build_glossary", "locked": true, "source": "Carbonate reservoirs"}
+    },
+    {
+      "id": "G02_term_inconsistency",
+      "focus": "术语稳",
+      "input": {"glossary":[{"source":"porosity","target":"孔隙度","variants":["孔隙率"]}],
+                "translations":{"P1":"孔隙度约为18%，孔隙率达到20%。"}},
+      "expected": {"command": "check_terms", "inconsistent": true}
+    },
+    {
+      "id": "G03_missing_segment",
+      "focus": "段落全",
+      "input": {"paragraphs":[{"id":"P1","text":"one"},{"id":"P2","text":"two"},{"id":"P3","text":"three"}],
+                "translations":{"P1":"一","P3":"三"}},
+      "expected": {"command": "align", "missing": ["P2"]}
+    },
+    {
+      "id": "G04_continuation",
+      "focus": "段落全",
+      "input": {"paragraphs":[{"id":"A","text":"The method improves the"},{"id":"B","text":"accuracy greatly."}]},
+      "expected": {"command": "segment", "continuation_detected": true}
+    },
+    {
+      "id": "G05_number_protect",
+      "focus": "关系准",
+      "input": {"paragraphs":[{"id":"P1","text":"Porosity is 18.5% and depth 2100 m."}]},
+      "expected": {"command": "protect", "tokens": ["18.5%", "2100 m"], "kind": "number_unit"}
+    },
+    {
+      "id": "G06_formula_protect",
+      "focus": "关系准",
+      "input": {"paragraphs":[{"id":"P1","text":"The loss L = - Σ p log q (1). Next section follows."}]},
+      "expected": {"command": "protect", "formula_not_cross_sentence": true}
+    },
+    {
+      "id": "G07_citation_chemical",
+      "focus": "关系准",
+      "input": {"paragraphs":[{"id":"P1","text":"CO2 flooding improves recovery [1]."}]},
+      "expected": {"command": "protect", "kinds": ["chemical", "citation"]}
+    },
+    {
+      "id": "G08_tamper_detected",
+      "focus": "关系准",
+      "input": {"paragraphs":[{"id":"P1","text":"Porosity is 18.5% [1]."}],
+                "translations":{"P1":"孔隙度约为25%。"}},
+      "expected": {"command": "verify", "consistent": false, "issue_types": ["number_lost","citation_lost"]}
+    },
+    {
+      "id": "G09_negation_lost",
+      "focus": "关系准",
+      "input": {"paragraphs":[{"id":"P1","text":"No significant difference was observed."}],
+                "translations":{"P1":"观察到显著差异。"}},
+      "expected": {"command": "verify", "issue": "negation_maybe_lost"}
+    },
+    {
+      "id": "G10_evidence",
+      "focus": "可核验",
+      "input": {"paragraphs":[{"id":"P1","section":"Abstract","text":"Carbonate facies are complex."}],
+                "glossary":[{"source":"Carbonate facies","target":"碳酸盐岩相"}],
+                "translations":{"P1":"碳酸盐岩相很复杂。"}},
+      "expected": {"command": "evidence", "has_location": true, "has_glossary_basis": true}
+    }
+  ]
+}

@@ -1,0 +1,760 @@
+{
+  "case_id": "translation-demo",
+  "status": "partial",
+  "has_translations": true,
+  "pipeline": {
+    "segment": {
+      "status": "success",
+      "segments": [
+        {
+          "id": "P1",
+          "index": 1,
+          "section": "Abstract",
+          "kind": "body",
+          "page": 1,
+          "text": "Carbonate reservoirs are not always homogeneous. The porosity is approximately 18.5% and the permeability reaches 120 mD [1]. We propose a new method for CO2 flooding.",
+          "char_count": 167
+        },
+        {
+          "id": "P2",
+          "index": 2,
+          "section": "2 Methods",
+          "kind": "body",
+          "page": 1,
+          "text": "The loss function is L = - Σ p log(q) (1). Only three basins were studied, and no significant difference was observed.",
+          "char_count": 118
+        },
+        {
+          "id": "P3",
+          "index": 3,
+          "section": "Figures",
+          "kind": "caption",
+          "page": 2,
+          "text": "Figure 1. Workflow of carbonate facies classification using CNN.",
+          "char_count": 64
+        },
+        {
+          "id": "P4",
+          "index": 4,
+          "section": "3 Results",
+          "kind": "body",
+          "page": 2,
+          "text": "Carbonate reservoirs in three basins were analyzed. The model achieved high accuracy.",
+          "char_count": 85
+        }
+      ],
+      "duplicates": [],
+      "continuations": [],
+      "stats": {
+        "segment_count": 4,
+        "duplicate_count": 0,
+        "continuation_count": 0
+      }
+    },
+    "glossary": {
+      "status": "partial",
+      "glossary": [
+        {
+          "source": "Carbonate reservoirs",
+          "target": "",
+          "scope": "global",
+          "frequency": 2,
+          "paragraphs": [
+            "P1",
+            "P4"
+          ],
+          "locked": false
+        },
+        {
+          "source": "Carbonate reservoirs",
+          "target": "碳酸盐岩储层",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        },
+        {
+          "source": "porosity",
+          "target": "孔隙度",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        },
+        {
+          "source": "permeability",
+          "target": "渗透率",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        },
+        {
+          "source": "loss function",
+          "target": "损失函数",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        },
+        {
+          "source": "CO2 flooding",
+          "target": "CO2驱替",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        },
+        {
+          "source": "CNN",
+          "target": "卷积神经网络",
+          "scope": "global",
+          "frequency": 0,
+          "paragraphs": [],
+          "locked": true
+        }
+      ],
+      "needs_review": [
+        "Carbonate reservoirs"
+      ],
+      "stats": {
+        "candidate_count": 7,
+        "locked_count": 6,
+        "unlocked_count": 1
+      },
+      "note": "候选术语需人工确认译名后写入 glossary.target；未锁定的不强制替换。"
+    },
+    "lock": {
+      "status": "success",
+      "lock_prompt": "【术语锁定表（强制）】\n- Carbonate reservoirs → 碳酸盐岩储层 (scope=global)\n- porosity → 孔隙度 (scope=global)\n- permeability → 渗透率 (scope=global)\n- loss function → 损失函数 (scope=global)\n- CO2 flooding → CO2驱替 (scope=global)\n- CNN → 卷积神经网络 (scope=global)\n\n【约束】\n1. 术语表内每个源术语必须全程使用指定译名，不得同义替换。\n2. 数字、单位、公式、文献编号、化学式按原样保留（由占位符保护）。\n3. 标题、摘要、正文、图注、结论中出现同一术语时译名一致。",
+      "locked_terms": [
+        {
+          "source": "Carbonate reservoirs",
+          "target": "碳酸盐岩储层"
+        },
+        {
+          "source": "porosity",
+          "target": "孔隙度"
+        },
+        {
+          "source": "permeability",
+          "target": "渗透率"
+        },
+        {
+          "source": "loss function",
+          "target": "损失函数"
+        },
+        {
+          "source": "CO2 flooding",
+          "target": "CO2驱替"
+        },
+        {
+          "source": "CNN",
+          "target": "卷积神经网络"
+        }
+      ],
+      "stats": {
+        "locked_count": 6,
+        "total_glossary": 6
+      }
+    },
+    "protect": {
+      "status": "success",
+      "protected": [
+        {
+          "id": "P1",
+          "protected_text": "Carbonate reservoirs are not always homogeneous. The porosity is approximately ⟦P1_002⟧ and the permeability reaches ⟦P1_003⟧ ⟦P1_001⟧. We propose a new method for ⟦P1_000⟧ flooding.",
+          "tokens": [
+            {
+              "placeholder": "⟦P1_000⟧",
+              "kind": "chemical",
+              "raw": "CO2"
+            },
+            {
+              "placeholder": "⟦P1_001⟧",
+              "kind": "citation",
+              "raw": "[1]"
+            },
+            {
+              "placeholder": "⟦P1_002⟧",
+              "kind": "number_unit",
+              "raw": "18.5%"
+            },
+            {
+              "placeholder": "⟦P1_003⟧",
+              "kind": "number_unit",
+              "raw": "120 mD"
+            }
+          ]
+        },
+        {
+          "id": "P2",
+          "protected_text": "The loss function is ⟦P2_000⟧. Only three basins were studied, and no significant difference was observed.",
+          "tokens": [
+            {
+              "placeholder": "⟦P2_000⟧",
+              "kind": "formula",
+              "raw": "L = - Σ p log(q) (1)"
+            }
+          ]
+        },
+        {
+          "id": "P3",
+          "protected_text": "Figure 1. Workflow of carbonate facies classification using CNN.",
+          "tokens": []
+        },
+        {
+          "id": "P4",
+          "protected_text": "Carbonate reservoirs in three basins were analyzed. The model achieved high accuracy.",
+          "tokens": []
+        }
+      ],
+      "instruction": "把 protected_text 交给模型翻译；占位符 ⟦...⟧ 必须原样保留，不得翻译或改写。",
+      "stats": {
+        "paragraphs": 4,
+        "tokens": 5,
+        "by_kind": {
+          "chemical": 1,
+          "citation": 1,
+          "number_unit": 2,
+          "formula": 1
+        }
+      }
+    },
+    "restore": {
+      "status": "success",
+      "restored": {
+        "P1": "碳酸盐岩储层并非总是均质的。孔隙度约为 18.5%，渗透率达到 120 mD [1]。我们提出了一种新的 CO2驱替 方法。",
+        "P2": "损失函数为 L = - Σ p log(q) (1)。仅研究了三个盆地，未观察到显著差异。",
+        "P3": "图 1. 使用 卷积神经网络 进行碳酸盐岩相分类的工作流程。",
+        "P4": "分析了三个盆地的碳酸盐岩储层。该模型取得了较高精度。"
+      },
+      "problems": [],
+      "preserved_direct": [
+        "CO2",
+        "[1]",
+        "18.5%",
+        "120 mD",
+        "L = - Σ p log(q) (1)"
+      ],
+      "stats": {
+        "paragraphs": 4,
+        "issues": 0,
+        "preserved_direct_count": 5
+      }
+    },
+    "align": {
+      "status": "success",
+      "aligned": [
+        {
+          "id": "P1",
+          "translated": true
+        },
+        {
+          "id": "P2",
+          "translated": true
+        },
+        {
+          "id": "P3",
+          "translated": true
+        },
+        {
+          "id": "P4",
+          "translated": true
+        }
+      ],
+      "missing": [],
+      "extra": [],
+      "out_of_order_count": 0,
+      "problems": [],
+      "stats": {
+        "source_segments": 4,
+        "translated": 4,
+        "coverage": 1.0
+      }
+    },
+    "check_terms": {
+      "status": "success",
+      "issues": [],
+      "unused_locked_terms": [],
+      "term_usage": {
+        "Carbonate reservoirs": {
+          "碳酸盐岩储层": [
+            "P1",
+            "P4"
+          ]
+        },
+        "porosity": {
+          "孔隙度": [
+            "P1"
+          ]
+        },
+        "permeability": {
+          "渗透率": [
+            "P1"
+          ]
+        },
+        "loss function": {
+          "损失函数": [
+            "P2"
+          ]
+        },
+        "CO2 flooding": {
+          "CO2驱替": [
+            "P1"
+          ]
+        },
+        "CNN": {
+          "卷积神经网络": [
+            "P3"
+          ]
+        }
+      },
+      "stats": {
+        "inconsistent_count": 0,
+        "unused_count": 0
+      }
+    },
+    "verify": {
+      "status": "success",
+      "consistent": true,
+      "per_paragraph": [
+        {
+          "id": "P1",
+          "checks": {
+            "numbers": {
+              "source_count": 4,
+              "kept": true,
+              "missing": []
+            },
+            "citations": {
+              "kept": true,
+              "missing": []
+            },
+            "negation": {
+              "source": [
+                "not"
+              ],
+              "in_translation": [
+                "非",
+                "并非"
+              ],
+              "kept": true
+            },
+            "limitation": {
+              "source": [
+                "approximately"
+              ],
+              "in_translation": [
+                "约"
+              ],
+              "kept": true
+            },
+            "chemicals": {
+              "kept": true,
+              "missing": []
+            }
+          }
+        },
+        {
+          "id": "P2",
+          "checks": {
+            "numbers": {
+              "source_count": 1,
+              "kept": true,
+              "missing": []
+            },
+            "citations": {
+              "kept": true,
+              "missing": []
+            },
+            "negation": {
+              "source": [
+                "no"
+              ],
+              "in_translation": [
+                "未"
+              ],
+              "kept": true
+            },
+            "limitation": {
+              "source": [
+                "only"
+              ],
+              "in_translation": [
+                "仅",
+                "显著"
+              ],
+              "kept": true
+            },
+            "chemicals": {
+              "kept": true,
+              "missing": []
+            }
+          }
+        },
+        {
+          "id": "P3",
+          "checks": {
+            "numbers": {
+              "source_count": 1,
+              "kept": true,
+              "missing": []
+            },
+            "citations": {
+              "kept": true,
+              "missing": []
+            },
+            "negation": {
+              "source": [],
+              "in_translation": [],
+              "kept": true
+            },
+            "limitation": {
+              "source": [],
+              "in_translation": [],
+              "kept": true
+            },
+            "chemicals": {
+              "kept": true,
+              "missing": []
+            }
+          }
+        },
+        {
+          "id": "P4",
+          "checks": {
+            "numbers": {
+              "source_count": 0,
+              "kept": true,
+              "missing": []
+            },
+            "citations": {
+              "kept": true,
+              "missing": []
+            },
+            "negation": {
+              "source": [],
+              "in_translation": [],
+              "kept": true
+            },
+            "limitation": {
+              "source": [],
+              "in_translation": [],
+              "kept": true
+            },
+            "chemicals": {
+              "kept": true,
+              "missing": []
+            }
+          }
+        }
+      ],
+      "issues": [],
+      "needs_review": [],
+      "stats": {
+        "paragraphs": 4,
+        "issue_count": 0,
+        "needs_review_count": 0
+      },
+      "note": "数字/引用/化学式丢失为硬错误；否定/限定词为'疑似丢失'，需人工确认。"
+    },
+    "evidence": {
+      "status": "success",
+      "evidence": [
+        {
+          "id": "P1",
+          "source_location": {
+            "section": "Abstract",
+            "page": 1,
+            "paragraph_id": "P1"
+          },
+          "source_head": "Carbonate reservoirs are not always homogeneous. The porosit",
+          "translation_head": "碳酸盐岩储层并非总是均质的。孔隙度约为 18.5%，渗透率达到 120 mD [1]。我们提出了一种新的 CO2驱替 方",
+          "basis": [
+            {
+              "type": "glossary",
+              "source": "Carbonate reservoirs",
+              "target": "碳酸盐岩储层"
+            },
+            {
+              "type": "glossary",
+              "source": "porosity",
+              "target": "孔隙度"
+            },
+            {
+              "type": "glossary",
+              "source": "permeability",
+              "target": "渗透率"
+            },
+            {
+              "type": "glossary",
+              "source": "CO2 flooding",
+              "target": "CO2驱替"
+            },
+            {
+              "type": "protected:chemical",
+              "raw": "CO2"
+            },
+            {
+              "type": "protected:citation",
+              "raw": "[1]"
+            },
+            {
+              "type": "protected:number_unit",
+              "raw": "18.5%"
+            },
+            {
+              "type": "protected:number_unit",
+              "raw": "120 mD"
+            }
+          ],
+          "translated": true,
+          "needs_review": false
+        },
+        {
+          "id": "P2",
+          "source_location": {
+            "section": "2 Methods",
+            "page": 1,
+            "paragraph_id": "P2"
+          },
+          "source_head": "The loss function is L = - Σ p log(q) (1). Only three basins",
+          "translation_head": "损失函数为 L = - Σ p log(q) (1)。仅研究了三个盆地，未观察到显著差异。",
+          "basis": [
+            {
+              "type": "glossary",
+              "source": "loss function",
+              "target": "损失函数"
+            },
+            {
+              "type": "protected:formula",
+              "raw": "L = - Σ p log(q) (1)"
+            }
+          ],
+          "translated": true,
+          "needs_review": false
+        },
+        {
+          "id": "P3",
+          "source_location": {
+            "section": "Figures",
+            "page": 2,
+            "paragraph_id": "P3"
+          },
+          "source_head": "Figure 1. Workflow of carbonate facies classification using ",
+          "translation_head": "图 1. 使用 卷积神经网络 进行碳酸盐岩相分类的工作流程。",
+          "basis": [
+            {
+              "type": "glossary",
+              "source": "CNN",
+              "target": "卷积神经网络"
+            }
+          ],
+          "translated": true,
+          "needs_review": false
+        },
+        {
+          "id": "P4",
+          "source_location": {
+            "section": "3 Results",
+            "page": 2,
+            "paragraph_id": "P4"
+          },
+          "source_head": "Carbonate reservoirs in three basins were analyzed. The mode",
+          "translation_head": "分析了三个盆地的碳酸盐岩储层。该模型取得了较高精度。",
+          "basis": [
+            {
+              "type": "glossary",
+              "source": "Carbonate reservoirs",
+              "target": "碳酸盐岩储层"
+            }
+          ],
+          "translated": true,
+          "needs_review": false
+        }
+      ],
+      "stats": {
+        "paragraphs": 4,
+        "with_basis": 4
+      }
+    }
+  },
+  "result": {
+    "segment_count": 4,
+    "glossary_locked": 6,
+    "protected_tokens": 5,
+    "restore_issues": 0,
+    "aligned_coverage": 1.0,
+    "term_inconsistencies": 0,
+    "verification": {
+      "consistent": true,
+      "issues": [],
+      "needs_review": []
+    },
+    "evidence_index": [
+      {
+        "id": "P1",
+        "source_location": {
+          "section": "Abstract",
+          "page": 1,
+          "paragraph_id": "P1"
+        },
+        "source_head": "Carbonate reservoirs are not always homogeneous. The porosit",
+        "translation_head": "碳酸盐岩储层并非总是均质的。孔隙度约为 18.5%，渗透率达到 120 mD [1]。我们提出了一种新的 CO2驱替 方",
+        "basis": [
+          {
+            "type": "glossary",
+            "source": "Carbonate reservoirs",
+            "target": "碳酸盐岩储层"
+          },
+          {
+            "type": "glossary",
+            "source": "porosity",
+            "target": "孔隙度"
+          },
+          {
+            "type": "glossary",
+            "source": "permeability",
+            "target": "渗透率"
+          },
+          {
+            "type": "glossary",
+            "source": "CO2 flooding",
+            "target": "CO2驱替"
+          },
+          {
+            "type": "protected:chemical",
+            "raw": "CO2"
+          },
+          {
+            "type": "protected:citation",
+            "raw": "[1]"
+          },
+          {
+            "type": "protected:number_unit",
+            "raw": "18.5%"
+          },
+          {
+            "type": "protected:number_unit",
+            "raw": "120 mD"
+          }
+        ],
+        "translated": true,
+        "needs_review": false
+      },
+      {
+        "id": "P2",
+        "source_location": {
+          "section": "2 Methods",
+          "page": 1,
+          "paragraph_id": "P2"
+        },
+        "source_head": "The loss function is L = - Σ p log(q) (1). Only three basins",
+        "translation_head": "损失函数为 L = - Σ p log(q) (1)。仅研究了三个盆地，未观察到显著差异。",
+        "basis": [
+          {
+            "type": "glossary",
+            "source": "loss function",
+            "target": "损失函数"
+          },
+          {
+            "type": "protected:formula",
+            "raw": "L = - Σ p log(q) (1)"
+          }
+        ],
+        "translated": true,
+        "needs_review": false
+      },
+      {
+        "id": "P3",
+        "source_location": {
+          "section": "Figures",
+          "page": 2,
+          "paragraph_id": "P3"
+        },
+        "source_head": "Figure 1. Workflow of carbonate facies classification using ",
+        "translation_head": "图 1. 使用 卷积神经网络 进行碳酸盐岩相分类的工作流程。",
+        "basis": [
+          {
+            "type": "glossary",
+            "source": "CNN",
+            "target": "卷积神经网络"
+          }
+        ],
+        "translated": true,
+        "needs_review": false
+      },
+      {
+        "id": "P4",
+        "source_location": {
+          "section": "3 Results",
+          "page": 2,
+          "paragraph_id": "P4"
+        },
+        "source_head": "Carbonate reservoirs in three basins were analyzed. The mode",
+        "translation_head": "分析了三个盆地的碳酸盐岩储层。该模型取得了较高精度。",
+        "basis": [
+          {
+            "type": "glossary",
+            "source": "Carbonate reservoirs",
+            "target": "碳酸盐岩储层"
+          }
+        ],
+        "translated": true,
+        "needs_review": false
+      }
+    ],
+    "lock_prompt": "【术语锁定表（强制）】\n- Carbonate reservoirs → 碳酸盐岩储层 (scope=global)\n- porosity → 孔隙度 (scope=global)\n- permeability → 渗透率 (scope=global)\n- loss function → 损失函数 (scope=global)\n- CO2 flooding → CO2驱替 (scope=global)\n- CNN → 卷积神经网络 (scope=global)\n\n【约束】\n1. 术语表内每个源术语必须全程使用指定译名，不得同义替换。\n2. 数字、单位、公式、文献编号、化学式按原样保留（由占位符保护）。\n3. 标题、摘要、正文、图注、结论中出现同一术语时译名一致。",
+    "protected_for_translation": [
+      {
+        "id": "P1",
+        "protected_text": "Carbonate reservoirs are not always homogeneous. The porosity is approximately ⟦P1_002⟧ and the permeability reaches ⟦P1_003⟧ ⟦P1_001⟧. We propose a new method for ⟦P1_000⟧ flooding.",
+        "tokens": [
+          {
+            "placeholder": "⟦P1_000⟧",
+            "kind": "chemical",
+            "raw": "CO2"
+          },
+          {
+            "placeholder": "⟦P1_001⟧",
+            "kind": "citation",
+            "raw": "[1]"
+          },
+          {
+            "placeholder": "⟦P1_002⟧",
+            "kind": "number_unit",
+            "raw": "18.5%"
+          },
+          {
+            "placeholder": "⟦P1_003⟧",
+            "kind": "number_unit",
+            "raw": "120 mD"
+          }
+        ]
+      },
+      {
+        "id": "P2",
+        "protected_text": "The loss function is ⟦P2_000⟧. Only three basins were studied, and no significant difference was observed.",
+        "tokens": [
+          {
+            "placeholder": "⟦P2_000⟧",
+            "kind": "formula",
+            "raw": "L = - Σ p log(q) (1)"
+          }
+        ]
+      },
+      {
+        "id": "P3",
+        "protected_text": "Figure 1. Workflow of carbonate facies classification using CNN.",
+        "tokens": []
+      },
+      {
+        "id": "P4",
+        "protected_text": "Carbonate reservoirs in three basins were analyzed. The model achieved high accuracy.",
+        "tokens": []
+      }
+    ],
+    "summary": "段 4；术语锁定 6/7；保护元素 5（公式1/引用1/数字2）；译文覆盖 100%；核验问题 0（待确认0）"
+  }
+}
