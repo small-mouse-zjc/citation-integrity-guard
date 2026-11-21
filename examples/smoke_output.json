@@ -1,5 +1,5 @@
 {
-  "case_id": "smoke-test",
+  "case_id": "smoke-demo",
   "status": "partial",
   "pipeline": {
     "normalize": {
@@ -7,6 +7,7 @@
       "entries": [
         {
           "id": "wang2020",
+          "old_number": 1,
           "authors": [
             "Wang, J.",
             "Li, H."
@@ -27,6 +28,7 @@
         },
         {
           "id": "zhang2019",
+          "old_number": 2,
           "authors": [
             "Zhang, M.",
             "Chen, Y."
@@ -44,6 +46,7 @@
         },
         {
           "id": "smith2021",
+          "old_number": 3,
           "authors": [
             "Smith, A. B."
           ],
@@ -74,7 +77,7 @@
       }
     },
     "renumber": {
-      "status": "partial",
+      "status": "success",
       "mapping": {
         "wang2020": 1,
         "zhang2019": 2,
@@ -83,6 +86,7 @@
       "entries": [
         {
           "id": "wang2020",
+          "old_number": 1,
           "authors": [
             "Wang, J.",
             "Li, H."
@@ -103,6 +107,7 @@
         },
         {
           "id": "zhang2019",
+          "old_number": 2,
           "authors": [
             "Zhang, M.",
             "Chen, Y."
@@ -120,6 +125,7 @@
         },
         {
           "id": "smith2021",
+          "old_number": 3,
           "authors": [
             "Smith, A. B."
           ],
@@ -141,69 +147,57 @@
         {
           "line": 1,
           "token": "[2]",
-          "eids": [],
-          "unresolved_numbers": [
+          "eids": [
+            "zhang2019"
+          ],
+          "kind": "num",
+          "unresolved_numbers": [],
+          "new_numbers": [
             2
-          ]
+          ],
+          "rewritten_token": "[2]"
         },
         {
           "line": 1,
           "token": "[3]",
-          "eids": [],
-          "unresolved_numbers": [
+          "eids": [
+            "smith2021"
+          ],
+          "kind": "num",
+          "unresolved_numbers": [],
+          "new_numbers": [
             3
-          ]
+          ],
+          "rewritten_token": "[3]"
         },
         {
           "line": 1,
-          "token": "[1,3]",
-          "eids": [],
-          "unresolved_numbers": [
-            1,
-            3
-          ]
-        },
-        {
-          "line": 1,
-          "token": "[2]",
-          "eids": [],
-          "unresolved_numbers": [
-            2
-          ]
+          "token": "[@wang2020]",
+          "eids": [
+            "wang2020"
+          ],
+          "kind": "at",
+          "unresolved_numbers": [],
+          "new_numbers": [
+            1
+          ],
+          "rewritten_token": "[1]"
         }
       ],
-      "unresolved": [
-        {
-          "line": 1,
-          "token": "[2]",
-          "number": 2
-        },
-        {
-          "line": 1,
-          "token": "[3]",
-          "number": 3
-        },
-        {
-          "line": 1,
-          "token": "[1,3]",
-          "number": 1
-        },
-        {
-          "line": 1,
-          "token": "[1,3]",
-          "number": 3
-        },
-        {
-          "line": 1,
-          "token": "[2]",
-          "number": 2
-        }
-      ],
+      "unresolved": [],
       "stats": {
         "total_entries": 3,
         "cited_entries": 3,
-        "unresolved_refs": 5
-      }
+        "unresolved_refs": 0
+      },
+      "rewritten_manuscript": "Biomarkers constrain gas origin [2]. CO2 injection alters phase behavior [1]. A broad review exists [3]. The measured porosity reached 18.5% with high accuracy. Results are summarized in Table 1.",
+      "rewrite_changes": [
+        {
+          "line": 1,
+          "from": "[@wang2020]",
+          "to": "[1]"
+        }
+      ]
     },
     "format": {
       "status": "success",
@@ -216,10 +210,9 @@
       "standard": "GB/T 7714-2015 (顺序编码制)"
     },
     "verify": {
-      "status": "success",
-      "consistent": true,
+      "status": "partial",
+      "consistent": false,
       "cited_numbers": [
-        1,
         2,
         3
       ],
@@ -229,10 +222,168 @@
         3
       ],
       "dangling_citations": [],
-      "uncited_entries": [],
+      "uncited_entries": [
+        1
+      ],
       "duplicate_numbers": [],
       "numbering_gaps": [],
-      "problems": []
+      "first_appearance_order": [
+        2,
+        3
+      ],
+      "order_violations": [],
+      "problems": [
+        "未被引用：文末条目未在正文出现 [1]"
+      ]
+    },
+    "place": {
+      "status": "partial",
+      "sentences": [
+        {
+          "line": 1,
+          "sentence": "Biomarkers constrain gas origin [2].",
+          "needs_citation": false,
+          "has_citation": true,
+          "signals": [],
+          "has_numeric": false,
+          "placement": "covered",
+          "candidates": [],
+          "needs_review": false
+        },
+        {
+          "line": 1,
+          "sentence": "CO2 injection alters phase behavior [@wang2020].",
+          "needs_citation": false,
+          "has_citation": true,
+          "signals": [],
+          "has_numeric": false,
+          "placement": "covered",
+          "candidates": [],
+          "needs_review": false
+        },
+        {
+          "line": 1,
+          "sentence": "A broad review exists [3].",
+          "needs_citation": false,
+          "has_citation": true,
+          "signals": [],
+          "has_numeric": false,
+          "placement": "covered",
+          "candidates": [],
+          "needs_review": false
+        },
+        {
+          "line": 1,
+          "sentence": "The measured porosity reached 18.5% with high accuracy.",
+          "needs_citation": true,
+          "has_citation": false,
+          "signals": [],
+          "has_numeric": true,
+          "placement": "inline_after_claim",
+          "candidates": [],
+          "needs_review": true
+        },
+        {
+          "line": 1,
+          "sentence": "Results are summarized in Table 1.",
+          "needs_citation": false,
+          "has_citation": false,
+          "signals": [],
+          "has_numeric": false,
+          "placement": "none",
+          "candidates": [],
+          "needs_review": false
+        }
+      ],
+      "stats": {
+        "sentence_count": 5,
+        "needs_citation": 1,
+        "already_covered": 3,
+        "citation_gaps": 1
+      },
+      "advice": "发现 1 个论断句缺来源支撑；建议把段末集中引用拆分到各论断句后，并逐条核对候选文献是否真正支撑（候选基于主题词重叠，仅供定位，不作最终判断）。"
+    },
+    "claims": {
+      "status": "partial",
+      "metadata_anomalies": [
+        {
+          "type": "source_missing",
+          "index": 2,
+          "detail": "期刊/会议/出版者均为空，难以核验出处"
+        }
+      ],
+      "claim_results": [
+        {
+          "index": 0,
+          "text": "Biomarkers constrain gas origin [2].",
+          "cite_ids": [
+            "zhang2019"
+          ],
+          "findings": [],
+          "topic_scores": [
+            {
+              "cite_id": "zhang2019",
+              "overlap": 1,
+              "score": 0.25,
+              "verdict": "review",
+              "shared_terms": [
+                "gas"
+              ]
+            }
+          ],
+          "needs_review": false
+        },
+        {
+          "index": 1,
+          "text": "CO2 injection alters phase behavior [@wang2020].",
+          "cite_ids": [
+            "wang2020"
+          ],
+          "findings": [],
+          "topic_scores": [
+            {
+              "cite_id": "wang2020",
+              "overlap": 3,
+              "score": 0.5,
+              "verdict": "plausible",
+              "shared_terms": [
+                "behavior",
+                "co2",
+                "phase"
+              ]
+            }
+          ],
+          "needs_review": false
+        },
+        {
+          "index": 2,
+          "text": "A broad review exists [3].",
+          "cite_ids": [
+            "smith2021"
+          ],
+          "findings": [],
+          "topic_scores": [
+            {
+              "cite_id": "smith2021",
+              "overlap": 1,
+              "score": 0.333,
+              "verdict": "review",
+              "shared_terms": [
+                "review"
+              ]
+            }
+          ],
+          "needs_review": false
+        }
+      ],
+      "suspicious_claims": [],
+      "stats": {
+        "entries_checked": 3,
+        "metadata_anomaly_count": 1,
+        "claims_checked": 3,
+        "suspicious_claim_count": 0
+      },
+      "note": "确定性预筛只给线索，不判『编造』；请人工/模型重点复核 suspicious 项，其余可按 plausible/review 分档抽查，从而把逐句 O(n) 判断降到 O(可疑)。"
     }
   },
   "result": {
@@ -246,9 +397,42 @@
       "zhang2019": 2,
       "smith2021": 3
     },
+    "editable_manuscript": "Biomarkers constrain gas origin [2]. CO2 injection alters phase behavior [1]. A broad review exists [3]. The measured porosity reached 18.5% with high accuracy. Results are summarized in Table 1.",
     "consistency": {
-      "consistent": true,
-      "problems": []
+      "consistent": false,
+      "problems": [
+        "未被引用：文末条目未在正文出现 [1]"
+      ],
+      "order_violations": []
+    },
+    "citation_placement": {
+      "stats": {
+        "sentence_count": 5,
+        "needs_citation": 1,
+        "already_covered": 3,
+        "citation_gaps": 1
+      },
+      "advice": "发现 1 个论断句缺来源支撑；建议把段末集中引用拆分到各论断句后，并逐条核对候选文献是否真正支撑（候选基于主题词重叠，仅供定位，不作最终判断）。",
+      "gaps": [
+        "The measured porosity reached 18.5% with high accuracy."
+      ]
+    },
+    "claim_check": {
+      "stats": {
+        "entries_checked": 3,
+        "metadata_anomaly_count": 1,
+        "claims_checked": 3,
+        "suspicious_claim_count": 0
+      },
+      "suspicious_claims": [],
+      "metadata_anomalies": [
+        {
+          "type": "source_missing",
+          "index": 2,
+          "detail": "期刊/会议/出版者均为空，难以核验出处"
+        }
+      ],
+      "note": "确定性预筛只给线索，不判『编造』；请人工/模型重点复核 suspicious 项，其余可按 plausible/review 分档抽查，从而把逐句 O(n) 判断降到 O(可疑)。"
     },
     "evidence": {
       "dedup_decisions": [
@@ -261,33 +445,77 @@
         }
       ],
       "dedup_issues": [],
-      "unresolved_citations": [
+      "unresolved_citations": [],
+      "rewrite_changes": [
         {
           "line": 1,
-          "token": "[2]",
-          "number": 2
-        },
-        {
-          "line": 1,
-          "token": "[3]",
-          "number": 3
-        },
-        {
-          "line": 1,
-          "token": "[1,3]",
-          "number": 1
-        },
-        {
-          "line": 1,
-          "token": "[1,3]",
-          "number": 3
-        },
-        {
-          "line": 1,
-          "token": "[2]",
-          "number": 2
+          "from": "[@wang2020]",
+          "to": "[1]"
         }
       ]
+    },
+    "summary": "去重：4→3 条（合并 1）；编号：3 条，悬空 0、未引 1、连续=是；一致性：有问题；落点：缺引论断句 1；论断：元数据异常 1、可疑论断 0"
+  },
+  "comparison": {
+    "status": "success",
+    "before": {
+      "dangling": 2,
+      "uncited": 2,
+      "duplicates": 0,
+      "gaps": 0,
+      "consistent": false,
+      "order_violations": 0
+    },
+    "after": {
+      "dangling": 0,
+      "uncited": 1,
+      "duplicates": 0,
+      "gaps": 0,
+      "consistent": false,
+      "order_violations": 0
+    },
+    "diffs": [
+      {
+        "metric": "dangling",
+        "before": 2,
+        "after": 0,
+        "delta": -2,
+        "verdict": "improved"
+      },
+      {
+        "metric": "uncited",
+        "before": 2,
+        "after": 1,
+        "delta": -1,
+        "verdict": "improved"
+      },
+      {
+        "metric": "duplicates",
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "verdict": "unchanged"
+      },
+      {
+        "metric": "gaps",
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "verdict": "unchanged"
+      },
+      {
+        "metric": "order_violations",
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "verdict": "unchanged"
+      }
+    ],
+    "summary": {
+      "improved_metrics": 2,
+      "consistent_before": false,
+      "consistent_after": false,
+      "verdict": "增益可验证：修复后问题项减少"
     }
   }
 }

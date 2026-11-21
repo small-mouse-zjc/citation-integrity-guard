@@ -10,19 +10,23 @@
 citation-integrity/
   SKILL.md                          # 技能本体（含 YAML frontmatter）
   README.md                         # 本文件
-  GITHUB_URL.txt                    # 作品公开链接（提交前填写）
+  GITHUB_URL.txt                    # 作品公开链接
   scripts/
-    citation_engine.py              # 确定性处理引擎（纯标准库）
+    citation_engine.py              # 确定性处理引擎（9 子命令，纯标准库）
   references/
     dedup_rules.md                  # 去重判据与置信度表
     format_gb7714.md                # GB/T 7714—2015 映射规则
+    apa_mapping.md                  # APA 7th 扩展映射（规范可扩展证据）
     output_contract.md              # 输出字段契约
     verification_checklist.md       # 来源与论断核验清单
+    failure_patterns.md             # 10 类失败模式案例（可分享经验）
+    vocab.md                        # 可复用词表（预印本前缀/字段别名/类型标识/信号词）
   examples/
     minimal_example.md              # 最小调用示例
     smoke_input.json                # 示例输入
     smoke_output.json               # 示例输出（标注为示例，非正式案例结果）
-    selftest.py                     # 14 项自验收测试（覆盖率证据）
+    testset.json                    # 14 道边界回归测试题集（可复用）
+    selftest.py                     # 33 项自验收测试（覆盖率证据）
 ```
 
 ## 快速开始
@@ -37,19 +41,29 @@ python scripts/citation_engine.py pipeline examples/smoke_input.json
 
 | 动作 | 对应题面关注点 | 命令 |
 |------|----------------|------|
-| 文献去重与条目归并 | 收得净 | `normalize` |
-| 正文—文末编号连锁更新 | 编得顺 | `renumber` |
-| 格式转换（GB/T 7714—2015） | 对得上 | `format` |
-| 双向一致性核验 | 编得顺 | `verify` |
-| 引用位置/论断匹配核验 | 挂得对 / 对得上 | 见核验清单（模型判断 + 证据） |
+| 文献库原文解析（BibTeX/RIS/CNKI） | 格式转换/省请求 | `ingest` |
+| 文献去重与条目归并（含预印本线索标注） | 收得净 | `normalize` |
+| 编号连锁更新 + 可编辑正文改写 | 编得顺 | `renumber` |
+| 格式转换（GB/T 7714—2015，附 APA 扩展） | 格式转换 | `format --standard apa` |
+| 双向一致性 + 首次出现顺序核验 | 编得顺 | `verify` |
+| 引用落点定位（需引论断句 + 候选） | 挂得对 | `place` |
+| 论断核验预筛（元数据/编造线索/主题错配） | 对得上 | `claims` |
+| 修复前后逐项对照 | 增益可验证 | `compare` |
+| 全流程 + 紧凑摘要省 token | 全部/额度 | `pipeline [--compact]` |
 
 ## 设计亮点（相对基础 Agent 的增益来源）
 
-1. **可解释去重**：四级判据 + 置信度 + 人类可读证据，低置信疑似重复交人工确认，避免误并。
-2. **编号闭包校验**：按正文首次出现重排，双向检查悬空引用与未引用条目，保证编号连续。
-3. **确定性格式**：GB/T 7714 渲染规则固定，避免模型格式漂移。
-4. **诚实边界**：字段缺失、DOI 失败、版本歧义一律标注，不编造文献或元数据。
-5. **纯标准库可复用**：无网络、无依赖、带示例，他人可直接用于自己的稿件与学科。
+1. **四问全覆盖**：从原来缺"挂得对/对得上"两问，到 `place`+`claims` 落地确定性预筛，逐句判断降为可疑项复核。
+2. **可解释去重**：四级判据 + 置信度 + 人类可读证据；version_variant 等疑似重复进 `needs_review`，避免静默丢失与误并。
+3. **可编辑交付**：`renumber` 输出 `rewritten_manuscript` 与逐条 `rewrite_changes`，稿件可直接继续编辑。
+4. **确定性格式**：GB/T 7714 渲染规则固定（中英文作者"等/et al."、卷期页、类型标识），APA 作为规范可扩展证据。
+5. **增益可验证**：`compare` 给出修复前后问题项逐项增减；`summary` 一行紧凑结论。
+6. **诚实边界**：字段缺失、DOI 失败、版本歧义、可疑编造一律标注，不臆造文献或元数据，不冒充学术判断。
+7. **纯标准库可复用**：无网络、无依赖、带 14 道测试题集 + 10 类失败模式 + 可复用词表。
+
+## 额度与预算（64 请求 / 900 秒）
+
+`ingest` 自动解析省手工转换请求 → `claims` 只把可疑项交模型 → `pipeline --compact` 省输出 token。早存诚实部分结果，三案例复用同一流程。
 
 ## 提交前检查清单
 

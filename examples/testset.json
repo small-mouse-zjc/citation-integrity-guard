@@ -1,0 +1,137 @@
+{
+  "meta": {
+    "name": "citation-integrity 边界测试题集",
+    "version": "1.0",
+    "note": "可复用回归测试题集。每题含输入与期望判定，供他人验证脚本行为。均为构造示例，非正式评测案例，不含标准答案稿件。",
+    "usage": "python scripts/citation_engine.py normalize/ingest/verify/place/claims < 该题 input；对 expected 字段做断言。"
+  },
+  "cases": [
+    {
+      "id": "T01_doi_normalization",
+      "focus": "收得净",
+      "input": {
+        "entries": [
+          {"id": "a", "title": "Carbon capture review", "authors": ["Smith, A."], "year": 2020, "doi": "10.1/abc"},
+          {"id": "b", "title": "Carbon capture review", "authors": ["Smith, A."], "year": 2020, "doi": "https://doi.org/10.1/abc"}
+        ]
+      },
+      "expected": {"command": "normalize", "merged_count": 1, "rule": "doi_exact"}
+    },
+    {
+      "id": "T02_cn_en_title",
+      "focus": "收得净",
+      "input": {
+        "entries": [
+          {"id": "a", "title": "Machine Learning for CO2 Phase Behavior", "authors": ["Smith, A."], "year": 2021},
+          {"id": "b", "title": "Machine Learning for CO2 Phase Behaviours", "authors": ["Smith, A."], "year": 2021}
+        ]
+      },
+      "expected": {"command": "normalize", "rule": "fuzzy_title_author_year"}
+    },
+    {
+      "id": "T03_preprint_vs_published",
+      "focus": "收得净/诚实标注",
+      "input": {
+        "entries": [
+          {"id": "a", "title": "Deep learning for phase prediction", "authors": ["Wang, J."], "year": 2020, "doi": "10.48550/arxiv.2020.001"},
+          {"id": "b", "title": "Deep learning for phase prediction", "authors": ["Wang, J."], "year": 2022, "doi": "10.1016/j.fuel.2022.001"}
+        ]
+      },
+      "expected": {"command": "normalize", "not_merged": true, "needs_review": true, "rule": "version_variant"}
+    },
+    {
+      "id": "T04_same_author_different_work",
+      "focus": "避免误并",
+      "input": {
+        "entries": [
+          {"id": "a", "title": "Sequestration in sandstone", "authors": ["Li, H."], "year": 2019},
+          {"id": "b", "title": "Geochemistry of shale gas", "authors": ["Li, H."], "year": 2019}
+        ]
+      },
+      "expected": {"command": "normalize", "merged_count": 0}
+    },
+    {
+      "id": "T05_numbering_closed",
+      "focus": "编得顺",
+      "input": {
+        "manuscript": "See [2] then [1] and [3-4].",
+        "entries": [
+          {"id": "a", "old_number": 1}, {"id": "b", "old_number": 2},
+          {"id": "c", "old_number": 3}, {"id": "d", "old_number": 4}
+        ]
+      },
+      "expected": {"command": "renumber", "first_appearance": {"b": 1, "a": 2, "c": 3, "d": 4}}
+    },
+    {
+      "id": "T06_dangling_and_uncited",
+      "focus": "编得顺",
+      "input": {
+        "manuscript": "Only [1] is cited, but [7] is dangling.",
+        "entries": [
+          {"id": "a", "new_number": 1}, {"id": "b", "new_number": 2}
+        ]
+      },
+      "expected": {"command": "verify", "dangling": [7], "uncited": [2], "consistent": false}
+    },
+    {
+      "id": "T07_missing_fields",
+      "focus": "可靠体验",
+      "input": {"entries": [{"title": "only a title"}]},
+      "expected": {"command": "normalize", "issue_type": "missing_fields"}
+    },
+    {
+      "id": "T08_bibtex_parse",
+      "focus": "额度节省/格式转换",
+      "input": {"text": "@article{x, title={A sample title}, author={Doe, J. and Roe, R.}, year={2020}, journal={Fuel}}", "format": "bibtex"},
+      "expected": {"command": "ingest", "parsed_count": 1, "authors": 2}
+    },
+    {
+      "id": "T09_ris_parse",
+      "focus": "额度节省/格式转换",
+      "input": {"text": "TY  - JOUR\nAU  - Doe, J.\nTI  - A sample title\nPY  - 2020\nSP  - 1\nEP  - 9\nER  - \n", "format": "ris"},
+      "expected": {"command": "ingest", "parsed_count": 1, "pages": "1-9"}
+    },
+    {
+      "id": "T10_cnki_parse",
+      "focus": "额度节省/格式转换",
+      "input": {"text": "题名: 碳酸盐岩储层特征\n作者: 张三, 李四\n来源: 沉积学报\n年份: 2021", "format": "cnki"},
+      "expected": {"command": "ingest", "parsed_count": 1, "authors": 2}
+    },
+    {
+      "id": "T11_citation_placement",
+      "focus": "挂得对",
+      "input": {
+        "manuscript": "研究区位于西部。测得孔隙度为18.5% [@a]。结果见表1。",
+        "entries": [{"id": "a", "title": "Porosity measurement of reservoirs"}]
+      },
+      "expected": {"command": "place", "table_ref_not_a_gap": true, "covered_sentence": "孔隙度"}
+    },
+    {
+      "id": "T12_fabrication_signal",
+      "focus": "对得上",
+      "input": {
+        "manuscript": "实验准确率达到0.99 [@bad]。",
+        "entries": [{"id": "bad", "title": "X", "authors": [], "year": 1650, "doi": "nodot"}]
+      },
+      "expected": {"command": "claims", "anomaly_min": 3, "verdict": "needs_review"}
+    },
+    {
+      "id": "T13_topic_mismatch",
+      "focus": "对得上",
+      "input": {
+        "manuscript": "量子纠缠显著改变了细胞凋亡 [@geo]。",
+        "entries": [{"id": "geo", "title": "Sedimentary facies of carbonate ramp", "authors": ["Smith, A."], "year": 2020, "journal": "Sedimentology"}]
+      },
+      "expected": {"command": "claims", "verdict": "suspicious"}
+    },
+    {
+      "id": "T14_compare_gain",
+      "focus": "增益可验证",
+      "input": {
+        "before": {"manuscript": "text [3]", "entries": [{"id": "a", "new_number": 1}]},
+        "after": {"manuscript": "text [1]", "entries": [{"id": "a", "new_number": 1}]}
+      },
+      "expected": {"command": "compare", "improved_metrics_min": 1}
+    }
+  ]
+}

@@ -37,17 +37,22 @@ python scripts/citation_engine.py --help
 
 ### 子命令
 
-| 子命令 | 作用 | 关键输出 |
-|--------|------|----------|
-| `normalize` | 归一化 + 可解释去重 | `entries`（代表条目）、`decisions`（每条合并的判据/置信度/证据）、`issues` |
-| `renumber` | 按正文首次出现顺序重排编号 | `mapping`（旧→新）、`entries`（含 new_number）、`occurrences`、`unresolved` |
-| `format` | 渲染 GB/T 7714—2015 顺序编码制文后表 | `references`、`warnings` |
-| `verify` | 正文—文末双向一致性核验 | `dangling_citations`、`uncited_entries`、`numbering_gaps`、`consistent` |
-| `pipeline` | 串联以上四步 | 完整结构化结果，含 `result.bibliography` / `number_mapping` / `consistency` / `evidence` |
+| 子命令 | 作用 | 关键输出 | 对应题面 |
+|--------|------|----------|----------|
+| `ingest` | 解析 BibTeX/RIS/CNKI 原文为结构化条目 | `entries`、`detected_format`、`issues` | 格式转换（省手工誊抄） |
+| `normalize` | 归一化 + 可解释去重 | `entries`、`decisions`（判据/置信度/证据）、`issues`、`needs_review_count` | 收得净 |
+| `renumber` | 按首次出现顺序重排，并改写可编辑正文 | `mapping`、`rewritten_manuscript`、`rewrite_changes`、`occurrences`、`unresolved` | 编得顺 |
+| `format` | 渲染文后表（GB/T 7714；`--standard apa` 展示扩展） | `references`、`warnings`、`standard` | 格式转换 |
+| `verify` | 正文—文末双向一致性 + 首次出现顺序 | `dangling_citations`、`uncited_entries`、`numbering_gaps`、`order_violations`、`consistent` | 编得顺 |
+| `place` | 引用落点定位：识别需来源支撑的论断句与建议位置 | `sentences`、`stats.citation_gaps`、`advice`、真实文献 `candidates` | 挂得对 |
+| `claims` | 论断核验预筛：元数据异常/编造线索/主题错配 | `metadata_anomalies`、`suspicious_claims`、`claim_results` | 对得上 |
+| `compare` | 修复前后对照，逐项验证增益 | `diffs`、`summary.improved_metrics` | 增益可验证 |
+| `pipeline` | 全流程串联，产出结构化结果 + 紧凑摘要 | `result.*`、`summary`、`(--compact)` 省 token、`pipeline.<step>` 兼容旧结构 | 全部 |
 
 输入为 UTF-8 JSON。推荐使用 `pipeline` 一次完成：
 ```bash
 python scripts/citation_engine.py pipeline input.json > result.json
+python scripts/citation_engine.py pipeline input.json --compact > summary.json   # 额度紧张时用
 ```
 
 `input.json` 结构：
@@ -58,24 +63,27 @@ python scripts/citation_engine.py pipeline input.json > result.json
     {"id":"wang2020","authors":["Wang, J.","Li, H."],"title":"...","year":2020,
      "journal":"Fuel","volume":281,"pages":"118-126","doi":"10.1016/...","type":"article"}
   ],
-  "manuscript": "正文文本，引用写作 [1] 或 [1,2,3-5] 或 [@wang2020]"
+  "manuscript": "正文文本，引用写作 [1] 或 [1,2,3-5] 或 [@wang2020]",
+  "checks": {"place": true, "claims": true, "compare_before": {"manuscript":"旧稿件","entries":[]}}
 }
 ```
 
-字段说明见 `references/output_contract.md`。真实案例若提供的是 BibTeX/RIS/CNKI 原文，先解析成上述 `entries` 结构（字段缺失如实留空并记录），再运行脚本。
+字段说明见 `references/output_contract.md`。真实案例若提供的是 BibTeX/RIS/CNKI 原文，**先跑 `ingest`** 自动解析（字段缺失如实留空并记录），无需手工逐条转换。全部子命令也可在 Python 中直接 `import citation_engine as ce` 调用其同名函数（如 `ce.normalize(entries)`、`ce.place_citations(ms, entries)`），便于嵌入自定义流程。
 
 ## 标准工作流
 
 接到任务后按此顺序执行，每步都保留证据：
 
 1. **读输入**：读取 `/input/case.json` 与 `task.md`（或平台给定的输入文件），确认 `case_id`、任务口径、目标引用规范、稿件与文献库位置。**如实读取真实文件，不要从标签或文件名猜测内容。**
-2. **解析**：把稿件与文献库解析为结构化数据。识别正文每个引用点及其所在行/段落；识别文献库每条记录的字段。字段缺失、编码异常、文件损坏要记录到 `issues`。
-3. **去重归并**：运行 `normalize`。判据与置信度见 `references/dedup_rules.md`。置信度低于阈值（默认 0.82）的疑似重复**不自动合并**，列入 `needs_review` 并说明依据。
-4. **编号同步**：运行 `renumber`。按正文首次出现顺序编号；插入、删除、调序后用 `mapping` 连锁更新正文标记与文末序号，确保交叉引用、图表注、附录引用同步。
-5. **格式转换**：运行 `format`，按目标规范渲染（内置 GB/T 7714—2015；其他规范按 `references/format_gb7714.md` 的映射方法扩展）。保留 DOI、卷期页、文献类型标识，处理中英文混排与标点。
-6. **来源与论断核验**：对每条引用回答三个问题——条目是否真实存在（DOI/数据库/原文）、元数据是否准确、正文论断与所引文献主题结论是否匹配。逐句判定，证据不足的句子明确标记。此步结合模型判断，但结论必须给出可回溯依据。
-7. **一致性核验**：运行 `verify`，确认无悬空引用、无未引用条目、编号连续无重复。
-8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有要求的 output_contract 字段；可编辑的稿件/文献表另存为文件。每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
+2. **解析**：文献库若为 BibTeX/RIS/CNKI 原文，先跑 `ingest` 自动解析（省去逐条转换的请求与 token）；再识别正文每个引用点及其所在行/段落。字段缺失、编码异常、文件损坏记入 `issues`，不臆造。
+3. **去重归并**：运行 `normalize`。判据与置信度见 `references/dedup_rules.md`。置信度低于阈值（默认 0.82）的疑似重复、**以及预印本 vs 正式版等 version_variant 线索**，一律不自动合并，列入 `needs_review` 并说明依据。边界案例见 `references/failure_patterns.md`。
+4. **编号同步**：运行 `renumber`。按正文首次出现顺序编号；插入/删除/调序后用 `mapping` 连锁更新，交付 `rewritten_manuscript` 作为可编辑稿件底稿（`rewrite_changes` 逐条记录改动）。
+5. **格式转换**：运行 `format`，按目标规范渲染（内置 GB/T 7714—2015；`--standard apa` 展示规范可扩展，扩展方法见 `references/apa_mapping.md`）。保留 DOI、卷期页、文献类型标识，处理中英文混排与标点。
+6. **落点与论断核验（关键，勿用逐句心算）**：
+   - 先跑 `place`：机械标出需要来源支撑却无引用的论断句（"挂得对"），候选文献只取真实条目，供定位不供最终判断。
+   - 再跑 `claims`：确定性预筛元数据异常/编造线索/主题错配（"对得上"），**只对返回的 `suspicious_claims` 交模型或人工复核**，把逐句 O(n) 判断降到 O(可疑)。证据不足的句子显式标记，不擅自改论断。
+7. **一致性核验**：运行 `verify`，确认无悬空引用、无未引用条目、编号连续无重复、首次出现顺序正确（`order_violations`）。需要证明增益时用 `compare` 对修复前后逐项对照。
+8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有 output_contract 字段；`result.summary` 是一行紧凑结论。预算紧张时用 `pipeline --compact` 只输出摘要+文后表+核验结论。可编辑稿件/文献表另存为文件，每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
 
 ## 输出契约要点
 
@@ -101,16 +109,29 @@ python scripts/citation_engine.py pipeline input.json > result.json
 
 ## 资源清单
 
-- `scripts/citation_engine.py`：确定性处理引擎（必需）
+- `scripts/citation_engine.py`：确定性处理引擎（9 子命令，纯标准库，必需）
 - `references/dedup_rules.md`：去重判据与置信度表
 - `references/format_gb7714.md`：GB/T 7714—2015 格式映射与字段规则
+- `references/apa_mapping.md`：APA 7th 扩展映射（证明规范可扩展）
 - `references/output_contract.md`：输出字段契约与装配说明
 - `references/verification_checklist.md`：来源与论断核验清单
+- `references/failure_patterns.md`：10 类失败模式案例（可分享经验）
+- `references/vocab.md`：可复用词表（预印本 DOI 前缀、字段别名、类型标识、信号词）
+- `examples/testset.json`：14 道边界回归测试题集（可复用）
+- `examples/selftest.py`：33 项自验收测试（覆盖率证据）
 - `examples/`：最小调用示例与样例输入输出（示例输出已标注，非正式案例结果）
+
+## 额度与预算建议（64 请求 / 900 秒 / 16384 token）
+
+- 文献库原文一律用 `ingest` 解析，不手工逐条转换；输出用 `pipeline --compact` 省 token。
+- 论断核验只跑 `claims`，**只把 `suspicious_claims` 交模型复核**，不要逐句心算。
+- 去重低置信项据 `needs_review` 批量交人工确认，不逐条来回追问。
+- 早存诚实的部分结果再增量完善；三个案例在同一流程内复用，避免重复解析。
 
 ## 限制与适用边界
 
-- 内置格式化规则以 GB/T 7714—2015 顺序编码制为主；著者—出版年制、APA 具体版本需按映射表扩展后再用。
-- 去重保守：证据不足时倾向保留两条而标注待核，宁可漏并不误并。
-- 脚本不联网，DOI 真实性与数据库比对需结合平台提供的工具或模型判断，结论须给可回溯依据。
-- 不替代作者做学术判断：论断是否成立、文献是否恰当由作者最终确认，本技能只保证引用管理动作的准确与可核验。
+- 内置格式化以 GB/T 7714—2015 顺序编码制为主；APA 7th 为展示性扩展，具体版本细则（英文大小写、编者/译者、出版地省路等）须人工核对，见 `references/apa_mapping.md`。
+- 去重保守：证据不足（含 version_variant）时保留两条并标注待核，宁可漏并不误并。
+- 脚本不联网，DOI 真实性、编造条目判定与数据库比对需结合平台工具或模型核验，`claims` 只给确定性线索与 `needs_review`，结论须给可回溯依据。
+- `place`/`claims` 基于关键词重叠与元数据规则的确定性预筛，候选与分档供定位与分流，不构成学术判断；论断是否成立、文献是否恰当由作者最终确认。
+- 本技能只保证引用管理动作的准确、可解释与可核验，不改写正文观点、不新增材料外事实。
