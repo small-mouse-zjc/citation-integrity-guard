@@ -13,9 +13,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import notes_engine as ne
 
 FAILS = []
+CHECKS = [0]
 
 
 def check(name, cond, detail=""):
+    CHECKS[0] += 1
     print(("PASS" if cond else "FAIL"), name, detail)
     if not cond:
         FAILS.append(name)
@@ -127,7 +129,18 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
-print("\n%d/%d 通过" % (26 - len(FAILS), 26))
+# --- 空输入门禁（第三方评审指出：空笔记/空章节曾被判 ok）---
+_e1 = ne.check_section_alignment([], [])
+_e2 = ne.verify_anchors([])
+_e3 = ne.check_card_fields({})
+_e4 = ne.pipeline({"case_id": "empty"})
+check("T26 空章节不得判对齐", _e1.get("empty_input") is True and _e1["aligned"] is False)
+check("T27 空笔记不得判全锚定", _e2.get("empty_input") is True and _e2["all_anchored"] is False)
+check("T28 空卡片不得判齐全", _e3.get("empty_input") is True and _e3["complete"] is False)
+check("T29 全空pipeline不得报ok", _e4["status"] == "needs_attention" and
+      any(_e4["uncertainty"]["empty_inputs"].values()))
+
+print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)
     sys.exit(1)

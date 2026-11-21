@@ -81,6 +81,8 @@ def check_section_alignment(paper_sections: List[str], note_sections: List[str])
     note_keys = set(n_seq)
     missing = sorted(paper_keys - note_keys)
     extra = sorted(note_keys - paper_keys)
+    # 空输入门禁：没有可识别章节时不得判为“对齐”，否则空笔记会经 pipeline 报 ok
+    empty_input = not paper_keys or not note_keys
 
     # 顺序一致性：笔记章节相对顺序是否与论文一致（用公共子序列的顺序判断）
     common_p = [k for k in p_seq if k in note_keys]
@@ -101,9 +103,12 @@ def check_section_alignment(paper_sections: List[str], note_sections: List[str])
         "extra_sections": extra,
         "order_consistent": order_ok,
         "inversions": inversions,
-        "aligned": order_ok and not missing,
-        "advice": ("笔记骨架与论文章节对齐" if order_ok and not missing
-                   else f"笔记漏章节 {missing} 或顺序不一致（倒序 {inversions[:3]}），须按论文自身结构重排"),
+        "empty_input": empty_input,
+        "aligned": (not empty_input) and order_ok and not missing,
+        "advice": ("输入为空：论文或笔记缺少可识别章节，无法判定对齐，须先补齐章节"
+                   if empty_input else
+                   ("笔记骨架与论文章节对齐" if order_ok and not missing
+                    else f"笔记漏章节 {missing} 或顺序不一致（倒序 {inversions[:3]}），须按论文自身结构重排")),
     }
 
 
@@ -136,12 +141,15 @@ def check_card_fields(card: Dict[str, Any], required: Optional[List[str]] = None
             missing.append({"field": key, "label": meta["label"],
                             "hint": f"卡片缺『{meta['label']}』，尤其注意让结论成立的前提条件"})
     n = sum(1 for v in report.values() if v["present"])
+    # 空输入门禁：整张卡片没有任何实质内容时不得判为“字段齐全”
+    empty_input = not any(str(card.get(k, "") or "").strip() for k in required) and not str(card.get("note", "") or "").strip()
     return {
         "fields": report,
         "present_count": n,
         "required_count": len(required),
+        "empty_input": empty_input,
         "missing": missing,
-        "complete": not missing,
+        "complete": (not empty_input) and not missing,
         "advice": ("卡片字段齐全" if not missing
                    else f"缺 {len(missing)} 个字段：{[m['label'] for m in missing]}，须补记或标注未报告"),
     }
@@ -177,15 +185,20 @@ def verify_anchors(notes: List[Dict[str, Any]], valid_anchors: Optional[List[str
             bad_anchor.append({"id": nt.get("id"), "anchor": anchor,
                                "reason": "锚点不在原文可用定位表中，可能指错位置"})
     anchored = sum(1 for r in results if r["valid"])
+    # 空输入门禁：没有任何笔记时不得判为“全部可回链”
+    empty_input = len(results) == 0
     return {
         "notes": results,
         "note_count": len(results),
         "anchored_count": anchored,
         "no_anchor": no_anchor,
         "bad_anchor": bad_anchor,
-        "all_anchored": not no_anchor and not bad_anchor,
-        "advice": ("每条笔记均可回链原文" if not no_anchor and not bad_anchor
-                   else f"{len(no_anchor)} 条缺锚点、{len(bad_anchor)} 条锚点无效，须补具体定位"),
+        "empty_input": empty_input,
+        "all_anchored": (not empty_input) and not no_anchor and not bad_anchor,
+        "advice": ("输入为空：没有任何关键笔记，无法判定锚点可回链，须先产出笔记"
+                   if empty_input else
+                   ("每条笔记均可回链原文" if not no_anchor and not bad_anchor
+                    else f"{len(no_anchor)} 条缺锚点、{len(bad_anchor)} 条锚点无效，须补具体定位")),
     }
 
 
@@ -285,7 +298,10 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     r_know = normalize_knowledge(points, payload.get("dup_threshold", 0.72))
     r_readcard = build_reading_card(card)
 
-    overall = (r_align["aligned"] and r_card["complete"] and
+    # 全局空输入门禁：三段核心输入任一为空，都不得报 ok
+    any_empty = (r_align.get("empty_input") or r_card.get("empty_input") or
+                 r_anchor.get("empty_input"))
+    overall = (not any_empty and r_align["aligned"] and r_card["complete"] and
                r_anchor["all_anchored"] and not r_know["needs_review"])
     return {
         "case_id": case_id,
@@ -310,6 +326,11 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
         "uncertainty": {
             "missing_fields": r_card["missing"] + r_readcard["missing_fields"],
             "needs_review": r_know["needs_review"],
+            "empty_inputs": {
+                "sections": bool(r_align.get("empty_input")),
+                "card": bool(r_card.get("empty_input")),
+                "notes": bool(r_anchor.get("empty_input")),
+            },
             "note": ("笔记是否忠实原文、锚点是否真对应属价值判断，须 Agent 结合原文复核；"
                      "脚本只做结构与格式校验，不臆造未报告内容"),
         },
@@ -320,7 +341,16 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
 # CLI
 # ---------------------------------------------------------------------------
 def _load(path: str) -> Any:
-    with open(path, encoding="utf-8") as f:
+    """接受文件路径、内联 JSON 字符串或 '-'（stdin）；兼容 README 的内联示例。"""
+    s = str(path or "").strip()
+    if s == "-":
+        return json.load(sys.stdin)
+    if s.startswith("{") or s.startswith("["):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            pass  # 视为路径，交给下面 open 抛出更明确的错误
+    with open(s, encoding="utf-8") as f:
         return json.load(f)
 
 

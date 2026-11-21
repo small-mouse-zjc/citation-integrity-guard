@@ -300,6 +300,7 @@ def renumber(manuscript: str, entries: List[Dict[str, Any]],
     支持 [n] / [1,2,3-5]（旧编号）与 [@key] 两种引用域。
     rewrite=True 时额外产出按新编号改写的可编辑正文（不改动措辞，仅替换引用标记）。
     """
+    manuscript = manuscript or ""  # 畸形输入：None/缺字段归一为空串，避免崩溃
     key_to_entry: Dict[str, Dict[str, Any]] = {}
     for i, e in enumerate(entries, 1):
         eid = str(e.get(id_field) or e.get("key") or f"ref{i}")
@@ -582,6 +583,7 @@ def verify(manuscript: str, entries: List[Dict[str, Any]],
     附加：首次出现顺序（顺序编码制应按首次出现递增）。
     为保持既有语义，顺序问题单列字段，不改变 consistent（除非传入 check_order=True）。
     """
+    manuscript = manuscript or ""  # 畸形输入归一化
     cited: List[int] = []
     for m in CITE_RE.finditer(manuscript):
         cited.extend(_expand_citation(m.group(1)))
@@ -684,13 +686,38 @@ def _clean_bib_value(v: str) -> str:
 
 def parse_bibtex(text: str) -> List[Dict[str, Any]]:
     entries: List[Dict[str, Any]] = []
-    pattern = re.compile(r"@(\w+)\s*\{\s*([^,\s]+)\s*,(.*?)\n\s*\}", re.S)
-    for m in pattern.finditer(text or ""):
+    # 括号配平扫描：支持单行/多行 BibTeX，字段值可含 {...}（不依赖 \n} 结尾）
+    s = text or ""
+    parsed: List[Tuple[str, str, str]] = []  # (type, key, body)
+    i = 0
+    while True:
+        at = s.find("@", i)
+        if at < 0:
+            break
+        m = re.match(r"@(\w+)\s*\{", s[at:])
+        if not m:
+            i = at + 1
+            continue
+        btype = m.group(1)
+        ob = at + m.end() - 1
+        depth, j = 1, ob + 1
+        while j < len(s) and depth > 0:
+            if s[j] == "{":
+                depth += 1
+            elif s[j] == "}":
+                depth -= 1
+            j += 1
+        inner = s[ob + 1:j - 1] if depth == 0 else s[ob + 1:]
+        comma = inner.find(",")
+        if comma >= 0:
+            parsed.append((btype, inner[:comma].strip(), inner[comma + 1:]))
+        i = j if depth == 0 else at + 1
+    for btype, key, body in parsed:
         e: Dict[str, Any] = {
-            "id": m.group(2).strip(),
-            "type": BIB_TYPE_MAP.get(m.group(1).lower(), "misc"),
+            "id": key,
+            "type": BIB_TYPE_MAP.get(btype.lower(), "misc"),
         }
-        for f in _split_bib_fields(m.group(3)):
+        for f in _split_bib_fields(body):
             fm = re.match(r"\s*(\w+)\s*=\s*(.+)$", f, re.S)
             if not fm:
                 continue
@@ -852,6 +879,7 @@ def place_citations(manuscript: str, entries: List[Dict[str, Any]],
     候选仅来自真实 entries（关键词重叠确定性排序），并标注 needs_review，
     绝不臆造文献；把『整段落末一引』拆到具体论断句是本命令的核心价值。
     """
+    manuscript = manuscript or ""  # 畸形输入归一化
     candidates_index = [{"id": str(e.get("id") or f"ref{i + 1}"),
                          "title": e.get("title", ""),
                          "words": set(_entry_topic_words(e))}
@@ -947,6 +975,7 @@ def check_claims(manuscript: str, entries: List[Dict[str, Any]],
       3) 主题错配：claim 文本与所引条目主题词重叠过低 -> suspicious，高 -> plausible。
     输出把需要模型/人工复核的『可疑项』单独列出，逐句判断从 O(n) 降到 O(可疑)。
     """
+    manuscript = manuscript or ""  # 畸形输入归一化
     anomalies: List[Dict[str, Any]] = []
     for i, e in enumerate(entries):
         anomalies.extend(_metadata_anomalies(e, i))
@@ -998,11 +1027,7 @@ def check_claims(manuscript: str, entries: List[Dict[str, Any]],
             if yrs and eyear and eyear not in yrs:
                 item["findings"].append({"type": "year_mismatch", "cite_id": cid,
                                          "detail": f"正文年份 {sorted(yrs)} 与条目年份 {eyear} 不符"})
-            e_authors = " ".join(e.get("authors") or [])
-            surnames = [a.split(",")[0].strip().lower() for a in (e.get("authors") or [])]
-            for sn in surnames:
-                if sn and len(sn) >= 3 and re.search(re.escape(sn), text.lower()):
-                    break
+            # 主题词重叠确定性预筛（作者姓比对不作独立判据，避免同名误判）
             ew = set(_entry_topic_words(e))
             overlap = len(words & ew)
             score = round(overlap / max(1, len(words)), 3) if words else 0.0

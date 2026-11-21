@@ -61,10 +61,13 @@ STATUS_UNCERTAIN = "needs_review"
 UNIT_RE = re.compile(
     r"\d+(?:\.\d+)?\s*(?:%|％|mD|md|kg|km2|km²|km|cm|mm|μm|um|nm|℃|°C|GPa|MPa|Pa|"
     r"mg|μg|g|mL|L|mmol|mol|ms|min|h|s|yr|years?|倍|次|层|口|个|m)(?![A-Za-z])", re.I)
-# 公式在句号/分号/逗号处截断，不跨句
-FORMULA_RE = re.compile(r"[A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω_^]*\s*=\s*[^。；;，,.]{2,40}")
+# 公式在中文句号/分号/逗号/空白处截断，不跨句；小数点(.)必须允许，否则 α=0.05 之类会被漏保护
+# 变量允许上标数字(⁰-⁹)，值允许任意非空白非中文标点字符，覆盖 R²=0.92 / k = 3.2
+FORMULA_RE = re.compile(r"[A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω_^²³¹⁰-⁹₀-₉]*\s*=\s*[^\s。；;，,、：:！!？?（）【】\[\]\"“”‘’]{1,40}")
 CITE_RE = re.compile(r"\[(\d+(?:\s*[,，]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]|\[@[A-Za-z0-9_\-:]+\]")
-CHEM_RE = re.compile(r"\b(?:CO2|CO₂|H2O|H₂O|CH4|CH₄|NaCl|SiO2|SiO₂|CaCO3|CaCO₃|Fe2O3|Fe₂O₃|SO4|SO₄)\b")
+# 化学式边界只用 ASCII 字母数字判定：Python3 的 \w 含中文，用 \b 会让“NaCl含量/CO₂浓度”这类
+# 化学式后紧跟中文的中文文献场景漏检，使 protect/verify 的化学式守门失效
+CHEM_RE = re.compile(r"(?<![A-Za-z0-9₀-₉])(?:H2SO4|H₂SO₄|CO2|CO₂|H2O|H₂O|CH4|CH₄|NaCl|SiO2|SiO₂|CaCO3|CaCO₃|Fe2O3|Fe₂O₃|SO4|SO₄)(?![A-Za-z0-9])")
 NEG_WORDS = ["not", "no", "never", "neither", "nor", "without", "hardly",
              "不", "未", "无", "非", "没有", "并非", "不能", "无法"]
 LIMIT_WORDS = ["only", "mainly", "primarily", "approximately", "about", "significantly",
@@ -103,6 +106,13 @@ def _get(p: Dict[str, Any], key: str, default=""):
     if not isinstance(p, dict):
         return default
     return p.get(key, default)
+
+
+def _has_word(text: str, w: str) -> bool:
+    """词命中：ASCII 词用词边界，中文/符号词用子串（\b 对中文无效）。"""
+    if re.match(r"^[A-Za-z0-9]", w):
+        return bool(re.search(r"\b" + re.escape(w) + r"\b", text, re.I))
+    return w in text
 
 
 # ---------------------------------------------------------------------------
@@ -425,15 +435,15 @@ def verify(payload: Dict[str, Any]) -> Dict[str, Any]:
         checks["citations"] = {"kept": not missing_cites, "missing": missing_cites}
         if missing_cites:
             issues.append({"type": "citation_lost", "id": pid, "missing": missing_cites})
-        # 否定词：原文有否定而译文完全无对应 → 提示
-        src_neg = [w for w in NEG_WORDS if re.search(r"\b" + re.escape(w) + r"\b", src, re.I)]
+        # 否定词：原文有否定而译文完全无对应 → 提示（中文须用子串，\b 对中文无效）
+        src_neg = [w for w in NEG_WORDS if _has_word(src, w)]
         zh_neg = [w for w in NEG_WORDS if w in zh]
         checks["negation"] = {"source": src_neg, "in_translation": zh_neg,
                               "kept": bool(src_neg) == bool(zh_neg)}
         if src_neg and not zh_neg:
             issues.append({"type": "negation_maybe_lost", "id": pid, "source_neg": src_neg})
         # 限定词
-        src_lim = [w for w in LIMIT_WORDS if re.search(r"\b" + re.escape(w) + r"\b", src, re.I)]
+        src_lim = [w for w in LIMIT_WORDS if _has_word(src, w)]
         zh_lim = [w for w in LIMIT_WORDS if w in zh]
         checks["limitation"] = {"source": src_lim, "in_translation": zh_lim,
                                 "kept": bool(src_lim) == bool(zh_lim)}

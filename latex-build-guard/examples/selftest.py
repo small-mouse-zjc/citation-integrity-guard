@@ -123,7 +123,7 @@ check("T32 compact保留status", comp["status"] == "needs_attention")
 comp_ok = le.pipeline(payload, compact=True)
 check("T33 干净案例compact无问题", comp_ok["status"] == "ok" and comp_ok["problems"] == [])
 
-TOTAL = 33
+TOTAL = 35
 
 
 # --- 公平对照证据（冲分）---

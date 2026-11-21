@@ -685,7 +685,16 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
 # CLI
 # ---------------------------------------------------------------------------
 def _load(path: str) -> Any:
-    with open(path, encoding="utf-8") as f:
+    """接受文件路径、内联 JSON 字符串或 '-'（stdin）；兼容 README 的内联示例。"""
+    s = str(path or "").strip()
+    if s == "-":
+        return json.load(sys.stdin)
+    if s.startswith("{") or s.startswith("["):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            pass  # 视为路径，交给下面 open 抛出更明确的错误
+    with open(s, encoding="utf-8") as f:
         return json.load(f)
 
 

@@ -12,9 +12,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import nanopub_engine as ne
 
 FAILS = []
+CHECKS = [0]
 
 
 def check(name, cond, detail=""):
+    CHECKS[0] += 1
     print(("PASS" if cond else "FAIL"), name, detail)
     if not cond:
         FAILS.append(name)
@@ -112,7 +114,7 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
-print("\n%d/%d 通过" % (26 - len(FAILS), 26))
+print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)
     sys.exit(1)

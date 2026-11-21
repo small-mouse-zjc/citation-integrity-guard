@@ -1,45 +1,45 @@
 {
-  "schema": "intro-style-benchmark/v1",
-  "purpose": "写作13 LaTeX 写作与编译 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
-  "work": "latex-build-guard",
-  "four_questions": [
-    "编译得通",
-    "改得对",
-    "交得可用",
-    "复现得了"
-  ],
-  "cases": [
-    {
-      "case_id": "smoke",
-      "type": "clean",
-      "desc": "结构完整的正常输入，Skill 应给出全通过/无告警",
-      "input": {
-        "case_id": "smoke",
-        "main_tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
-        "bib": "@article{key2020, title={A}, author={X}, year={2020}}",
-        "files": {
-          "main.tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
-          "refs.bib": "@article{key2020, title={A}, author={X}, year={2020}}"
-        },
-        "compile_log": "Output written on main.pdf (2 pages).",
-        "build_record": "TeX Live 2023. 模板版本 v1.2 (.cls). 宏包 amsmath 2022. 字体 Times. 命令 pdflatex. 编译2轮."
-      }
+ "schema": "intro-style-benchmark/v1",
+ "purpose": "写作13 LaTeX 写作与编译 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
+ "work": "latex-build-guard",
+ "four_questions": [
+  "编译得通",
+  "改得对",
+  "交得可用",
+  "复现得了"
+ ],
+ "cases": [
+  {
+   "case_id": "smoke",
+   "type": "clean",
+   "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
+   "input": {
+    "case_id": "smoke",
+    "main_tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
+    "bib": "@article{key2020, title={A}, author={X}, year={2020}}",
+    "files": {
+     "main.tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
+     "refs.bib": "@article{key2020, title={A}, author={X}, year={2020}}"
     },
-    {
-      "case_id": "smoke-DEFECT",
-      "type": "defect",
-      "desc": "按四问注入典型缺陷，Skill 应检出并标注",
-      "input": {
-        "case_id": "smoke-DEFECT",
-        "main_tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
-        "bib": "@article{key2020, title={A}, author={X}, year={2020}}",
-        "files": {
-          "main.tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
-          "refs.bib": "@article{key2020, title={A}, author={X}, year={2020}}"
-        },
-        "compile_log": "! Undefined control sequence.\nl.12 \\unknowncmd\n! Missing $ inserted.\nl.20 x^2",
-        "build_record": ""
-      }
-    }
-  ]
+    "compile_log": "Output written on main.pdf (2 pages).",
+    "build_record": "TeX Live 2023. 模板版本 v1.2 (.cls). 宏包 amsmath 2022. 字体 Times. 命令 pdflatex. 编译2轮."
+   }
+  },
+  {
+   "case_id": "smoke-DEFECT",
+   "type": "defect",
+   "desc": "按四问注入典型缺陷，Skill 应检出并标注",
+   "input": {
+    "case_id": "smoke-DEFECT",
+    "main_tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
+    "bib": "@article{key2020, title={A}, author={X}, year={2020}}",
+    "files": {
+     "main.tex": "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\begin{document}\n\\section{Intro}\nEquation \\eqref{eq:1}.\n\\begin{equation}\\label{eq:1}\nE = mc^2\n\\end{equation}\nCite \\cite{key2020}.\n\\end{document}\n",
+     "refs.bib": "@article{key2020, title={A}, author={X}, year={2020}}"
+    },
+    "compile_log": "! Undefined control sequence.\nl.12 \\unknowncmd\n! Missing $ inserted.\nl.20 x^2",
+    "build_record": ""
+   }
+  }
+ ]
 }
