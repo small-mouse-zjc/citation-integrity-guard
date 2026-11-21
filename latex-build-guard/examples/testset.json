@@ -1,0 +1,78 @@
+{
+  "name": "latex-build-guard 边界回归题集",
+  "note": "确定性引擎可执行性回归；非官方正式案例，不自答案是",
+  "cases": [
+    {
+      "id": "B01",
+      "topic": "表格列格式解析",
+      "input": {"cmd": "count_tabular_cols", "spec": "l c r"},
+      "expect": "3"
+    },
+    {
+      "id": "B02",
+      "topic": "p列不拆字符",
+      "input": {"cmd": "count_tabular_cols", "spec": "p{2.5cm}p{3cm}"},
+      "expect": "2"
+    },
+    {
+      "id": "B03",
+      "topic": "修饰语法不占列",
+      "input": {"cmd": "count_tabular_cols", "spec": "@{}l|>{\\bf}c<{}|r@{}"},
+      "expect": "3"
+    },
+    {
+      "id": "B04",
+      "topic": "表格少列检出",
+      "input": {"cmd": "check_content", "tex": "\\documentclass{article}\\begin{document}\\begin{tabular}{lcr}a&b\\\\c&d&e\\end{tabular}\\end{document}"},
+      "expect": "table_col_mismatch"
+    },
+    {
+      "id": "B05",
+      "topic": "multicolumn不误报",
+      "input": {"cmd": "check_content", "tex": "\\documentclass{article}\\begin{document}\\begin{tabular}{lcr}\\multicolumn{3}{c}{head}\\\\a&b&c\\end{tabular}\\end{document}"},
+      "expect": "no_table_col_mismatch"
+    },
+    {
+      "id": "B06",
+      "topic": "cleveref顺序",
+      "input": {"cmd": "check_source", "main_tex": "\\documentclass{article}\\usepackage{cleveref}\\usepackage{hyperref}\\begin{document}x\\end{document}"},
+      "expect": "package_order"
+    },
+    {
+      "id": "B07",
+      "topic": "级联错误识别",
+      "input": {"cmd": "classify_errors", "compile_log": "! Undefined control sequence.\nl.5 \\aaa\n! Undefined control sequence.\nl.6 \\bbb\n! Undefined control sequence.\nl.7 \\ccc"},
+      "expect": "cascading_true_count3"
+    },
+    {
+      "id": "B08",
+      "topic": "行号定位",
+      "input": {"cmd": "classify_errors", "compile_log": "! LaTeX Error: File `foo.sty' not found.\nl.12 \\usepackage{foo}"},
+      "expect": "tex_line_12"
+    },
+    {
+      "id": "B09",
+      "topic": "交付物须tex",
+      "input": {"cmd": "check_deliverable", "files": {"paper.pdf": "binary", "fig.png": "binary"}},
+      "expect": "no_tex"
+    },
+    {
+      "id": "B10",
+      "topic": "复现记录缺项",
+      "input": {"cmd": "check_reproducibility", "record": "编译了文档"},
+      "expect": "missing_ge4"
+    },
+    {
+      "id": "B11",
+      "topic": "compact省token",
+      "input": {"cmd": "pipeline_compact", "case_id": "x", "main_tex": "\\documentclass{article}\\begin{document}x\\end{document}", "files": {"a.tex": "\\documentclass{article}\\begin{document}x\\end{document}"}, "build_record": "TeX Live 2023. 模板 v1 (.cls). 宏包 amsmath. 字体 Times. pdflatex. 编译2轮."},
+      "expect": "summary_no_result"
+    },
+    {
+      "id": "B12",
+      "topic": "悬空引用检出",
+      "input": {"cmd": "check_content", "tex": "\\documentclass{article}\\begin{document}See \\ref{fig:x}\\end{document}"},
+      "expect": "dangling_ref"
+    }
+  ]
+}

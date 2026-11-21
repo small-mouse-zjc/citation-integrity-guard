@@ -1,0 +1,94 @@
+{
+  "case_id": "smoke",
+  "status": "ok",
+  "result": {
+    "source_check": {
+      "has_docclass": true,
+      "document_env_complete": true,
+      "packages": [
+        "amsmath",
+        "booktabs"
+      ],
+      "brace_balanced": true,
+      "issues": [],
+      "structure_ok": true,
+      "advice": "源码结构无明显问题"
+    },
+    "error_classification": {
+      "errors": [],
+      "error_count": 0,
+      "warning_count": 0,
+      "categories": {},
+      "cascading": false,
+      "advice": "编译日志无 error"
+    },
+    "content_check": {
+      "equation_envs": 1,
+      "labels_count": 1,
+      "refs_count": 1,
+      "cites_count": 1,
+      "bib_entries": 1,
+      "issues": [],
+      "content_ok": true,
+      "advice": "公式/表格/引用/必填项检查通过"
+    },
+    "deliverable_check": {
+      "tex_files": [
+        "main.tex"
+      ],
+      "aux_files": [
+        "refs.bib"
+      ],
+      "issues": [],
+      "usable": true,
+      "advice": "交付物为可编辑源码"
+    },
+    "reproducibility_check": {
+      "items": {
+        "tex_dist": {
+          "label": "TeX发行版",
+          "present": true
+        },
+        "template_version": {
+          "label": "模板版本",
+          "present": true
+        },
+        "packages": {
+          "label": "宏包及版本",
+          "present": true
+        },
+        "fonts": {
+          "label": "字体依赖",
+          "present": true
+        },
+        "compile_cmd": {
+          "label": "编译命令",
+          "present": true
+        },
+        "rounds": {
+          "label": "编译轮次",
+          "present": true
+        }
+      },
+      "present_count": 6,
+      "required_count": 6,
+      "missing": [],
+      "reproducible": true,
+      "advice": "构建记录齐全，他人可复现"
+    }
+  },
+  "evidence": {
+    "principles": {
+      "编译得通": "报错定位到文件/行号/根因",
+      "改得对": "公式表格引用与模板合规",
+      "交得可用": "交付可编辑 .tex 源码",
+      "复现得了": "构建环境与命令记录齐全"
+    },
+    "error_locations": [],
+    "dangling_refs": []
+  },
+  "uncertainty": {
+    "needs_compile_verify": true,
+    "note": "本引擎只做静态检查与日志解析，不实际调用 TeX 编译器；真正的编译通过须 Agent 在平台环境用记录的命令与轮次验证，不得臆造编译成功"
+  }
+}
