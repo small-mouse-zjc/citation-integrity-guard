@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "name": "pdf-layout-parse 边界测试集",
+    "version": "1.0",
+    "note": "可复用回归题集。每题含带坐标的 layout 输入与期望判定，验证引擎在各类版式陷阱上的行为。均为构造示例，非正式评测案例。",
+    "usage": "python scripts/pdf_layout_engine.py <command> <该题 input>；或用 selftest.py 自动断言。",
+    "coordinate_system": "PDF 原点左上，y 向下，单位 pt；line 含 x0/y0/x1/y1/text/spans[]，span 含 text/size/flags/font。"
+  },
+  "cases": [
+    {
+      "id": "P01_header_footer",
+      "focus": "提得全",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":5,"x1":180,"y1":15,"text":"Journal Header","spans":[{"text":"Journal Header","size":9,"flags":0,"font":"T"}]},
+        {"x0":90,"y0":185,"x1":110,"y1":195,"text":"7","spans":[{"text":"7","size":9,"flags":0,"font":"T"}]},
+        {"x0":10,"y0":30,"x1":180,"y1":44,"text":"Body paragraph here.","spans":[{"text":"Body paragraph here.","size":10,"flags":0,"font":"T"}]}
+      ]}, {"page": 2, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":5,"x1":180,"y1":15,"text":"Journal Header","spans":[{"text":"Journal Header","size":9,"flags":0,"font":"T"}]},
+        {"x0":90,"y0":185,"x1":110,"y1":195,"text":"8","spans":[{"text":"8","size":9,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "clean", "header_removed": true, "page_numbers_removed": true}
+    },
+    {
+      "id": "P02_two_column_order",
+      "focus": "排得对",
+      "input": {"pages": [{"page": 1, "width": 595, "height": 842, "lines": [
+        {"x0":72,"y0":60,"x1":520,"y1":82,"text":"Title","spans":[{"text":"Title","size":16,"flags":16,"font":"B"}]},
+        {"x0":72,"y0":100,"x1":280,"y1":114,"text":"Abstract L1","spans":[{"text":"Abstract L1","size":10,"flags":0,"font":"T"}]},
+        {"x0":315,"y0":100,"x1":520,"y1":114,"text":"Introduction R1","spans":[{"text":"Introduction R1","size":10,"flags":0,"font":"T"}]},
+        {"x0":72,"y0":116,"x1":280,"y1":130,"text":"Abstract L2","spans":[{"text":"Abstract L2","size":10,"flags":0,"font":"T"}]},
+        {"x0":315,"y0":116,"x1":520,"y1":130,"text":"Introduction R2","spans":[{"text":"Introduction R2","size":10,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "order", "columns": 2, "cross_title_first": true, "interleave_by_y": true}
+    },
+    {
+      "id": "P03_single_column",
+      "focus": "排得对",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":30,"x1":180,"y1":44,"text":"Title","spans":[{"text":"Title","size":14,"flags":16,"font":"B"}]},
+        {"x0":10,"y0":50,"x1":180,"y1":64,"text":"Body one","spans":[{"text":"Body one","size":10,"flags":0,"font":"T"}]},
+        {"x0":10,"y0":66,"x1":180,"y1":80,"text":"Body two","spans":[{"text":"Body two","size":10,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "order", "columns": 1}
+    },
+    {
+      "id": "P04_section_hierarchy",
+      "focus": "拆得清",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":30,"x1":180,"y1":44,"text":"1 Introduction","spans":[{"text":"1 Introduction","size":12,"flags":16,"font":"B"}]},
+        {"x0":10,"y0":50,"x1":180,"y1":64,"text":"2.1 Method detail","spans":[{"text":"2.1 Method detail","size":11,"flags":16,"font":"B"}]},
+        {"x0":10,"y0":66,"x1":180,"y1":80,"text":"2.1.1 Sub step","spans":[{"text":"2.1.1 Sub step","size":10,"flags":16,"font":"B"}]}
+      ]}]},
+      "expected": {"command": "sections", "levels": [1, 2, 3], "tree": true}
+    },
+    {
+      "id": "P05_table_merge_cells",
+      "focus": "拆得清",
+      "input": {"pages": [{"page": 1, "width": 400, "height": 300, "lines": [
+        {"x0":20,"y0":30,"x1":120,"y1":42,"text":"Sample","spans":[{"text":"Sample","size":9,"flags":16,"font":"B"}]},
+        {"x0":160,"y0":30,"x1":240,"y1":42,"text":"Depth","spans":[{"text":"Depth","size":9,"flags":16,"font":"B"}]},
+        {"x0":280,"y0":30,"x1":380,"y1":42,"text":"Porosity","spans":[{"text":"Porosity","size":9,"flags":16,"font":"B"}]},
+        {"x0":20,"y0":46,"x1":120,"y1":58,"text":"A-1","spans":[{"text":"A-1","size":9,"flags":0,"font":"T"}]},
+        {"x0":160,"y0":46,"x1":240,"y1":58,"text":"2100","spans":[{"text":"2100","size":9,"flags":0,"font":"T"}]},
+        {"x0":280,"y0":46,"x1":380,"y1":58,"text":"0.18","spans":[{"text":"0.18","size":9,"flags":0,"font":"T"}]},
+        {"x0":20,"y0":62,"x1":120,"y1":74,"text":"B-2","spans":[{"text":"B-2","size":9,"flags":0,"font":"T"}]},
+        {"x0":160,"y0":62,"x1":240,"y1":74,"text":"3050","spans":[{"text":"3050","size":9,"flags":0,"font":"T"}]},
+        {"x0":280,"y0":62,"x1":380,"y1":74,"text":"0.12","spans":[{"text":"0.12","size":9,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "tables", "table_count": 1, "rows": 3, "cols": 3}
+    },
+    {
+      "id": "P06_formula_greek",
+      "focus": "拆得清",
+      "input": {"pages": [{"page": 1, "width": 400, "height": 300, "lines": [
+        {"x0":20,"y0":30,"x1":380,"y1":44,"text":"The loss is L = - Σ p log q (1)","spans":[
+          {"text":"The loss is L = - ","size":10,"flags":0,"font":"T"},
+          {"text":"Σ","size":10,"flags":0,"font":"Symbol"},
+          {"text":" p log q (1)","size":10,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "formulas", "greek_preserved": "Σ", "number": "1", "no_ascii_corruption": true}
+    },
+    {
+      "id": "P07_caption_pair",
+      "focus": "提得全",
+      "input": {"pages": [{"page": 1, "width": 400, "height": 300, "lines": [
+        {"x0":20,"y0":30,"x1":380,"y1":44,"text":"Figure 1. Workflow diagram.","spans":[{"text":"Figure 1. Workflow diagram.","size":9,"flags":0,"font":"T"}]},
+        {"x0":20,"y0":60,"x1":380,"y1":74,"text":"Table 2. Sample statistics.","spans":[{"text":"Table 2. Sample statistics.","size":9,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "captions", "figure": 1, "table": 2}
+    },
+    {
+      "id": "P08_unreadable_flag",
+      "focus": "核得回",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":30,"x1":180,"y1":44,"text":"Good line here","spans":[{"text":"Good line here","size":10,"flags":0,"font":"T"}]},
+        {"x0":10,"y0":50,"x1":180,"y1":64,"text":"□□□ ???","spans":[{"text":"□□□ ???","size":10,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "clean", "unreadable_flagged": true, "not_guessed": true}
+    },
+    {
+      "id": "P09_evidence_trace",
+      "focus": "核得回",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": [
+        {"x0":10,"y0":30,"x1":180,"y1":44,"text":"Trace me","spans":[{"text":"Trace me","size":10,"flags":0,"font":"T"}]}
+      ]}]},
+      "expected": {"command": "evidence", "every_block_has_page": true, "every_block_has_type": true}
+    },
+    {
+      "id": "P10_empty_scanned",
+      "focus": "可靠体验",
+      "input": {"pages": [{"page": 1, "width": 200, "height": 200, "lines": []}]},
+      "expected": {"command": "pipeline", "no_crash": true, "status_reported": true}
+    }
+  ]
+}

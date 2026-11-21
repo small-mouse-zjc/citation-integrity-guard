@@ -1,0 +1,2298 @@
+{
+  "case_id": "layout-demo",
+  "status": "partial",
+  "pipeline": {
+    "clean": {
+      "status": "partial",
+      "header_texts": [
+        "Journal of Sedimentary Research"
+      ],
+      "footer_texts": [
+        "1",
+        "2"
+      ],
+      "lines": [
+        {
+          "page": 1,
+          "line": 2,
+          "x0": 72,
+          "y0": 60,
+          "x1": 520,
+          "y1": 82,
+          "size": 16.0,
+          "text": "Deep Learning for Carbonate Facies Classification",
+          "source_lines": [
+            2
+          ]
+        },
+        {
+          "page": 1,
+          "line": 3,
+          "x0": 72,
+          "y0": 100,
+          "x1": 280,
+          "y1": 114,
+          "size": 12.0,
+          "text": "Abstract",
+          "source_lines": [
+            3
+          ]
+        },
+        {
+          "page": 1,
+          "line": 6,
+          "x0": 315,
+          "y0": 100,
+          "x1": 520,
+          "y1": 114,
+          "size": 12.0,
+          "text": "1 Introduction",
+          "source_lines": [
+            6
+          ]
+        },
+        {
+          "page": 1,
+          "line": 4,
+          "x0": 72,
+          "y0": 118,
+          "x1": 280,
+          "y1": 132,
+          "size": 10.0,
+          "text": "We apply a convolutional neural network to classify",
+          "source_lines": [
+            4
+          ]
+        },
+        {
+          "page": 1,
+          "line": 7,
+          "x0": 315,
+          "y0": 118,
+          "x1": 520,
+          "y1": 132,
+          "size": 10.0,
+          "text": "Carbonate reservoirs host significant hydrocarbon",
+          "source_lines": [
+            7
+          ]
+        },
+        {
+          "page": 1,
+          "line": 5,
+          "x0": 72,
+          "y0": 134,
+          "x1": 280,
+          "y1": 148,
+          "size": 10.0,
+          "text": "carbonate thin-section images from three basins.",
+          "source_lines": [
+            5
+          ]
+        },
+        {
+          "page": 1,
+          "line": 8,
+          "x0": 315,
+          "y0": 134,
+          "x1": 520,
+          "y1": 148,
+          "size": 10.0,
+          "text": "volumes and require accurate facies discrimination.",
+          "source_lines": [
+            8
+          ]
+        },
+        {
+          "page": 1,
+          "line": 9,
+          "x0": 72,
+          "y0": 170,
+          "x1": 520,
+          "y1": 182,
+          "size": 9.0,
+          "text": "Figure 1. Workflow of the proposed method.",
+          "source_lines": [
+            9
+          ]
+        },
+        {
+          "page": 1,
+          "line": 10,
+          "x0": 72,
+          "y0": 200,
+          "x1": 520,
+          "y1": 212,
+          "size": 9.0,
+          "text": "Table 1. Dataset statistics.",
+          "source_lines": [
+            10
+          ]
+        },
+        {
+          "page": 1,
+          "line": 11,
+          "x0": 72,
+          "y0": 216,
+          "x1": 280,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Basin",
+          "source_lines": [
+            11
+          ]
+        },
+        {
+          "page": 1,
+          "line": 12,
+          "x0": 300,
+          "y0": 216,
+          "x1": 400,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Samples",
+          "source_lines": [
+            12
+          ]
+        },
+        {
+          "page": 1,
+          "line": 13,
+          "x0": 420,
+          "y0": 216,
+          "x1": 520,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Accuracy",
+          "source_lines": [
+            13
+          ]
+        },
+        {
+          "page": 1,
+          "line": 14,
+          "x0": 72,
+          "y0": 232,
+          "x1": 280,
+          "y1": 244,
+          "size": 9.0,
+          "text": "Sichuan",
+          "source_lines": [
+            14
+          ]
+        },
+        {
+          "page": 1,
+          "line": 15,
+          "x0": 300,
+          "y0": 232,
+          "x1": 400,
+          "y1": 244,
+          "size": 9.0,
+          "text": "1200",
+          "source_lines": [
+            15
+          ]
+        },
+        {
+          "page": 1,
+          "line": 16,
+          "x0": 420,
+          "y0": 232,
+          "x1": 520,
+          "y1": 244,
+          "size": 9.0,
+          "text": "0.92",
+          "source_lines": [
+            16
+          ]
+        },
+        {
+          "page": 1,
+          "line": 17,
+          "x0": 72,
+          "y0": 248,
+          "x1": 280,
+          "y1": 260,
+          "size": 9.0,
+          "text": "Tarim",
+          "source_lines": [
+            17
+          ]
+        },
+        {
+          "page": 1,
+          "line": 18,
+          "x0": 300,
+          "y0": 248,
+          "x1": 400,
+          "y1": 260,
+          "size": 9.0,
+          "text": "980",
+          "source_lines": [
+            18
+          ]
+        },
+        {
+          "page": 1,
+          "line": 19,
+          "x0": 420,
+          "y0": 248,
+          "x1": 520,
+          "y1": 260,
+          "size": 9.0,
+          "text": "0.88",
+          "source_lines": [
+            19
+          ]
+        },
+        {
+          "page": 1,
+          "line": 20,
+          "x0": 72,
+          "y0": 290,
+          "x1": 520,
+          "y1": 304,
+          "size": 10.0,
+          "text": "The loss function is L = - Σ p log(q) (1)",
+          "source_lines": [
+            20
+          ]
+        },
+        {
+          "page": 1,
+          "line": 21,
+          "x0": 72,
+          "y0": 330,
+          "x1": 280,
+          "y1": 344,
+          "size": 12.0,
+          "text": "2 Methods",
+          "source_lines": [
+            21
+          ]
+        },
+        {
+          "page": 1,
+          "line": 23,
+          "x0": 315,
+          "y0": 330,
+          "x1": 520,
+          "y1": 344,
+          "size": 11.0,
+          "text": "2.1 Data preprocessing",
+          "source_lines": [
+            23
+          ]
+        },
+        {
+          "page": 1,
+          "line": 22,
+          "x0": 72,
+          "y0": 348,
+          "x1": 280,
+          "y1": 362,
+          "size": 10.0,
+          "text": "We use a ResNet backbone pretrained on ImageNet.",
+          "source_lines": [
+            22
+          ]
+        },
+        {
+          "page": 1,
+          "line": 24,
+          "x0": 315,
+          "y0": 348,
+          "x1": 520,
+          "y1": 362,
+          "size": 10.0,
+          "text": "All images were normalized to 224 by 224 pixels.",
+          "source_lines": [
+            24
+          ]
+        },
+        {
+          "page": 2,
+          "line": 2,
+          "x0": 72,
+          "y0": 60,
+          "x1": 280,
+          "y1": 74,
+          "size": 12.0,
+          "text": "3 Results",
+          "source_lines": [
+            2
+          ]
+        },
+        {
+          "page": 2,
+          "line": 4,
+          "x0": 315,
+          "y0": 60,
+          "x1": 520,
+          "y1": 74,
+          "size": 12.0,
+          "text": "4 Conclusion",
+          "source_lines": [
+            4
+          ]
+        },
+        {
+          "page": 2,
+          "line": 3,
+          "x0": 72,
+          "y0": 78,
+          "x1": 280,
+          "y1": 92,
+          "size": 10.0,
+          "text": "The model achieved state-of-the-art accuracy.",
+          "source_lines": [
+            3
+          ]
+        },
+        {
+          "page": 2,
+          "line": 5,
+          "x0": 315,
+          "y0": 78,
+          "x1": 520,
+          "y1": 92,
+          "size": 10.0,
+          "text": "Deep learning aids carbonate facies classification.",
+          "source_lines": [
+            5
+          ]
+        },
+        {
+          "page": 2,
+          "line": 6,
+          "x0": 72,
+          "y0": 120,
+          "x1": 520,
+          "y1": 134,
+          "size": 12.0,
+          "text": "References",
+          "source_lines": [
+            6
+          ]
+        },
+        {
+          "page": 2,
+          "line": 7,
+          "x0": 72,
+          "y0": 138,
+          "x1": 520,
+          "y1": 152,
+          "size": 9.0,
+          "text": "Smith, A. (2020). A study of facies. Journal of Geology.",
+          "source_lines": [
+            7
+          ]
+        }
+      ],
+      "dropped": [
+        {
+          "page": 1,
+          "line": 0,
+          "x0": 72,
+          "y0": 30,
+          "x1": 520,
+          "y1": 42,
+          "size": 9.0,
+          "text": "Journal of Sedimentary Research",
+          "reason": "header"
+        },
+        {
+          "page": 1,
+          "line": 1,
+          "x0": 280,
+          "y0": 800,
+          "x1": 310,
+          "y1": 812,
+          "size": 9.0,
+          "text": "1",
+          "reason": "footer"
+        },
+        {
+          "page": 2,
+          "line": 0,
+          "x0": 72,
+          "y0": 30,
+          "x1": 520,
+          "y1": 42,
+          "size": 9.0,
+          "text": "Journal of Sedimentary Research",
+          "reason": "header"
+        },
+        {
+          "page": 2,
+          "line": 1,
+          "x0": 280,
+          "y0": 800,
+          "x1": 310,
+          "y1": 812,
+          "size": 9.0,
+          "text": "2",
+          "reason": "footer"
+        }
+      ],
+      "unreadable": [],
+      "stats": {
+        "input_lines": 33,
+        "body_lines": 29,
+        "merged_lines": 29,
+        "dropped_header_footer_margin": 4,
+        "unreadable_lines": 0,
+        "char_count": 738
+      }
+    },
+    "order": {
+      "status": "success",
+      "ordered": [
+        {
+          "page": 1,
+          "line": 2,
+          "x0": 72,
+          "y0": 60,
+          "x1": 520,
+          "y1": 82,
+          "size": 16.0,
+          "text": "Deep Learning for Carbonate Facies Classification",
+          "source_lines": [
+            2
+          ],
+          "order": 1,
+          "column": "X"
+        },
+        {
+          "page": 1,
+          "line": 3,
+          "x0": 72,
+          "y0": 100,
+          "x1": 280,
+          "y1": 114,
+          "size": 12.0,
+          "text": "Abstract",
+          "source_lines": [
+            3
+          ],
+          "order": 2,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 6,
+          "x0": 315,
+          "y0": 100,
+          "x1": 520,
+          "y1": 114,
+          "size": 12.0,
+          "text": "1 Introduction",
+          "source_lines": [
+            6
+          ],
+          "order": 3,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 4,
+          "x0": 72,
+          "y0": 118,
+          "x1": 280,
+          "y1": 132,
+          "size": 10.0,
+          "text": "We apply a convolutional neural network to classify",
+          "source_lines": [
+            4
+          ],
+          "order": 4,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 7,
+          "x0": 315,
+          "y0": 118,
+          "x1": 520,
+          "y1": 132,
+          "size": 10.0,
+          "text": "Carbonate reservoirs host significant hydrocarbon",
+          "source_lines": [
+            7
+          ],
+          "order": 5,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 5,
+          "x0": 72,
+          "y0": 134,
+          "x1": 280,
+          "y1": 148,
+          "size": 10.0,
+          "text": "carbonate thin-section images from three basins.",
+          "source_lines": [
+            5
+          ],
+          "order": 6,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 8,
+          "x0": 315,
+          "y0": 134,
+          "x1": 520,
+          "y1": 148,
+          "size": 10.0,
+          "text": "volumes and require accurate facies discrimination.",
+          "source_lines": [
+            8
+          ],
+          "order": 7,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 9,
+          "x0": 72,
+          "y0": 170,
+          "x1": 520,
+          "y1": 182,
+          "size": 9.0,
+          "text": "Figure 1. Workflow of the proposed method.",
+          "source_lines": [
+            9
+          ],
+          "order": 8,
+          "column": "X"
+        },
+        {
+          "page": 1,
+          "line": 10,
+          "x0": 72,
+          "y0": 200,
+          "x1": 520,
+          "y1": 212,
+          "size": 9.0,
+          "text": "Table 1. Dataset statistics.",
+          "source_lines": [
+            10
+          ],
+          "order": 9,
+          "column": "X"
+        },
+        {
+          "page": 1,
+          "line": 11,
+          "x0": 72,
+          "y0": 216,
+          "x1": 280,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Basin",
+          "source_lines": [
+            11
+          ],
+          "order": 10,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 12,
+          "x0": 300,
+          "y0": 216,
+          "x1": 400,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Samples",
+          "source_lines": [
+            12
+          ],
+          "order": 11,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 13,
+          "x0": 420,
+          "y0": 216,
+          "x1": 520,
+          "y1": 228,
+          "size": 9.0,
+          "text": "Accuracy",
+          "source_lines": [
+            13
+          ],
+          "order": 12,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 14,
+          "x0": 72,
+          "y0": 232,
+          "x1": 280,
+          "y1": 244,
+          "size": 9.0,
+          "text": "Sichuan",
+          "source_lines": [
+            14
+          ],
+          "order": 13,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 15,
+          "x0": 300,
+          "y0": 232,
+          "x1": 400,
+          "y1": 244,
+          "size": 9.0,
+          "text": "1200",
+          "source_lines": [
+            15
+          ],
+          "order": 14,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 16,
+          "x0": 420,
+          "y0": 232,
+          "x1": 520,
+          "y1": 244,
+          "size": 9.0,
+          "text": "0.92",
+          "source_lines": [
+            16
+          ],
+          "order": 15,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 17,
+          "x0": 72,
+          "y0": 248,
+          "x1": 280,
+          "y1": 260,
+          "size": 9.0,
+          "text": "Tarim",
+          "source_lines": [
+            17
+          ],
+          "order": 16,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 18,
+          "x0": 300,
+          "y0": 248,
+          "x1": 400,
+          "y1": 260,
+          "size": 9.0,
+          "text": "980",
+          "source_lines": [
+            18
+          ],
+          "order": 17,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 19,
+          "x0": 420,
+          "y0": 248,
+          "x1": 520,
+          "y1": 260,
+          "size": 9.0,
+          "text": "0.88",
+          "source_lines": [
+            19
+          ],
+          "order": 18,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 20,
+          "x0": 72,
+          "y0": 290,
+          "x1": 520,
+          "y1": 304,
+          "size": 10.0,
+          "text": "The loss function is L = - Σ p log(q) (1)",
+          "source_lines": [
+            20
+          ],
+          "order": 19,
+          "column": "X"
+        },
+        {
+          "page": 1,
+          "line": 21,
+          "x0": 72,
+          "y0": 330,
+          "x1": 280,
+          "y1": 344,
+          "size": 12.0,
+          "text": "2 Methods",
+          "source_lines": [
+            21
+          ],
+          "order": 20,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 23,
+          "x0": 315,
+          "y0": 330,
+          "x1": 520,
+          "y1": 344,
+          "size": 11.0,
+          "text": "2.1 Data preprocessing",
+          "source_lines": [
+            23
+          ],
+          "order": 21,
+          "column": "R"
+        },
+        {
+          "page": 1,
+          "line": 22,
+          "x0": 72,
+          "y0": 348,
+          "x1": 280,
+          "y1": 362,
+          "size": 10.0,
+          "text": "We use a ResNet backbone pretrained on ImageNet.",
+          "source_lines": [
+            22
+          ],
+          "order": 22,
+          "column": "L"
+        },
+        {
+          "page": 1,
+          "line": 24,
+          "x0": 315,
+          "y0": 348,
+          "x1": 520,
+          "y1": 362,
+          "size": 10.0,
+          "text": "All images were normalized to 224 by 224 pixels.",
+          "source_lines": [
+            24
+          ],
+          "order": 23,
+          "column": "R"
+        },
+        {
+          "page": 2,
+          "line": 2,
+          "x0": 72,
+          "y0": 60,
+          "x1": 280,
+          "y1": 74,
+          "size": 12.0,
+          "text": "3 Results",
+          "source_lines": [
+            2
+          ],
+          "order": 24,
+          "column": "L"
+        },
+        {
+          "page": 2,
+          "line": 4,
+          "x0": 315,
+          "y0": 60,
+          "x1": 520,
+          "y1": 74,
+          "size": 12.0,
+          "text": "4 Conclusion",
+          "source_lines": [
+            4
+          ],
+          "order": 25,
+          "column": "R"
+        },
+        {
+          "page": 2,
+          "line": 3,
+          "x0": 72,
+          "y0": 78,
+          "x1": 280,
+          "y1": 92,
+          "size": 10.0,
+          "text": "The model achieved state-of-the-art accuracy.",
+          "source_lines": [
+            3
+          ],
+          "order": 26,
+          "column": "L"
+        },
+        {
+          "page": 2,
+          "line": 5,
+          "x0": 315,
+          "y0": 78,
+          "x1": 520,
+          "y1": 92,
+          "size": 10.0,
+          "text": "Deep learning aids carbonate facies classification.",
+          "source_lines": [
+            5
+          ],
+          "order": 27,
+          "column": "R"
+        },
+        {
+          "page": 2,
+          "line": 6,
+          "x0": 72,
+          "y0": 120,
+          "x1": 520,
+          "y1": 134,
+          "size": 12.0,
+          "text": "References",
+          "source_lines": [
+            6
+          ],
+          "order": 28,
+          "column": "X"
+        },
+        {
+          "page": 2,
+          "line": 7,
+          "x0": 72,
+          "y0": 138,
+          "x1": 520,
+          "y1": 152,
+          "size": 9.0,
+          "text": "Smith, A. (2020). A study of facies. Journal of Geology.",
+          "source_lines": [
+            7
+          ],
+          "order": 29,
+          "column": "X"
+        }
+      ],
+      "column_reports": [
+        {
+          "page": 1,
+          "columns": 2,
+          "gutter": [
+            76.0,
+            296.0
+          ],
+          "confidence": 0.85,
+          "evidence": {
+            "clusters": [
+              72.0,
+              280.0,
+              315.0,
+              420.0
+            ],
+            "cluster_counts": [
+              8,
+              1,
+              8,
+              3
+            ],
+            "page_width": 595.0,
+            "wide_blocks_excluded": 5
+          }
+        },
+        {
+          "page": 2,
+          "columns": 2,
+          "gutter": [
+            76.0,
+            311.0
+          ],
+          "confidence": 0.6,
+          "evidence": {
+            "clusters": [
+              72.0,
+              280.0,
+              315.0
+            ],
+            "cluster_counts": [
+              2,
+              1,
+              2
+            ],
+            "page_width": 595.0,
+            "wide_blocks_excluded": 3
+          }
+        }
+      ],
+      "order_violations": [],
+      "stats": {
+        "pages": 2,
+        "blocks": 29,
+        "two_column_pages": 2
+      }
+    },
+    "sections": {
+      "status": "success",
+      "sections": [
+        {
+          "text": "Abstract",
+          "page": 1,
+          "y0": 100,
+          "order": 2,
+          "kind": "abstract",
+          "level": 1
+        },
+        {
+          "text": "1 Introduction",
+          "page": 1,
+          "y0": 100,
+          "order": 3,
+          "kind": "numbered",
+          "level": 1
+        },
+        {
+          "text": "2 Methods",
+          "page": 1,
+          "y0": 330,
+          "order": 20,
+          "kind": "numbered",
+          "level": 1
+        },
+        {
+          "text": "2.1 Data preprocessing",
+          "page": 1,
+          "y0": 330,
+          "order": 21,
+          "kind": "numbered",
+          "level": 2
+        },
+        {
+          "text": "3 Results",
+          "page": 2,
+          "y0": 60,
+          "order": 24,
+          "kind": "numbered",
+          "level": 1
+        },
+        {
+          "text": "4 Conclusion",
+          "page": 2,
+          "y0": 60,
+          "order": 25,
+          "kind": "numbered",
+          "level": 1
+        },
+        {
+          "text": "References",
+          "page": 2,
+          "y0": 120,
+          "order": 28,
+          "kind": "references",
+          "level": 1
+        }
+      ],
+      "tree": [
+        {
+          "title": "Abstract",
+          "level": 1,
+          "page": 1,
+          "children": []
+        },
+        {
+          "title": "1 Introduction",
+          "level": 1,
+          "page": 1,
+          "children": []
+        },
+        {
+          "title": "2 Methods",
+          "level": 1,
+          "page": 1,
+          "children": [
+            {
+              "title": "2.1 Data preprocessing",
+              "level": 2,
+              "page": 1,
+              "children": []
+            }
+          ]
+        },
+        {
+          "title": "3 Results",
+          "level": 1,
+          "page": 2,
+          "children": []
+        },
+        {
+          "title": "4 Conclusion",
+          "level": 1,
+          "page": 2,
+          "children": []
+        },
+        {
+          "title": "References",
+          "level": 1,
+          "page": 2,
+          "children": []
+        }
+      ],
+      "stats": {
+        "heading_count": 7,
+        "levels": [
+          1,
+          2
+        ]
+      }
+    },
+    "tables": {
+      "status": "success",
+      "tables": [
+        {
+          "page": 1,
+          "y0": 216.0,
+          "rows": 3,
+          "cols": 3,
+          "grid": [
+            {
+              "cells": [
+                "Basin",
+                "Samples",
+                "Accuracy"
+              ],
+              "y0": 216.0,
+              "page": 1
+            },
+            {
+              "cells": [
+                "Sichuan",
+                "1200",
+                "0.92"
+              ],
+              "y0": 232.0,
+              "page": 1
+            },
+            {
+              "cells": [
+                "Tarim",
+                "980",
+                "0.88"
+              ],
+              "y0": 248.0,
+              "page": 1
+            }
+          ],
+          "markdown": "| Basin | Samples | Accuracy |\n|---|---|---|\n| Sichuan | 1200 | 0.92 |\n| Tarim | 980 | 0.88 |",
+          "source_lines": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ]
+        }
+      ],
+      "continuations": [],
+      "stats": {
+        "table_count": 1,
+        "multi_page_tables": 0
+      }
+    },
+    "formulas": {
+      "status": "success",
+      "formulas": [
+        {
+          "text": "The loss function is L = - Σ p log(q) (1)",
+          "rendered": "The loss function is L = - Σ p log(q) (1)",
+          "number": "1",
+          "page": 1,
+          "y0": 290,
+          "has_greek": true,
+          "subscript_spans": 0,
+          "needs_review": true
+        }
+      ],
+      "greek_pages": [
+        {
+          "page": 1,
+          "chars": [
+            "Σ"
+          ]
+        }
+      ],
+      "stats": {
+        "formula_candidates": 1,
+        "numbered": 1,
+        "with_subscript": 0
+      },
+      "note": "按结构元素识别并保真符号，不解释公式科学含义（题面要求）。"
+    },
+    "captions": {
+      "status": "success",
+      "captions": [
+        {
+          "kind": "figure",
+          "number": 1,
+          "text": "Figure 1. Workflow of the proposed method.",
+          "page": 1,
+          "y0": 170,
+          "order": 8,
+          "nearby_text": []
+        },
+        {
+          "kind": "table",
+          "number": 1,
+          "text": "Table 1. Dataset statistics.",
+          "page": 1,
+          "y0": 200,
+          "order": 9,
+          "nearby_text": [
+            "Basin",
+            "Samples",
+            "Accuracy"
+          ]
+        }
+      ],
+      "stats": {
+        "figure_captions": 1,
+        "table_captions": 1
+      }
+    },
+    "evidence": {
+      "status": "success",
+      "evidence": [
+        {
+          "id": "B001",
+          "page": 1,
+          "bbox": [
+            72,
+            60,
+            520,
+            82
+          ],
+          "block_type": "text",
+          "text_head": "Deep Learning for Carbonate Facies Class",
+          "source_line": 2
+        },
+        {
+          "id": "B002",
+          "page": 1,
+          "bbox": [
+            72,
+            100,
+            280,
+            114
+          ],
+          "block_type": "text",
+          "text_head": "Abstract",
+          "source_line": 3
+        },
+        {
+          "id": "B003",
+          "page": 1,
+          "bbox": [
+            315,
+            100,
+            520,
+            114
+          ],
+          "block_type": "text",
+          "text_head": "1 Introduction",
+          "source_line": 6
+        },
+        {
+          "id": "B004",
+          "page": 1,
+          "bbox": [
+            72,
+            118,
+            280,
+            132
+          ],
+          "block_type": "text",
+          "text_head": "We apply a convolutional neural network ",
+          "source_line": 4
+        },
+        {
+          "id": "B005",
+          "page": 1,
+          "bbox": [
+            315,
+            118,
+            520,
+            132
+          ],
+          "block_type": "text",
+          "text_head": "Carbonate reservoirs host significant hy",
+          "source_line": 7
+        },
+        {
+          "id": "B006",
+          "page": 1,
+          "bbox": [
+            72,
+            134,
+            280,
+            148
+          ],
+          "block_type": "text",
+          "text_head": "carbonate thin-section images from three",
+          "source_line": 5
+        },
+        {
+          "id": "B007",
+          "page": 1,
+          "bbox": [
+            315,
+            134,
+            520,
+            148
+          ],
+          "block_type": "text",
+          "text_head": "volumes and require accurate facies disc",
+          "source_line": 8
+        },
+        {
+          "id": "B008",
+          "page": 1,
+          "bbox": [
+            72,
+            170,
+            520,
+            182
+          ],
+          "block_type": "text",
+          "text_head": "Figure 1. Workflow of the proposed metho",
+          "source_line": 9
+        },
+        {
+          "id": "B009",
+          "page": 1,
+          "bbox": [
+            72,
+            200,
+            520,
+            212
+          ],
+          "block_type": "text",
+          "text_head": "Table 1. Dataset statistics.",
+          "source_line": 10
+        },
+        {
+          "id": "B010",
+          "page": 1,
+          "bbox": [
+            72,
+            216,
+            280,
+            228
+          ],
+          "block_type": "text",
+          "text_head": "Basin",
+          "source_line": 11
+        },
+        {
+          "id": "B011",
+          "page": 1,
+          "bbox": [
+            300,
+            216,
+            400,
+            228
+          ],
+          "block_type": "text",
+          "text_head": "Samples",
+          "source_line": 12
+        },
+        {
+          "id": "B012",
+          "page": 1,
+          "bbox": [
+            420,
+            216,
+            520,
+            228
+          ],
+          "block_type": "text",
+          "text_head": "Accuracy",
+          "source_line": 13
+        },
+        {
+          "id": "B013",
+          "page": 1,
+          "bbox": [
+            72,
+            232,
+            280,
+            244
+          ],
+          "block_type": "text",
+          "text_head": "Sichuan",
+          "source_line": 14
+        },
+        {
+          "id": "B014",
+          "page": 1,
+          "bbox": [
+            300,
+            232,
+            400,
+            244
+          ],
+          "block_type": "text",
+          "text_head": "1200",
+          "source_line": 15
+        },
+        {
+          "id": "B015",
+          "page": 1,
+          "bbox": [
+            420,
+            232,
+            520,
+            244
+          ],
+          "block_type": "text",
+          "text_head": "0.92",
+          "source_line": 16
+        },
+        {
+          "id": "B016",
+          "page": 1,
+          "bbox": [
+            72,
+            248,
+            280,
+            260
+          ],
+          "block_type": "text",
+          "text_head": "Tarim",
+          "source_line": 17
+        },
+        {
+          "id": "B017",
+          "page": 1,
+          "bbox": [
+            300,
+            248,
+            400,
+            260
+          ],
+          "block_type": "text",
+          "text_head": "980",
+          "source_line": 18
+        },
+        {
+          "id": "B018",
+          "page": 1,
+          "bbox": [
+            420,
+            248,
+            520,
+            260
+          ],
+          "block_type": "text",
+          "text_head": "0.88",
+          "source_line": 19
+        },
+        {
+          "id": "B019",
+          "page": 1,
+          "bbox": [
+            72,
+            290,
+            520,
+            304
+          ],
+          "block_type": "text",
+          "text_head": "The loss function is L = - Σ p log(q) (1",
+          "source_line": 20
+        },
+        {
+          "id": "B020",
+          "page": 1,
+          "bbox": [
+            72,
+            330,
+            280,
+            344
+          ],
+          "block_type": "text",
+          "text_head": "2 Methods",
+          "source_line": 21
+        },
+        {
+          "id": "B021",
+          "page": 1,
+          "bbox": [
+            315,
+            330,
+            520,
+            344
+          ],
+          "block_type": "text",
+          "text_head": "2.1 Data preprocessing",
+          "source_line": 23
+        },
+        {
+          "id": "B022",
+          "page": 1,
+          "bbox": [
+            72,
+            348,
+            280,
+            362
+          ],
+          "block_type": "text",
+          "text_head": "We use a ResNet backbone pretrained on I",
+          "source_line": 22
+        },
+        {
+          "id": "B023",
+          "page": 1,
+          "bbox": [
+            315,
+            348,
+            520,
+            362
+          ],
+          "block_type": "text",
+          "text_head": "All images were normalized to 224 by 224",
+          "source_line": 24
+        },
+        {
+          "id": "B024",
+          "page": 2,
+          "bbox": [
+            72,
+            60,
+            280,
+            74
+          ],
+          "block_type": "text",
+          "text_head": "3 Results",
+          "source_line": 2
+        },
+        {
+          "id": "B025",
+          "page": 2,
+          "bbox": [
+            315,
+            60,
+            520,
+            74
+          ],
+          "block_type": "text",
+          "text_head": "4 Conclusion",
+          "source_line": 4
+        },
+        {
+          "id": "B026",
+          "page": 2,
+          "bbox": [
+            72,
+            78,
+            280,
+            92
+          ],
+          "block_type": "text",
+          "text_head": "The model achieved state-of-the-art accu",
+          "source_line": 3
+        },
+        {
+          "id": "B027",
+          "page": 2,
+          "bbox": [
+            315,
+            78,
+            520,
+            92
+          ],
+          "block_type": "text",
+          "text_head": "Deep learning aids carbonate facies clas",
+          "source_line": 5
+        },
+        {
+          "id": "B028",
+          "page": 2,
+          "bbox": [
+            72,
+            120,
+            520,
+            134
+          ],
+          "block_type": "text",
+          "text_head": "References",
+          "source_line": 6
+        },
+        {
+          "id": "B029",
+          "page": 2,
+          "bbox": [
+            72,
+            138,
+            520,
+            152
+          ],
+          "block_type": "text",
+          "text_head": "Smith, A. (2020). A study of facies. Jou",
+          "source_line": 7
+        },
+        {
+          "id": "S030",
+          "page": 1,
+          "bbox": null,
+          "block_type": "section:abstract",
+          "text_head": "Abstract"
+        },
+        {
+          "id": "S031",
+          "page": 1,
+          "bbox": null,
+          "block_type": "section:numbered",
+          "text_head": "1 Introduction"
+        },
+        {
+          "id": "S032",
+          "page": 1,
+          "bbox": null,
+          "block_type": "section:numbered",
+          "text_head": "2 Methods"
+        },
+        {
+          "id": "S033",
+          "page": 1,
+          "bbox": null,
+          "block_type": "section:numbered",
+          "text_head": "2.1 Data preprocessing"
+        },
+        {
+          "id": "S034",
+          "page": 2,
+          "bbox": null,
+          "block_type": "section:numbered",
+          "text_head": "3 Results"
+        },
+        {
+          "id": "S035",
+          "page": 2,
+          "bbox": null,
+          "block_type": "section:numbered",
+          "text_head": "4 Conclusion"
+        },
+        {
+          "id": "S036",
+          "page": 2,
+          "bbox": null,
+          "block_type": "section:references",
+          "text_head": "References"
+        },
+        {
+          "id": "T037",
+          "page": 1,
+          "bbox": [
+            null,
+            216.0,
+            null,
+            null
+          ],
+          "block_type": "table",
+          "text_head": "3x3 table"
+        },
+        {
+          "id": "X038",
+          "page": 1,
+          "bbox": null,
+          "block_type": "excluded:header",
+          "text_head": "Journal of Sedimentary Research"
+        },
+        {
+          "id": "X039",
+          "page": 1,
+          "bbox": null,
+          "block_type": "excluded:footer",
+          "text_head": "1"
+        },
+        {
+          "id": "X040",
+          "page": 2,
+          "bbox": null,
+          "block_type": "excluded:header",
+          "text_head": "Journal of Sedimentary Research"
+        },
+        {
+          "id": "X041",
+          "page": 2,
+          "bbox": null,
+          "block_type": "excluded:footer",
+          "text_head": "2"
+        }
+      ],
+      "stats": {
+        "locatable_blocks": 41
+      }
+    },
+    "verify": {
+      "status": "success",
+      "consistent": true,
+      "coverage": 1.0,
+      "src_chars": 802,
+      "body_chars": 738,
+      "out_chars": 738,
+      "problems": [],
+      "stats": {
+        "pages": 2,
+        "evidence_blocks": 41,
+        "unreadable_lines": 0
+      }
+    }
+  },
+  "result": {
+    "reading_text": "Deep Learning for Carbonate Facies Classification\nAbstract\n1 Introduction\nWe apply a convolutional neural network to classify\nCarbonate reservoirs host significant hydrocarbon\ncarbonate thin-section images from three basins.\nvolumes and require accurate facies discrimination.\nFigure 1. Workflow of the proposed method.\nTable 1. Dataset statistics.\nBasin\nSamples\nAccuracy\nSichuan\n1200\n0.92\nTarim\n980\n0.88\nThe loss function is L = - Σ p log(q) (1)\n2 Methods\n2.1 Data preprocessing\nWe use a ResNet backbone pretrained on ImageNet.\nAll images were normalized to 224 by 224 pixels.\n3 Results\n4 Conclusion\nThe model achieved state-of-the-art accuracy.\nDeep learning aids carbonate facies classification.\nReferences\nSmith, A. (2020). A study of facies. Journal of Geology.",
+    "structure": [
+      {
+        "title": "Abstract",
+        "level": 1,
+        "page": 1,
+        "children": []
+      },
+      {
+        "title": "1 Introduction",
+        "level": 1,
+        "page": 1,
+        "children": []
+      },
+      {
+        "title": "2 Methods",
+        "level": 1,
+        "page": 1,
+        "children": [
+          {
+            "title": "2.1 Data preprocessing",
+            "level": 2,
+            "page": 1,
+            "children": []
+          }
+        ]
+      },
+      {
+        "title": "3 Results",
+        "level": 1,
+        "page": 2,
+        "children": []
+      },
+      {
+        "title": "4 Conclusion",
+        "level": 1,
+        "page": 2,
+        "children": []
+      },
+      {
+        "title": "References",
+        "level": 1,
+        "page": 2,
+        "children": []
+      }
+    ],
+    "sections": [
+      {
+        "text": "Abstract",
+        "page": 1,
+        "y0": 100,
+        "order": 2,
+        "kind": "abstract",
+        "level": 1
+      },
+      {
+        "text": "1 Introduction",
+        "page": 1,
+        "y0": 100,
+        "order": 3,
+        "kind": "numbered",
+        "level": 1
+      },
+      {
+        "text": "2 Methods",
+        "page": 1,
+        "y0": 330,
+        "order": 20,
+        "kind": "numbered",
+        "level": 1
+      },
+      {
+        "text": "2.1 Data preprocessing",
+        "page": 1,
+        "y0": 330,
+        "order": 21,
+        "kind": "numbered",
+        "level": 2
+      },
+      {
+        "text": "3 Results",
+        "page": 2,
+        "y0": 60,
+        "order": 24,
+        "kind": "numbered",
+        "level": 1
+      },
+      {
+        "text": "4 Conclusion",
+        "page": 2,
+        "y0": 60,
+        "order": 25,
+        "kind": "numbered",
+        "level": 1
+      },
+      {
+        "text": "References",
+        "page": 2,
+        "y0": 120,
+        "order": 28,
+        "kind": "references",
+        "level": 1
+      }
+    ],
+    "tables": [
+      {
+        "page": 1,
+        "markdown": "| Basin | Samples | Accuracy |\n|---|---|---|\n| Sichuan | 1200 | 0.92 |\n| Tarim | 980 | 0.88 |",
+        "rows": 3,
+        "cols": 3
+      }
+    ],
+    "formulas": [
+      {
+        "text": "The loss function is L = - Σ p log(q) (1)",
+        "rendered": "The loss function is L = - Σ p log(q) (1)",
+        "number": "1",
+        "page": 1,
+        "y0": 290,
+        "has_greek": true,
+        "subscript_spans": 0,
+        "needs_review": true
+      }
+    ],
+    "captions": [
+      {
+        "kind": "figure",
+        "number": 1,
+        "text": "Figure 1. Workflow of the proposed method.",
+        "page": 1,
+        "y0": 170,
+        "order": 8,
+        "nearby_text": []
+      },
+      {
+        "kind": "table",
+        "number": 1,
+        "text": "Table 1. Dataset statistics.",
+        "page": 1,
+        "y0": 200,
+        "order": 9,
+        "nearby_text": [
+          "Basin",
+          "Samples",
+          "Accuracy"
+        ]
+      }
+    ],
+    "evidence_index": [
+      {
+        "id": "B001",
+        "page": 1,
+        "bbox": [
+          72,
+          60,
+          520,
+          82
+        ],
+        "block_type": "text",
+        "text_head": "Deep Learning for Carbonate Facies Class",
+        "source_line": 2
+      },
+      {
+        "id": "B002",
+        "page": 1,
+        "bbox": [
+          72,
+          100,
+          280,
+          114
+        ],
+        "block_type": "text",
+        "text_head": "Abstract",
+        "source_line": 3
+      },
+      {
+        "id": "B003",
+        "page": 1,
+        "bbox": [
+          315,
+          100,
+          520,
+          114
+        ],
+        "block_type": "text",
+        "text_head": "1 Introduction",
+        "source_line": 6
+      },
+      {
+        "id": "B004",
+        "page": 1,
+        "bbox": [
+          72,
+          118,
+          280,
+          132
+        ],
+        "block_type": "text",
+        "text_head": "We apply a convolutional neural network ",
+        "source_line": 4
+      },
+      {
+        "id": "B005",
+        "page": 1,
+        "bbox": [
+          315,
+          118,
+          520,
+          132
+        ],
+        "block_type": "text",
+        "text_head": "Carbonate reservoirs host significant hy",
+        "source_line": 7
+      },
+      {
+        "id": "B006",
+        "page": 1,
+        "bbox": [
+          72,
+          134,
+          280,
+          148
+        ],
+        "block_type": "text",
+        "text_head": "carbonate thin-section images from three",
+        "source_line": 5
+      },
+      {
+        "id": "B007",
+        "page": 1,
+        "bbox": [
+          315,
+          134,
+          520,
+          148
+        ],
+        "block_type": "text",
+        "text_head": "volumes and require accurate facies disc",
+        "source_line": 8
+      },
+      {
+        "id": "B008",
+        "page": 1,
+        "bbox": [
+          72,
+          170,
+          520,
+          182
+        ],
+        "block_type": "text",
+        "text_head": "Figure 1. Workflow of the proposed metho",
+        "source_line": 9
+      },
+      {
+        "id": "B009",
+        "page": 1,
+        "bbox": [
+          72,
+          200,
+          520,
+          212
+        ],
+        "block_type": "text",
+        "text_head": "Table 1. Dataset statistics.",
+        "source_line": 10
+      },
+      {
+        "id": "B010",
+        "page": 1,
+        "bbox": [
+          72,
+          216,
+          280,
+          228
+        ],
+        "block_type": "text",
+        "text_head": "Basin",
+        "source_line": 11
+      },
+      {
+        "id": "B011",
+        "page": 1,
+        "bbox": [
+          300,
+          216,
+          400,
+          228
+        ],
+        "block_type": "text",
+        "text_head": "Samples",
+        "source_line": 12
+      },
+      {
+        "id": "B012",
+        "page": 1,
+        "bbox": [
+          420,
+          216,
+          520,
+          228
+        ],
+        "block_type": "text",
+        "text_head": "Accuracy",
+        "source_line": 13
+      },
+      {
+        "id": "B013",
+        "page": 1,
+        "bbox": [
+          72,
+          232,
+          280,
+          244
+        ],
+        "block_type": "text",
+        "text_head": "Sichuan",
+        "source_line": 14
+      },
+      {
+        "id": "B014",
+        "page": 1,
+        "bbox": [
+          300,
+          232,
+          400,
+          244
+        ],
+        "block_type": "text",
+        "text_head": "1200",
+        "source_line": 15
+      },
+      {
+        "id": "B015",
+        "page": 1,
+        "bbox": [
+          420,
+          232,
+          520,
+          244
+        ],
+        "block_type": "text",
+        "text_head": "0.92",
+        "source_line": 16
+      },
+      {
+        "id": "B016",
+        "page": 1,
+        "bbox": [
+          72,
+          248,
+          280,
+          260
+        ],
+        "block_type": "text",
+        "text_head": "Tarim",
+        "source_line": 17
+      },
+      {
+        "id": "B017",
+        "page": 1,
+        "bbox": [
+          300,
+          248,
+          400,
+          260
+        ],
+        "block_type": "text",
+        "text_head": "980",
+        "source_line": 18
+      },
+      {
+        "id": "B018",
+        "page": 1,
+        "bbox": [
+          420,
+          248,
+          520,
+          260
+        ],
+        "block_type": "text",
+        "text_head": "0.88",
+        "source_line": 19
+      },
+      {
+        "id": "B019",
+        "page": 1,
+        "bbox": [
+          72,
+          290,
+          520,
+          304
+        ],
+        "block_type": "text",
+        "text_head": "The loss function is L = - Σ p log(q) (1",
+        "source_line": 20
+      },
+      {
+        "id": "B020",
+        "page": 1,
+        "bbox": [
+          72,
+          330,
+          280,
+          344
+        ],
+        "block_type": "text",
+        "text_head": "2 Methods",
+        "source_line": 21
+      },
+      {
+        "id": "B021",
+        "page": 1,
+        "bbox": [
+          315,
+          330,
+          520,
+          344
+        ],
+        "block_type": "text",
+        "text_head": "2.1 Data preprocessing",
+        "source_line": 23
+      },
+      {
+        "id": "B022",
+        "page": 1,
+        "bbox": [
+          72,
+          348,
+          280,
+          362
+        ],
+        "block_type": "text",
+        "text_head": "We use a ResNet backbone pretrained on I",
+        "source_line": 22
+      },
+      {
+        "id": "B023",
+        "page": 1,
+        "bbox": [
+          315,
+          348,
+          520,
+          362
+        ],
+        "block_type": "text",
+        "text_head": "All images were normalized to 224 by 224",
+        "source_line": 24
+      },
+      {
+        "id": "B024",
+        "page": 2,
+        "bbox": [
+          72,
+          60,
+          280,
+          74
+        ],
+        "block_type": "text",
+        "text_head": "3 Results",
+        "source_line": 2
+      },
+      {
+        "id": "B025",
+        "page": 2,
+        "bbox": [
+          315,
+          60,
+          520,
+          74
+        ],
+        "block_type": "text",
+        "text_head": "4 Conclusion",
+        "source_line": 4
+      },
+      {
+        "id": "B026",
+        "page": 2,
+        "bbox": [
+          72,
+          78,
+          280,
+          92
+        ],
+        "block_type": "text",
+        "text_head": "The model achieved state-of-the-art accu",
+        "source_line": 3
+      },
+      {
+        "id": "B027",
+        "page": 2,
+        "bbox": [
+          315,
+          78,
+          520,
+          92
+        ],
+        "block_type": "text",
+        "text_head": "Deep learning aids carbonate facies clas",
+        "source_line": 5
+      },
+      {
+        "id": "B028",
+        "page": 2,
+        "bbox": [
+          72,
+          120,
+          520,
+          134
+        ],
+        "block_type": "text",
+        "text_head": "References",
+        "source_line": 6
+      },
+      {
+        "id": "B029",
+        "page": 2,
+        "bbox": [
+          72,
+          138,
+          520,
+          152
+        ],
+        "block_type": "text",
+        "text_head": "Smith, A. (2020). A study of facies. Jou",
+        "source_line": 7
+      },
+      {
+        "id": "S030",
+        "page": 1,
+        "bbox": null,
+        "block_type": "section:abstract",
+        "text_head": "Abstract"
+      },
+      {
+        "id": "S031",
+        "page": 1,
+        "bbox": null,
+        "block_type": "section:numbered",
+        "text_head": "1 Introduction"
+      },
+      {
+        "id": "S032",
+        "page": 1,
+        "bbox": null,
+        "block_type": "section:numbered",
+        "text_head": "2 Methods"
+      },
+      {
+        "id": "S033",
+        "page": 1,
+        "bbox": null,
+        "block_type": "section:numbered",
+        "text_head": "2.1 Data preprocessing"
+      },
+      {
+        "id": "S034",
+        "page": 2,
+        "bbox": null,
+        "block_type": "section:numbered",
+        "text_head": "3 Results"
+      },
+      {
+        "id": "S035",
+        "page": 2,
+        "bbox": null,
+        "block_type": "section:numbered",
+        "text_head": "4 Conclusion"
+      },
+      {
+        "id": "S036",
+        "page": 2,
+        "bbox": null,
+        "block_type": "section:references",
+        "text_head": "References"
+      },
+      {
+        "id": "T037",
+        "page": 1,
+        "bbox": [
+          null,
+          216.0,
+          null,
+          null
+        ],
+        "block_type": "table",
+        "text_head": "3x3 table"
+      },
+      {
+        "id": "X038",
+        "page": 1,
+        "bbox": null,
+        "block_type": "excluded:header",
+        "text_head": "Journal of Sedimentary Research"
+      },
+      {
+        "id": "X039",
+        "page": 1,
+        "bbox": null,
+        "block_type": "excluded:footer",
+        "text_head": "1"
+      },
+      {
+        "id": "X040",
+        "page": 2,
+        "bbox": null,
+        "block_type": "excluded:header",
+        "text_head": "Journal of Sedimentary Research"
+      },
+      {
+        "id": "X041",
+        "page": 2,
+        "bbox": null,
+        "block_type": "excluded:footer",
+        "text_head": "2"
+      }
+    ],
+    "verification": {
+      "status": "success",
+      "consistent": true,
+      "coverage": 1.0,
+      "src_chars": 802,
+      "body_chars": 738,
+      "out_chars": 738,
+      "problems": [],
+      "stats": {
+        "pages": 2,
+        "evidence_blocks": 41,
+        "unreadable_lines": 0
+      }
+    },
+    "summary": "页数 2；正文行 29（合并后 29）；双栏页 2；章节 7；表格 1；公式候选 1；题注 1图/1表；字符覆盖率 100.0%；证据块 41"
+  },
+  "_note": "示例输出（非正式评测案例结果）。由引擎实际运行 smoke_input 生成。"
+}
