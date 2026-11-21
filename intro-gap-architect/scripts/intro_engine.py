@@ -781,8 +781,15 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-def _load(path: str) -> Any:
-    with open(path, encoding="utf-8") as f:
+def _load(path_or_json: str) -> Any:
+    """接受文件路径或内联 JSON 字符串（以 { 或 [ 开头时按内联解析）。"""
+    s = (path_or_json or "").strip()
+    if s.startswith("{") or s.startswith("["):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            pass  # 退化按文件路径处理，让错误更明确
+    with open(path_or_json, encoding="utf-8") as f:
         return json.load(f)
 
 
