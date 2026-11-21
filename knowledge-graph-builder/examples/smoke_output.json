@@ -1,0 +1,502 @@
+{
+  "case_id": "KG-SMOKE-01",
+  "status": "ok",
+  "result": {
+    "entity_extraction": {
+      "checked": 4,
+      "accepted": 4,
+      "rejected": 0,
+      "entities": [
+        {
+          "id": "n1",
+          "surface": "CNN",
+          "type": "method",
+          "type_zh": "方法",
+          "source_id": "P1",
+          "paragraph_id": "sec2.p3",
+          "quote": "CNN方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n2",
+          "surface": "U-Net",
+          "type": "model",
+          "type_zh": "模型",
+          "source_id": "P1",
+          "paragraph_id": "sec4.p2",
+          "quote": "U-Net为主干网络",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n3",
+          "surface": "SVM",
+          "type": "model",
+          "type_zh": "模型",
+          "source_id": "P1",
+          "paragraph_id": "sec3.p1",
+          "quote": "SVM方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n4",
+          "surface": "CNN",
+          "type": "method",
+          "type_zh": "方法",
+          "source_id": "P2",
+          "paragraph_id": "sec1.p2",
+          "quote": "CNN名称的方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        }
+      ],
+      "rejected_ids": []
+    },
+    "relation_check": {
+      "checked": 2,
+      "accepted": 2,
+      "rejected": 0,
+      "relations": [
+        {
+          "id": "e1",
+          "subject": "n1",
+          "relation": "uses",
+          "object": "n2",
+          "direction": "forward",
+          "condition": "碳酸盐岩薄片分割",
+          "evidence_type": "direct",
+          "quote": "以U-Net为主干网络",
+          "source_id": "P1",
+          "paragraph_id": "sec4.p2",
+          "cross_paper": false,
+          "relation_ok": true,
+          "issues": []
+        },
+        {
+          "id": "e2",
+          "subject": "n1",
+          "relation": "compares",
+          "object": "n3",
+          "direction": "forward",
+          "condition": "砂岩数据集",
+          "evidence_type": "direct",
+          "quote": "与SVM方法进行了对比",
+          "source_id": "P1",
+          "paragraph_id": "sec3.p1",
+          "cross_paper": false,
+          "relation_ok": true,
+          "issues": []
+        }
+      ],
+      "rejected_ids": []
+    },
+    "entity_alignment": {
+      "merge_count": 0,
+      "conflict_count": 1,
+      "merges": [],
+      "conflicts": [
+        {
+          "key": "cnn",
+          "reason": "cross_paper_same_surface",
+          "surfaces": [
+            "CNN",
+            "CNN"
+          ],
+          "sources": [
+            "P1",
+            "P2"
+          ],
+          "decision": "kept_separate",
+          "note": "相同通用术语不代表两篇用了相同样品/模型/数据集/条件"
+        }
+      ],
+      "canonical_of": {},
+      "node_count_after": 4
+    },
+    "source_bindings": [
+      {
+        "id": "n1",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P1",
+        "paragraph_id": "sec2.p3",
+        "quote": "CNN方法",
+        "issues": []
+      },
+      {
+        "id": "n2",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P1",
+        "paragraph_id": "sec4.p2",
+        "quote": "U-Net为主干网络",
+        "issues": []
+      },
+      {
+        "id": "n3",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P1",
+        "paragraph_id": "sec3.p1",
+        "quote": "SVM方法",
+        "issues": []
+      },
+      {
+        "id": "n4",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P2",
+        "paragraph_id": "sec1.p2",
+        "quote": "CNN名称的方法",
+        "issues": []
+      },
+      {
+        "id": "e1",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P1",
+        "paragraph_id": "sec4.p2",
+        "quote": "以U-Net为主干网络",
+        "issues": []
+      },
+      {
+        "id": "e2",
+        "bound": true,
+        "quote_in_source": true,
+        "source_id": "P1",
+        "paragraph_id": "sec3.p1",
+        "quote": "与SVM方法进行了对比",
+        "issues": []
+      }
+    ],
+    "graph_query": {
+      "query_count": 3,
+      "answered": 3,
+      "min_three_queries": true,
+      "all_traceable": true,
+      "answers": [
+        {
+          "query_id": "Q1",
+          "query_type": "entity",
+          "query": {
+            "id": "Q1",
+            "type": "entity",
+            "surface": "CNN"
+          },
+          "matched_nodes": [
+            "n1",
+            "n4"
+          ],
+          "matched_edges": [],
+          "subgraph": {
+            "nodes": [
+              "n1",
+              "n4"
+            ],
+            "edges": []
+          },
+          "evidence": [
+            {
+              "kind": "node",
+              "id": "n1",
+              "source_id": "P1",
+              "paragraph_id": "sec2.p3",
+              "quote": "CNN方法",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n4",
+              "source_id": "P2",
+              "paragraph_id": "sec1.p2",
+              "quote": "CNN名称的方法",
+              "quote_in_source": true
+            }
+          ],
+          "traceable": true,
+          "unresolved_edges": [],
+          "has_answer": true
+        },
+        {
+          "query_id": "Q2",
+          "query_type": "neighbor",
+          "query": {
+            "id": "Q2",
+            "type": "neighbor",
+            "node": "n1"
+          },
+          "matched_nodes": [
+            "n1",
+            "n2",
+            "n3"
+          ],
+          "matched_edges": [
+            "e1",
+            "e2"
+          ],
+          "subgraph": {
+            "nodes": [
+              "n1",
+              "n2",
+              "n3"
+            ],
+            "edges": [
+              "e1",
+              "e2"
+            ]
+          },
+          "evidence": [
+            {
+              "kind": "edge",
+              "id": "e1",
+              "source_id": "P1",
+              "paragraph_id": "sec4.p2",
+              "quote": "以U-Net为主干网络",
+              "quote_in_source": true
+            },
+            {
+              "kind": "edge",
+              "id": "e2",
+              "source_id": "P1",
+              "paragraph_id": "sec3.p1",
+              "quote": "与SVM方法进行了对比",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n1",
+              "source_id": "P1",
+              "paragraph_id": "sec2.p3",
+              "quote": "CNN方法",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n2",
+              "source_id": "P1",
+              "paragraph_id": "sec4.p2",
+              "quote": "U-Net为主干网络",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n3",
+              "source_id": "P1",
+              "paragraph_id": "sec3.p1",
+              "quote": "SVM方法",
+              "quote_in_source": true
+            }
+          ],
+          "traceable": true,
+          "unresolved_edges": [],
+          "has_answer": true
+        },
+        {
+          "query_id": "Q3",
+          "query_type": "relation",
+          "query": {
+            "id": "Q3",
+            "type": "relation",
+            "relation": "compares"
+          },
+          "matched_nodes": [
+            "n1",
+            "n3"
+          ],
+          "matched_edges": [
+            "e2"
+          ],
+          "subgraph": {
+            "nodes": [
+              "n1",
+              "n3"
+            ],
+            "edges": [
+              "e2"
+            ]
+          },
+          "evidence": [
+            {
+              "kind": "edge",
+              "id": "e2",
+              "source_id": "P1",
+              "paragraph_id": "sec3.p1",
+              "quote": "与SVM方法进行了对比",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n1",
+              "source_id": "P1",
+              "paragraph_id": "sec2.p3",
+              "quote": "CNN方法",
+              "quote_in_source": true
+            },
+            {
+              "kind": "node",
+              "id": "n3",
+              "source_id": "P1",
+              "paragraph_id": "sec3.p1",
+              "quote": "SVM方法",
+              "quote_in_source": true
+            }
+          ],
+          "traceable": true,
+          "unresolved_edges": [],
+          "has_answer": true
+        }
+      ]
+    },
+    "export_check": {
+      "format": "json",
+      "machine_readable": true,
+      "serializable": true,
+      "node_count": 4,
+      "edge_count": 2,
+      "missing_node_fields": [],
+      "missing_edge_fields": [],
+      "duplicate_node_ids": [],
+      "issues": []
+    },
+    "incremental_update": null,
+    "graph": {
+      "nodes": [
+        {
+          "id": "n1",
+          "surface": "CNN",
+          "type": "method",
+          "type_zh": "方法",
+          "source_id": "P1",
+          "paragraph_id": "sec2.p3",
+          "quote": "CNN方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n2",
+          "surface": "U-Net",
+          "type": "model",
+          "type_zh": "模型",
+          "source_id": "P1",
+          "paragraph_id": "sec4.p2",
+          "quote": "U-Net为主干网络",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n3",
+          "surface": "SVM",
+          "type": "model",
+          "type_zh": "模型",
+          "source_id": "P1",
+          "paragraph_id": "sec3.p1",
+          "quote": "SVM方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        },
+        {
+          "id": "n4",
+          "surface": "CNN",
+          "type": "method",
+          "type_zh": "方法",
+          "source_id": "P2",
+          "paragraph_id": "sec1.p2",
+          "quote": "CNN名称的方法",
+          "attribution": "self",
+          "grounded": true,
+          "quote_in_source": true,
+          "entity_ok": true,
+          "issues": []
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "subject": "n1",
+          "relation": "uses",
+          "object": "n2",
+          "direction": "forward",
+          "condition": "碳酸盐岩薄片分割",
+          "evidence_type": "direct",
+          "quote": "以U-Net为主干网络",
+          "source_id": "P1",
+          "paragraph_id": "sec4.p2",
+          "cross_paper": false,
+          "relation_ok": true,
+          "issues": []
+        },
+        {
+          "id": "e2",
+          "subject": "n1",
+          "relation": "compares",
+          "object": "n3",
+          "direction": "forward",
+          "condition": "砂岩数据集",
+          "evidence_type": "direct",
+          "quote": "与SVM方法进行了对比",
+          "source_id": "P1",
+          "paragraph_id": "sec3.p1",
+          "cross_paper": false,
+          "relation_ok": true,
+          "issues": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "principles": {
+      "抽得准": "实体真在论文出现、类型合法、保留JATS位置与原文、区分自述/转述",
+      "连得对": "关系类型/方向/条件与原文一致，共现与推测不作直接证据",
+      "对得齐": "别名归一给依据，跨篇同名保留为不同节点",
+      "查得到回得去": "每个查询结果子图可回到论文段落与原文短引"
+    },
+    "rejected_entities": [],
+    "rejected_relations": [],
+    "cross_paper_conflicts": [
+      {
+        "key": "cnn",
+        "reason": "cross_paper_same_surface",
+        "surfaces": [
+          "CNN",
+          "CNN"
+        ],
+        "sources": [
+          "P1",
+          "P2"
+        ],
+        "decision": "kept_separate",
+        "note": "相同通用术语不代表两篇用了相同样品/模型/数据集/条件"
+      }
+    ],
+    "unbound_items": []
+  },
+  "uncertainty": {
+    "needs_review": [
+      "cnn"
+    ],
+    "note": "实体/关系是否忠实、别名是否真同指、证据是否支撑属价值判断，须 Agent 结合原文复核；脚本只做结构与规则校验，不臆造实体、关系、证据或来源；位置均为JATS段落ID而非PDF页码"
+  }
+}
