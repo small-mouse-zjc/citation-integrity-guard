@@ -858,6 +858,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "aligned_coverage": r["aligned_coverage"],
             "verification": r["verification"],
             "evidence_index": r["evidence_index"],
+            "translation_audit": r.get("translation_audit"),
             "lock_prompt": r["lock_prompt"],
             "summary": r["summary"],
             "status_checks": pl["status"],

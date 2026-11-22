@@ -667,6 +667,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "section_alignment": pl["result"]["section_alignment"],
             "card_fields": pl["result"]["card_fields"],
             "anchor_verification": pl["result"]["anchor_verification"],
+            "theme_synthesis": pl["result"].get("theme_synthesis"),
             "structured_notes": pl["result"]["structured_notes"],
             "summary": ("逐章笔记 %d 章；卡片 %d/6 字段；锚点回链 %d/%d；知识点 %d 条" % (
                 len(draft.get("chapter_blocks", [])),

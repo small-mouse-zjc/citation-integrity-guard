@@ -840,6 +840,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "preservation": r["preservation"],
             "verification": r["verification"],
             "evidence_index": r["evidence_index"],
+            "polish_audit": r.get("polish_audit"),
             "summary": r["summary"],
             "status_checks": pl["status"],
         },
