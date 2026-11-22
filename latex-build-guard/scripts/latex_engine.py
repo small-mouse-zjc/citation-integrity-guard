@@ -349,19 +349,28 @@ def check_deliverable(files: Dict[str, str]) -> Dict[str, Any]:
     if binary_like and not tex_files:
         issues.append({"type": "binary_only", "severity": "error",
                        "reason": f"只交付了二进制/图片文件：{binary_like}"})
-    # 源码须有实质内容（非片段）
+    # 源码须有实质内容（非片段）。评委指出：只交片段却判 usable 会让"交得可用"
+    # 门禁形同虚设，因此把无 document 结构的片段升级为交付阻断项。
+    fragment_files = []
     for n in tex_files:
         content = files[n]
         if len(content.strip()) < 80 or not re.search(r"\\documentclass|\\begin\{document\}", content):
+            fragment_files.append(n)
             issues.append({"type": "fragment", "severity": "warning",
-                           "reason": f"{n} 可能是片段（无 document 结构或过短），须确认可独立编译", "file": n})
+                           "reason": f"{n} 是片段（无 document 结构或过短），须由主文件 \\input 引入", "file": n})
     has_error = any(i["severity"] == "error" for i in issues)
+    # 关键门禁：如果没有任何一个可独立编译的主 .tex（全是片段），则交付不可用。
+    # 有主文件 + 若干片段（\input 常见）判可用。
+    has_buildable = any(n not in fragment_files for n in tex_files)
+    usable = (not has_error) and has_buildable
     return {
         "tex_files": tex_files,
         "aux_files": [n for n in names if n not in tex_files],
+        "fragment_files": fragment_files,
         "issues": issues,
-        "usable": not has_error,
-        "advice": ("交付物为可编辑源码" if not has_error else "交付物不合要求，须提供 .tex 源码"),
+        "usable": usable,
+        "advice": ("交付物为可编辑且可独立编译的源码" if usable
+                   else "交付物不合要求：须提供含 document 结构、可独立编译的 .tex 源码"),
     }
 
 

@@ -113,8 +113,10 @@ def check_completeness(section_text: str, required: Optional[List[str]] = None) 
 # ---------------------------------------------------------------------------
 NUM_RE = re.compile(r"(?<![A-Za-z])(-?\d+(?:\.\d+)?)\s*(%|‰)?")
 # 从正文抽取"参数名 = 数值"或"数值 单位"型 token
+# 注意：英文冒号 ':' 后不能紧跟数字，否则 "8:2 / 7:3" 这类比例会被误拆成
+# 参数名=8、值=2（产生假阳性）。比例的形如 \d+:\d+ 应先被整体排除。
 CLAIM_NUM_RE = re.compile(r"([A-Za-z_\u4e00-\u9fff][A-Za-z0-9_\u4e00-\u9fff\s]{0,18}?)"
-                          r"(?:为|是|=|：|:|设为|设置为)\s*(-?\d+(?:\.\d+)?)\s*(%|‰|e-?\d+)?", re.I)
+                          r"(?:为|是|=|：|:(?!\d)|设为|设置为)\s*(-?\d+(?:\.\d+)?)\s*(%|‰|e-?\d+)?", re.I)
 
 
 def _extract_numbers(text: str) -> set:

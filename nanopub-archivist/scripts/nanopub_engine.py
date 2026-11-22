@@ -65,7 +65,7 @@ QUALIFIERS = [r"在.{0,15}条件", r"当.{0,15}时", r"约|大约|左右|approxi
 ANCHOR_RE = re.compile(r"(p(?:age)?\.?\s*\d+|§\s*[\d.]+|fig(?:ure)?\.?\s*\d+|tab(?:le)?\.?\s*\d+|"
                        r"第[一二三四五六七八九十百\d]+(?:章|节|段|页)|图\s*\d+|表\s*\d+|L\d+)", re.I)
 # 复合句信号
-COMPOUND = [r"并且|而且|同时|以及|此外|and\b|moreover|furthermore|in addition",
+COMPOUND = [r"并且|而且|同时|以及|此外|且(?!.{0,3}说)|并(?!.{0,3}且)|and\b|moreover|furthermore|in addition",
             r"因为|所以|由于|因此|because|therefore|thus|since", r"但是|然而|although|however|but\b"]
 
 
@@ -95,13 +95,19 @@ def check_assertion(text: str) -> Dict[str, Any]:
     if not rel:
         issues.append({"type": "no_relation", "severity": "warning",
                        "reason": "未识别到受控关系词，断言主体-关系-对象结构不清"})
+    # 严格原子性门禁：复合/过宽/无关系均视为未通过原子性检查（评委指出旧实现
+    # 只把 error 计入 atomicity_ok，导致这些 warning 形同虚设）。保留 issues 的
+    # severity 标注向后兼容，atomicity_ok 收紧为“无任何原子性缺陷”。
+    blocking = {"compound", "overbroad", "no_relation"}
+    atomicity_ok = not any(i["severity"] == "error" or i["type"] in blocking for i in issues)
     return {
         "text": text,
         "relation": rel,
         "has_qualifier": has_qual,
-        "atomicity_ok": not any(i["severity"] == "error" for i in issues),
+        "atomicity_ok": atomicity_ok,
+        "atomicity_blockers": [i["type"] for i in issues if i["type"] in blocking],
         "issues": issues,
-        "advice": ("断言单一且带限定" if not issues else
+        "advice": ("断言单一且带限定" if atomicity_ok and not issues else
                    f"{len(issues)} 处待改进：{[i['type'] for i in issues]}"),
     }
 

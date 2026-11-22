@@ -222,7 +222,8 @@ _DIM_FIELD = {
 GAP_TYPES = ["共同限制", "未覆盖场景", "结论冲突", "评价缺口"]
 
 
-def derive_gap(works: List[Dict[str, Any]], max_gaps: int = 6) -> Dict[str, Any]:
+def derive_gap(works: List[Dict[str, Any]], max_gaps: int = 6,
+               target_scenario: str = "") -> Dict[str, Any]:
     """从已引工作的限制/缺口/冲突推导研究空白，输出可解释推导链。
 
     每条 gap 必须给出 supporting_works（来自输入的真实 id）与推理类型，
@@ -251,7 +252,10 @@ def derive_gap(works: List[Dict[str, Any]], max_gaps: int = 6) -> Dict[str, Any]
                          "reasoning": f"{len(ids)} 篇已引工作均报告该限制（见 supporting_works），构成领域共同缺口"})
 
     # 3.2 未覆盖场景：全部工作方法关键词并集 vs 目标场景
-    target = " ".join(str(w.get("target_scenario", "")) for w in works)
+    # 目标场景优先取 payload 顶层传入（本文研究什么），其次兼容逐篇文献里的旧字段
+    target = str(target_scenario or "").strip()
+    if not target:
+        target = " ".join(str(w.get("target_scenario", "")) for w in works)
     target_kw = _keywords(target)
     covered_kw: set = set()
     for w in works:
@@ -715,7 +719,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
 
     r_hype = detect_hype(background)
     r_group = group_matrix(works, dims)
-    r_gap = derive_gap(works)
+    r_gap = derive_gap(works, target_scenario=payload.get("target_scenario", ""))
     r_align = align_claims(claims, evidence_index)
     r_cov = coverage(works)
 
@@ -842,7 +846,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = group_matrix(d.get("works", []), d.get("dimensions"), d.get("key_field", "route"))
     elif args.cmd == "derive-gap":
         d = _load(args.input)
-        out = derive_gap(d.get("works", []), d.get("max_gaps", 6))
+        out = derive_gap(d.get("works", []), d.get("max_gaps", 6),
+                         target_scenario=d.get("target_scenario", ""))
     elif args.cmd == "align-claims":
         d = _load(args.input)
         out = align_claims(d.get("claims", []), d.get("evidence_index"))
