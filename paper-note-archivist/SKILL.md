@@ -5,7 +5,7 @@ description: 文献总结与结构化笔记守门人。当任务涉及阅读真�
 
 # 论文结构化笔记档案员（Paper Note Archivist）
 
-面向真实论文阅读的结构化笔记技能。目标不是"写一段通顺的摘要"，而是让**笔记骨架跟着论文本身走、关键字段连前提一起留下、每条笔记都能指回原文具体位置、知识点去重后可检索可复用**。
+面向真实论文阅读的结构化笔记技能。既是从真实 case/材料端到端产出逐章笔记并装配交付的**完成器**，也是把章节对齐、字段核验、锚点校验、知识点归一做成确定性动作的**核验器**。目标不是"写一段通顺的摘要"，而是让**笔记骨架跟着论文本身走、关键字段连前提一起留下、每条笔记都能指回原文具体位置、知识点去重后可检索可复用**；缺内容标〔待补〕，绝不臆造。
 
 围绕题面四个核心问题组织能力：
 
@@ -38,7 +38,7 @@ description: 文献总结与结构化笔记守门人。当任务涉及阅读真�
 
 ## 工具：notes_engine.py
 
-位置：技能目录下 `scripts/notes_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求。
+位置：技能目录下 `scripts/notes_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求（8 子命令，含 solve/render-draft）。
 
 先确认可运行：
 ```bash
@@ -54,12 +54,19 @@ python scripts/notes_engine.py --help
 | `verify-anchors` | 找得回：锚点回链校验 | `anchored_count`、`no_anchor`、`bad_anchor` |
 | `normalize-knowledge` | 用得上：知识点去重归一 | `entries`、`merges`、`needs_review` |
 | `build-reading-card` | 生成统一论文卡片 | `card`（含 not_reported）、`comparable` |
-| `pipeline` | 串联五步 | 完整结构化结果 |
+| `render-draft` | 用真实字段渲染逐章结构化笔记成稿草稿（缺项标〔待补〕） | `draft_text`、`chapter_blocks`、`reading_card` |
+| `solve` | 端到端完成器：case.json →(适配材料)→ 成稿 → result.json | `result.draft_text`、`delivery` |
+| `pipeline` | 串联五步（`--with-draft` 脚本成稿） | 完整结构化结果 |
 
-输入为 UTF-8 JSON。推荐一次跑完：
+输入为 UTF-8 JSON。端到端交付首选 `solve`，一次运行即从真实材料走到逐章成稿与可复核交付：
 ```bash
-python scripts/notes_engine.py pipeline input.json > result.json
+python scripts/notes_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
+python scripts/notes_engine.py render-draft input.json > draft.json        # 仅渲染逐章笔记草稿
+python scripts/notes_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
+python scripts/notes_engine.py pipeline input.json > result.json             # 仅结构化检查
 ```
+
+`solve` 适配的真实输入字段：`paper_sections`（内联章节）、`paper_text`（论文全文按章节切段）、`section_files`（[路径] 或 {章节:路径}，读 .txt/.md/.json）、`card`/`notes`/`notes_text`/`notes_files`（真实字段/笔记）。读不到不臆造，记入 `adapter_notes`；卡片缺字段、笔记缺锚点显式标注。
 
 `input.json` 结构：
 ```json
@@ -95,11 +102,11 @@ python scripts/notes_engine.py pipeline input.json > result.json
 4. **找得回**：为每条关键笔记配原文锚点，运行 `verify-anchors`。`no_anchor` / `bad_anchor` 逐条补正——锚点要指到具体页码/章节/图表，不能只写"见原文"。
 5. **用得上**：抽取知识点，运行 `normalize-knowledge`。`merges` 中高相似项合并；`needs_review`（中英同义、低相似）交人工确认，不自动并。
 6. **撰写成稿**：基于结构化结果输出可编辑笔记（按论文章节组织 + 论文卡片 + 知识点清单 + 锚点）。每条关键结论后附锚点，未报告项显式标注。
-7. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与全部字段；笔记成稿另存为文件。每条内容附"字段/锚点 → 来源定位"。
+7. **装配输出**：直接 `python scripts/notes_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配材料、渲染逐章成稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。每条内容附"字段/锚点 → 来源定位"。
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`（`ok`/`needs_attention`/`partial`）、`result`（五项结构化检查 + `structured_notes`）、`evidence`（四原则落实 + 缺锚点/坏锚点/知识点合并）、`uncertainty`（未报告字段 + 待确认归一 + 价值判断说明）。阅读/解析结果须覆盖任务要求且能回到材料定位。完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`、`result`（五项结构化检查 + `structured_notes`；`solve` 额外含 `draft_text`/`chapter_blocks`/`reading_card`/`knowledge_entries`）、`evidence`、`uncertainty`。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。阅读/解析结果须覆盖任务要求且能回到材料定位。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 

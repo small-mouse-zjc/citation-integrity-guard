@@ -1,0 +1,29 @@
+{
+  "_note": "示例输入（非正式评测案例）。含术语、限定词、引用、图表指向、化学式、硬错误，演示术语锁定/守护元素/守恒核验/逐句成稿。",
+  "case_id": "polish-demo",
+  "target_register": "journal",
+  "source_lang": "en",
+  "paragraphs": [
+    {
+      "id": "P1",
+      "section": "Abstract",
+      "kind": "body",
+      "text": "Carbonate reservoirs are not always homogeneous. The porosity is approximately 18.5% [1], and the permeability reaches 120 mD (Fig. 2). We propose a novel method for CO2 flooding that the the significantly improves recovery."
+    },
+    {
+      "id": "P2",
+      "section": "2 Methods",
+      "kind": "body",
+      "text": "The loss function is L = - sum p log(q) (1). Only three basins were studied, and no significant difference was observed."
+    }
+  ],
+  "glossary": [
+    {"source": "Carbonate reservoirs", "target": "碳酸盐岩储层", "scope": "global"},
+    {"source": "porosity", "target": "孔隙度", "scope": "global"},
+    {"source": "permeability", "target": "渗透率", "scope": "global"}
+  ],
+  "polished": {
+    "P1": "Carbonate reservoirs are not always homogeneous. The porosity is approximately 18.5% [1], and the permeability reaches 120 mD (Fig. 2). We propose a method for CO2 flooding that significantly improves recovery.",
+    "P2": "The loss function is L = - sum p log(q) (1). Only three basins were studied, and no significant difference was observed."
+  }
+}

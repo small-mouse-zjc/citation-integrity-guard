@@ -1,236 +1,282 @@
 {
- "schema": "intro-style-benchmark/v1",
- "purpose": "阅读15 文献知识图谱构建 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
- "work": "knowledge-graph-builder",
- "four_questions": [
-  "抽得准",
-  "连得对",
-  "对得齐",
-  "查得到回得去"
- ],
- "cases": [
-  {
-   "case_id": "KG-SMOKE-01",
-   "type": "clean",
-   "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
-   "input": {
-    "case_id": "KG-SMOKE-01",
-    "source_index": {
-     "P1": {
-      "sec2.p3": "本文提出CNN方法在碳酸盐岩薄片图像分割任务上达到0.92的准确率。",
-      "sec3.p1": "作者将该模型应用于砂岩数据集，并与SVM方法进行了对比。",
-      "sec4.p2": "该CNN以U-Net为主干网络。"
-     },
-     "P2": {
-      "sec1.p2": "我们报告同一CNN名称的方法在另一批页岩样本上取得0.85的F1值。",
-      "sec2.p1": "该研究采用随机森林作为对比基线。",
-      "sec5.p1": "结果显示该方法优于传统阈值分割。"
-     }
+  "schema": "intro-style-benchmark/v1",
+  "purpose": "阅读15 文献知识图谱构建 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
+  "work": "knowledge-graph-builder",
+  "four_questions": [
+    "抽得准",
+    "连得对",
+    "对得齐",
+    "查得到回得去"
+  ],
+  "cases": [
+    {
+      "case_id": "KG-SMOKE-01",
+      "type": "clean",
+      "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
+      "input": {
+        "case_id": "KG-SMOKE-01",
+        "source_index": {
+          "P1": {
+            "sec2.p3": "本文提出CNN方法在碳酸盐岩薄片图像分割任务上达到0.92的准确率。",
+            "sec3.p1": "作者将该模型应用于砂岩数据集，并与SVM方法进行了对比。",
+            "sec4.p2": "该CNN以U-Net为主干网络。"
+          },
+          "P2": {
+            "sec1.p2": "我们报告同一CNN名称的方法在另一批页岩样本上取得0.85的F1值。",
+            "sec2.p1": "该研究采用随机森林作为对比基线。",
+            "sec5.p1": "结果显示该方法优于传统阈值分割。"
+          }
+        },
+        "known_papers": [
+          "P1",
+          "P2"
+        ],
+        "entities": [
+          {
+            "id": "n1",
+            "surface": "CNN",
+            "type": "method",
+            "source_id": "P1",
+            "paragraph_id": "sec2.p3",
+            "quote": "CNN方法",
+            "attribution": "self"
+          },
+          {
+            "id": "n2",
+            "surface": "U-Net",
+            "type": "model",
+            "source_id": "P1",
+            "paragraph_id": "sec4.p2",
+            "quote": "U-Net为主干网络",
+            "attribution": "self"
+          },
+          {
+            "id": "n3",
+            "surface": "SVM",
+            "type": "model",
+            "source_id": "P1",
+            "paragraph_id": "sec3.p1",
+            "quote": "SVM方法",
+            "attribution": "self"
+          },
+          {
+            "id": "n4",
+            "surface": "CNN",
+            "type": "method",
+            "source_id": "P2",
+            "paragraph_id": "sec1.p2",
+            "quote": "CNN名称的方法",
+            "attribution": "self"
+          }
+        ],
+        "relations": [
+          {
+            "id": "e1",
+            "subject": "n1",
+            "relation": "uses",
+            "object": "n2",
+            "evidence_type": "direct",
+            "quote": "以U-Net为主干网络",
+            "condition": "碳酸盐岩薄片分割",
+            "source_id": "P1",
+            "paragraph_id": "sec4.p2",
+            "cross_paper": false
+          },
+          {
+            "id": "e2",
+            "subject": "n1",
+            "relation": "compares",
+            "object": "n3",
+            "evidence_type": "direct",
+            "quote": "与SVM方法进行了对比",
+            "condition": "砂岩数据集",
+            "source_id": "P1",
+            "paragraph_id": "sec3.p1",
+            "cross_paper": false
+          }
+        ],
+        "alias_rules": [],
+        "queries": [
+          {
+            "id": "Q1",
+            "type": "entity",
+            "surface": "CNN"
+          },
+          {
+            "id": "Q2",
+            "type": "neighbor",
+            "node": "n1"
+          },
+          {
+            "id": "Q3",
+            "type": "relation",
+            "relation": "compares"
+          }
+        ],
+        "export_format": "json"
+      }
     },
-    "known_papers": [
-     "P1",
-     "P2"
-    ],
-    "entities": [
-     {
-      "id": "n1",
-      "surface": "CNN",
-      "type": "method",
-      "source_id": "P1",
-      "paragraph_id": "sec2.p3",
-      "quote": "CNN方法",
-      "attribution": "self"
-     },
-     {
-      "id": "n2",
-      "surface": "U-Net",
-      "type": "model",
-      "source_id": "P1",
-      "paragraph_id": "sec4.p2",
-      "quote": "U-Net为主干网络",
-      "attribution": "self"
-     },
-     {
-      "id": "n3",
-      "surface": "SVM",
-      "type": "model",
-      "source_id": "P1",
-      "paragraph_id": "sec3.p1",
-      "quote": "SVM方法",
-      "attribution": "self"
-     },
-     {
-      "id": "n4",
-      "surface": "CNN",
-      "type": "method",
-      "source_id": "P2",
-      "paragraph_id": "sec1.p2",
-      "quote": "CNN名称的方法",
-      "attribution": "self"
-     }
-    ],
-    "relations": [
-     {
-      "id": "e1",
-      "subject": "n1",
-      "relation": "uses",
-      "object": "n2",
-      "evidence_type": "direct",
-      "quote": "以U-Net为主干网络",
-      "condition": "碳酸盐岩薄片分割",
-      "source_id": "P1",
-      "paragraph_id": "sec4.p2",
-      "cross_paper": false
-     },
-     {
-      "id": "e2",
-      "subject": "n1",
-      "relation": "compares",
-      "object": "n3",
-      "evidence_type": "direct",
-      "quote": "与SVM方法进行了对比",
-      "condition": "砂岩数据集",
-      "source_id": "P1",
-      "paragraph_id": "sec3.p1",
-      "cross_paper": false
-     }
-    ],
-    "alias_rules": [],
-    "queries": [
-     {
-      "id": "Q1",
-      "type": "entity",
-      "surface": "CNN"
-     },
-     {
-      "id": "Q2",
-      "type": "neighbor",
-      "node": "n1"
-     },
-     {
-      "id": "Q3",
-      "type": "relation",
-      "relation": "compares"
-     }
-    ],
-    "export_format": "json"
-   }
-  },
-  {
-   "case_id": "KG-SMOKE-01-DEFECT",
-   "type": "defect",
-   "desc": "按四问注入典型缺陷，Skill 应检出并标注",
-   "input": {
-    "case_id": "KG-SMOKE-01-DEFECT",
-    "source_index": {
-     "P1": {
-      "sec2.p3": "本文提出CNN方法在碳酸盐岩薄片图像分割任务上达到0.92的准确率。",
-      "sec3.p1": "作者将该模型应用于砂岩数据集，并与SVM方法进行了对比。",
-      "sec4.p2": "该CNN以U-Net为主干网络。"
-     },
-     "P2": {
-      "sec1.p2": "我们报告同一CNN名称的方法在另一批页岩样本上取得0.85的F1值。",
-      "sec2.p1": "该研究采用随机森林作为对比基线。",
-      "sec5.p1": "结果显示该方法优于传统阈值分割。"
-     }
+    {
+      "case_id": "KG-SMOKE-01-DEFECT",
+      "type": "defect",
+      "desc": "按四问注入典型缺陷，Skill 应检出并标注",
+      "input": {
+        "case_id": "KG-SMOKE-01-DEFECT",
+        "source_index": {
+          "P1": {
+            "sec2.p3": "本文提出CNN方法在碳酸盐岩薄片图像分割任务上达到0.92的准确率。",
+            "sec3.p1": "作者将该模型应用于砂岩数据集，并与SVM方法进行了对比。",
+            "sec4.p2": "该CNN以U-Net为主干网络。"
+          },
+          "P2": {
+            "sec1.p2": "我们报告同一CNN名称的方法在另一批页岩样本上取得0.85的F1值。",
+            "sec2.p1": "该研究采用随机森林作为对比基线。",
+            "sec5.p1": "结果显示该方法优于传统阈值分割。"
+          }
+        },
+        "known_papers": [
+          "P1",
+          "P2"
+        ],
+        "entities": [
+          {
+            "id": "n1",
+            "surface": "CNN",
+            "type": "method",
+            "source_id": "P1",
+            "paragraph_id": "sec2.p3",
+            "quote": "CNN方法",
+            "attribution": "self"
+          },
+          {
+            "id": "n2",
+            "surface": "U-Net",
+            "type": "model",
+            "source_id": "P1",
+            "paragraph_id": "sec4.p2",
+            "quote": "U-Net为主干网络",
+            "attribution": "self"
+          },
+          {
+            "id": "n3",
+            "surface": "SVM",
+            "type": "model",
+            "source_id": "P1",
+            "paragraph_id": "sec3.p1",
+            "quote": "SVM方法",
+            "attribution": "self"
+          },
+          {
+            "id": "n4",
+            "surface": "CNN",
+            "type": "method",
+            "source_id": "P2",
+            "paragraph_id": "sec1.p2",
+            "quote": "CNN名称的方法",
+            "attribution": "self"
+          },
+          {
+            "id": "nBAD",
+            "surface": "凭空概念",
+            "type": "concept",
+            "source_id": "P9",
+            "paragraph_id": "secX",
+            "quote": "",
+            "attribution": "self"
+          }
+        ],
+        "relations": [
+          {
+            "id": "e1",
+            "subject": "n1",
+            "relation": "uses",
+            "object": "n2",
+            "evidence_type": "direct",
+            "quote": "以U-Net为主干网络",
+            "condition": "碳酸盐岩薄片分割",
+            "source_id": "P1",
+            "paragraph_id": "sec4.p2",
+            "cross_paper": false
+          },
+          {
+            "id": "e2",
+            "subject": "n1",
+            "relation": "compares",
+            "object": "n3",
+            "evidence_type": "direct",
+            "quote": "与SVM方法进行了对比",
+            "condition": "砂岩数据集",
+            "source_id": "P1",
+            "paragraph_id": "sec3.p1",
+            "cross_paper": false
+          }
+        ],
+        "alias_rules": [],
+        "queries": [
+          {
+            "id": "Q1",
+            "type": "entity",
+            "surface": "CNN"
+          },
+          {
+            "id": "Q2",
+            "type": "neighbor",
+            "node": "n1"
+          },
+          {
+            "id": "Q3",
+            "type": "relation",
+            "relation": "compares"
+          }
+        ],
+        "export_format": "json"
+      }
+    }
+  ],
+  "completion_cases": [
+    {
+      "case_id": "kg-inline-full",
+      "type": "end_to_end",
+      "desc": "内联 entities+relations+queries：solve 应建图成稿并装配 result.json",
+      "input_ref": "cases[0].input",
+      "expect": {
+        "status": "ok",
+        "node_count": 4,
+        "delivery_written": true
+      }
     },
-    "known_papers": [
-     "P1",
-     "P2"
-    ],
-    "entities": [
-     {
-      "id": "n1",
-      "surface": "CNN",
-      "type": "method",
-      "source_id": "P1",
-      "paragraph_id": "sec2.p3",
-      "quote": "CNN方法",
-      "attribution": "self"
-     },
-     {
-      "id": "n2",
-      "surface": "U-Net",
-      "type": "model",
-      "source_id": "P1",
-      "paragraph_id": "sec4.p2",
-      "quote": "U-Net为主干网络",
-      "attribution": "self"
-     },
-     {
-      "id": "n3",
-      "surface": "SVM",
-      "type": "model",
-      "source_id": "P1",
-      "paragraph_id": "sec3.p1",
-      "quote": "SVM方法",
-      "attribution": "self"
-     },
-     {
-      "id": "n4",
-      "surface": "CNN",
-      "type": "method",
-      "source_id": "P2",
-      "paragraph_id": "sec1.p2",
-      "quote": "CNN名称的方法",
-      "attribution": "self"
-     },
-     {
-      "id": "nBAD",
-      "surface": "凭空概念",
-      "type": "concept",
-      "source_id": "P9",
-      "paragraph_id": "secX",
-      "quote": "",
-      "attribution": "self"
-     }
-    ],
-    "relations": [
-     {
-      "id": "e1",
-      "subject": "n1",
-      "relation": "uses",
-      "object": "n2",
-      "evidence_type": "direct",
-      "quote": "以U-Net为主干网络",
-      "condition": "碳酸盐岩薄片分割",
-      "source_id": "P1",
-      "paragraph_id": "sec4.p2",
-      "cross_paper": false
-     },
-     {
-      "id": "e2",
-      "subject": "n1",
-      "relation": "compares",
-      "object": "n3",
-      "evidence_type": "direct",
-      "quote": "与SVM方法进行了对比",
-      "condition": "砂岩数据集",
-      "source_id": "P1",
-      "paragraph_id": "sec3.p1",
-      "cross_paper": false
-     }
-    ],
-    "alias_rules": [],
-    "queries": [
-     {
-      "id": "Q1",
-      "type": "entity",
-      "surface": "CNN"
-     },
-     {
-      "id": "Q2",
-      "type": "neighbor",
-      "node": "n1"
-     },
-     {
-      "id": "Q3",
-      "type": "relation",
-      "relation": "compares"
-     }
-    ],
-    "export_format": "json"
-   }
-  }
- ]
+    {
+      "case_id": "kg-auto-extract",
+      "type": "end_to_end",
+      "desc": "仅 source_index、无预填实体：正文驱动抽取候选（评审点名能力），不臆造来源",
+      "input": {
+        "case_id": "auto",
+        "source_index_ref": "cases[0].input.source_index",
+        "extract_from_text": true
+      },
+      "expect": {
+        "auto_extracted": true,
+        "nodes_from_text": true,
+        "delivery_written": true
+      }
+    },
+    {
+      "case_id": "kg-source-files",
+      "type": "adapter",
+      "desc": "source_files 读真实 json 索引",
+      "input": {
+        "case_id": "files",
+        "source_files": {
+          "idx": "papers.json"
+        }
+      },
+      "companion_files": {
+        "papers.json": "{\"source_index\":{\"P1\":{\"sec2.p3\":\"CNN方法达到0.92准确率。\"}}}"
+      },
+      "expect": {
+        "source_index_read": true
+      }
+    }
+  ],
+  "companion_note": "completion_cases 为端到端完成器/正文抽取/真实输入适配复现案例（非正式评测/白板）；cases 仍为四问机制对照的 clean+defect 两案。"
 }

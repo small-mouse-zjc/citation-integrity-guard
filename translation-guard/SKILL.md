@@ -5,7 +5,7 @@ description: 科研文献翻译守门人。当任务涉及科研论文中英互�
 
 # 文献翻译守门人（Translation Guard）
 
-面向真实科研文献的翻译技能。翻译措辞由模型完成；本技能负责把**术语一致性、段落完整性、事实关系保真、可核验性**做成确定性的、可回溯的动作。目标不是"译文通顺"，而是**术语统一、段落不漏、数字公式引用不丢、每段能回原文并说明依据**。
+面向真实科研文献的翻译技能。本技能既是从真实 case 出发、端到端交付双语对照成稿的**完成器**，也是把**术语一致性、段落完整性、事实关系保真、可核验性**做成确定性、可回溯动作的**核验器**。翻译措辞由模型完成，但脚本会读取真实输入、切段、建术语表、渲染可编辑双语草稿、核验并自动装配 `/app/output/result.json`。目标不是"译文通顺"，而是**术语统一、段落不漏、数字公式引用不丢、每段能回原文并说明依据**。
 
 ## 何时触发 / 何时不触发
 
@@ -19,7 +19,8 @@ description: 科研文献翻译守门人。当任务涉及科研论文中英互�
 2. **段落一一对应**：稳定段号贯穿切段、翻译、对齐、证据，漏段/重复/错位显式检出。
 3. **事实零失真**：数字、单位、公式、引用标记、化学式翻译前变占位符保护，翻译后回填核对；篡改即告警。
 4. **诚实标注**：否定/限定词疑似丢失、术语候选未定译名、缺译文——一律进 `needs_review`，不臆造。
-5. **确定性动作交给脚本**：术语抽取、段号对齐、占位符保护回填、自检这些易错动作必须实际运行 `scripts/translation_guard.py`。
+5. **确定性动作交给脚本**：真实输入适配、术语抽取、段号对齐、占位符保护回填、自检、双语成稿与 result.json 装配这些易错动作必须实际运行 `scripts/translation_guard.py`。
+6. **端到端一次交付**：优先用 `solve case.json --out /app/output`，一次运行即从真实材料走到双语成稿与可复核交付；无译文的段标〔待翻译〕，绝不臆造。
 
 ## 工具：translation_guard.py
 
@@ -58,7 +59,9 @@ python scripts/translation_guard.py --help
 | `restore` | 翻译后：回填占位符，核对丢失/篡改 | 关系准 |
 | `verify` | 数字/否定/限定/引用/化学式保真自检 | 关系准/可核验 |
 | `evidence` | 每段译文的原文定位 + 译法依据 | 可核验 |
-| `pipeline` | 全流程串联，`--compact` 省 token | 全部 |
+| `render-draft` | 用真实字段渲染可编辑双语对照成稿草稿（无译文标〔待翻译〕） | 全部/成稿 |
+| `solve` | 端到端完成器：case.json →(适配材料)→ 全流程 → 双语成稿 → result.json | 全部/交付 |
+| `pipeline` | 全流程串联，`--compact` 省 token；`--with-draft` 脚本成稿 | 全部 |
 
 ## 标准工作流（翻译前 → 翻译后）
 
@@ -70,11 +73,21 @@ python scripts/translation_guard.py --help
 6. **回填核对**：`restore` 回填占位符，核对有无丢失/篡改（数字被改、引用被删会告警）。
 7. **段落对齐**：`align` 检查段号一一对应，漏段/重复/错位显式列出。
 8. **译文核验**：`check_terms`（译名一致）+ `verify`（数字/否定/限定/引用/公式保真）+ `evidence`（每段回原文与依据）。译不准的进 `needs_review`。
-9. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。双语对照另存文件。
+9. **装配输出**：直接 `python scripts/translation_guard.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配 materials、渲染双语草稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。预算紧张用 `pipeline --compact`。
+
+### 端到端完成器（首选）
+
+```bash
+python scripts/translation_guard.py solve /input/case.json --out /app/output   # 一次运行：适配→成稿→装配
+python scripts/translation_guard.py render-draft input.json > draft.json        # 仅渲染双语成稿草稿
+python scripts/translation_guard.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
+```
+
+`solve` 适配的真实输入字段：`paragraphs`（内联）、`source_text`（纯文本切段）、`source_files`（[路径] 或 {名:路径}，读 .txt/.md/.json）、`translations` 或 `translation_files`（真实译文）。读不到不臆造，记入 `adapter_notes` 与 `needs_review`；缺译文段统一标〔待翻译〕。
 
 ## 输出契约要点
 
-每案例返回：`case_id`、`status`（success/partial/needs_review）、`result.segment_count`、`glossary_locked`、`protected_tokens`、`aligned_coverage`、`term_inconsistencies`、`verification`（consistent/issues/needs_review）、`evidence_index`、`lock_prompt`、`protected_for_translation`、`summary`。详见 `references/output_contract.md`。
+每案例返回：`case_id`、`status`、`result`（含 `segment_count`/`glossary_locked`/`aligned_coverage`/`verification`/`evidence_index`/`summary`；`solve` 额外含 `bilingual_draft`/`blocks`）、`needs_review`、`uncertainty`。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。详见 `references/output_contract.md`。
 
 ## 异常处理
 
@@ -97,7 +110,7 @@ python scripts/translation_guard.py --help
 
 ## 资源清单
 
-- `scripts/translation_guard.py`：确定性翻译守门引擎（10 子命令，纯标准库）
+- `scripts/translation_guard.py`：确定性翻译完成器+守门引擎（12 子命令，含 solve/render-draft，纯标准库）
 - `references/output_contract.md`：输入输出字段契约
 - `references/glossary_format.md`：术语表格式与锁定规则
 - `references/protection_rules.md`：占位符保护与回填规则
@@ -105,11 +118,11 @@ python scripts/translation_guard.py --help
 - `references/verification_checklist.md`：译文自检清单
 - `references/failure_patterns.md`：失败模式案例
 - `references/vocab.md`：可复用词表（术语/否定/限定/单位/化学式模式）
-- `examples/`：最小示例 + 带译文样例 + 10 道边界题集 + 37 项自测
+- `examples/`：最小示例 + 带译文样例 + 10 道边界题集 + 61 项自测（含成稿/适配/solve）
 
 ## 限制与边界
 
-- 本技能不替代模型翻译措辞，只保证术语锁定、段落对齐、事实保真与可核验；译文质量由人工最终确认。
+- 本技能不替代模型翻译措辞，但会从真实输入切段、建术语表、渲染双语成稿草稿、核验并装配交付；缺译文标〔待翻译〕不臆造，译文质量由人工最终确认。
 - 术语抽取是候选，译名须人工/模型确认后锁定；占位符保护覆盖数字单位/公式/引用/化学式，否定限定为"疑似"提示需人工判断。
 - 不联网、不臆造译文或术语译名；所有核验结论可回到原文段号。
 

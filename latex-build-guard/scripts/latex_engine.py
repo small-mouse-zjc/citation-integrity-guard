@@ -411,7 +411,8 @@ def check_reproducibility(record: str, required: Optional[List[str]] = None) -> 
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False,
+             with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     main_tex = payload.get("main_tex", "") or ""
     sub_files = payload.get("sub_files", {}) or {}
@@ -430,6 +431,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     overall = (r_src["structure_ok"] and r_err["error_count"] == 0 and
                r_content["content_ok"] and r_deliv["usable"] and r_repro["reproducible"])
     status = "ok" if overall else "needs_attention"
+    draft_obj = render_draft(payload) if (with_draft and not compact) else None
 
     if compact:
         # 省 token 模式：只回状态 + 各维度结论 + 需修问题清单，不重复原文/证据全文
@@ -474,6 +476,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             "deliverable_check": r_deliv,
             "reproducibility_check": r_repro,
         },
+        "draft_detail": draft_obj,
         "evidence": {
             "principles": {
                 "编译得通": "报错定位到文件/行号/根因", "改得对": "公式表格引用与模板合规",
@@ -489,6 +492,254 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
                      "真正的编译通过须 Agent 在平台环境用记录的命令与轮次验证，不得臆造编译成功"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# 完成器：真实输入适配 / LaTeX 交付成稿 / result.json 装配 / 端到端 solve
+# ---------------------------------------------------------------------------
+def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
+    """真实输入适配器：把 case.json 指向的真实 .tex/.bib/日志读成引擎输入。
+
+    支持：
+      - main_tex / main_tex_file（.tex 路径）
+      - files：{名:路径}（读真实文件内容）或 {名:内联文本}
+      - bib / bib_file；sub_files：{名:路径或内联}
+      - compile_log / compile_log_file；build_record / build_record_file
+    读不到不臆造，记入 adapter_notes。
+    """
+    import os as _os
+    work = dict(payload)
+    log: List[str] = []
+
+    def read_text(key: str, file_key: str) -> str:
+        v = work.get(key)
+        if isinstance(v, str) and v.strip():
+            return v
+        rel = work.get(file_key)
+        if rel:
+            path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+            try:
+                txt = open(path, encoding="utf-8").read()
+                log.append("读取%s:%s" % (key, _os.path.basename(path)))
+                return txt
+            except Exception:
+                log.append("读取失败:%s" % _os.path.basename(path))
+        return ""
+
+    main_tex = read_text("main_tex", "main_tex_file")
+    if main_tex:
+        work["main_tex"] = main_tex
+    bib = read_text("bib", "bib_file")
+    if bib:
+        work["bib"] = bib
+    clog = read_text("compile_log", "compile_log_file")
+    if clog:
+        work["compile_log"] = clog
+    brec = read_text("build_record", "build_record_file")
+    if brec:
+        work["build_record"] = brec
+
+    # files：{名:路径} → 读真实内容；已内联的保留
+    files = work.get("files") or {}
+    if isinstance(files, dict):
+        resolved = {}
+        for name, val in files.items():
+            if isinstance(val, str) and (_os.sep in val or val.endswith((".tex", ".bib", ".cls", ".sty"))) and _os.path.exists(
+                    val if _os.path.isabs(val) else _os.path.join(case_dir, val)):
+                path = val if _os.path.isabs(val) else _os.path.join(case_dir, val)
+                try:
+                    resolved[name] = open(path, encoding="utf-8").read()
+                    log.append("文件:%s" % name)
+                except Exception:
+                    resolved[name] = val
+            else:
+                resolved[name] = val
+        work["files"] = resolved
+        # 若未给 main_tex，但 files 里有主 .tex，取第一个可独立编译的
+        if not work.get("main_tex"):
+            for name, content in resolved.items():
+                if name.lower().endswith(".tex") and "\\documentclass" in content:
+                    work["main_tex"] = content
+                    break
+
+    sub = work.get("sub_files") or {}
+    if isinstance(sub, dict):
+        resolved_sub = {}
+        for name, val in sub.items():
+            if isinstance(val, str) and not val.lstrip().startswith("\\") and not _os.path.isabs(val):
+                path = _os.path.join(case_dir, val)
+                if _os.path.exists(path):
+                    try:
+                        resolved_sub[name] = open(path, encoding="utf-8").read()
+                        log.append("子文件:%s" % name)
+                        continue
+                    except Exception:
+                        pass
+            resolved_sub[name] = val
+        work["sub_files"] = resolved_sub
+
+    work["adapter_notes"] = log
+    return work
+
+
+def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """用真实字段渲染【可编辑、可复核的 LaTeX 交付包草稿】——完成器核心。
+
+    硬约束：
+      - 源码只取真实 main_tex/files，不臆造 .tex 内容；
+      - 编译状态只解析真实 compile_log，无日志标〔待编译验证〕，绝不声称编译成功；
+      - 逐维待修清单来自静态检查结果，缺口/不确定项显式标注。
+    """
+    p = payload
+    main_tex = str(p.get("main_tex", "") or "")
+    files = dict(p.get("files") or {})
+    sub_files = dict(p.get("sub_files") or {})
+    log = str(p.get("compile_log", "") or "")
+
+    r_src = check_source(main_tex, sub_files)
+    r_err = classify_errors(log)
+    r_content = check_content(main_tex, p.get("bib", ""), p.get("template_required_fields"))
+    r_deliv = check_deliverable(files)
+    r_repro = check_reproducibility(str(p.get("build_record", "") or ""), p.get("required_repro"))
+
+    # 待修清单（真实检查结论）
+    fixes: List[Dict[str, Any]] = []
+    for i in r_src["issues"]:
+        if i["severity"] == "error":
+            fixes.append({"where": "source", "type": i["type"], "reason": i["reason"]})
+    for e in r_err["errors"]:
+        if e["type"] == "error":
+            fixes.append({"where": "compile", "type": e["category"], "reason": e["cause"],
+                          "file": e.get("file", ""), "line": e.get("tex_line", "")})
+    for i in r_content["issues"]:
+        if i["severity"] == "error":
+            fixes.append({"where": "content", "type": i["type"], "reason": i["reason"]})
+    for i in r_deliv["issues"]:
+        if i["severity"] == "error":
+            fixes.append({"where": "deliverable", "type": i["type"], "reason": i["reason"]})
+    for m in r_repro["missing"]:
+        fixes.append({"where": "repro", "item": m["item"], "hint": m["hint"]})
+
+    compile_status = ("已提供真实编译日志：%d 错误 / %d 警告" % (
+        r_err["error_count"], r_err["warning_count"])) if log.strip() else \
+        "〔待编译验证：未提供真实 compile_log，本引擎不调用编译器、不臆造编译成功〕"
+
+    file_lines = ["### %s\n```latex\n%s\n```" % (name, content)
+                  for name, content in files.items() if name.lower().endswith(".tex")]
+    source_text = "\n\n".join(file_lines) if file_lines else \
+        ("### main.tex\n```latex\n%s\n```" % main_tex if main_tex else "〔待补：无真实 .tex 源码〕")
+    fixes_text = "\n".join("- [%s] %s：%s%s" % (
+        f["where"], f.get("type", f.get("item", "")), f["reason"] if "reason" in f else f.get("hint", ""),
+        ("（%s:%s）" % (f["file"], f["line"])) if f.get("file") else "")
+        for f in fixes) or "〔无静态可检错误；编译结果仍须平台实测〕"
+
+    draft_text = "\n\n".join([
+        "# LaTeX 交付包草稿（可编辑）",
+        source_text,
+        "# 编译状态\n" + compile_status,
+        "# 逐维核验",
+        "- 源码结构：%s" % ("通过" if r_src["structure_ok"] else "有错须修"),
+        "- 内容/引用/模板：%s" % ("通过" if r_content["content_ok"] else "有错须修"),
+        "- 交付源码可用性：%s" % ("通过" if r_deliv["usable"] else "不合格"),
+        "- 构建记录可复现：%s" % ("齐全" if r_repro["reproducible"] else "缺项"),
+        "# 待修清单\n" + fixes_text,
+    ])
+
+    all_ok = (r_src["structure_ok"] and r_err["error_count"] == 0 and
+              r_content["content_ok"] and r_deliv["usable"] and
+              r_repro["reproducible"] and bool(log.strip()))
+    confirm = ["编译结果须由 Agent 在平台环境用记录的命令/轮次实测，脚本不臆造成功"]
+    confirm += ["构建记录缺『%s』" % m["label"] for m in r_repro["missing"]]
+
+    return {
+        "case_id": p.get("case_id", ""),
+        "status": "draft" if all_ok else "partial",
+        "draft_text": draft_text,
+        "source_files": list(files.keys()) or (["main.tex"] if main_tex else []),
+        "fixes": fixes,
+        "compile_status": compile_status,
+        "needs_compile_verify": True,
+        "source_refs": [e.get("file", "") for e in r_err["errors"] if e.get("file")],
+        "needs_author_confirmation": confirm,
+        "uncertainty": [
+            "源码/编译日志/构建记录只取真实输入；无日志标〔待编译验证〕，不臆造编译成功",
+            "报错根因、公式表格含义与模板合规属价值判断，须结合原文与实测复核",
+        ],
+        "note": ("可编辑 LaTeX 交付包草稿：真实源码 + 编译状态 + 逐维核验 + 待修清单；"
+                 "非编译证明，编译通过须平台实测。"),
+    }
+
+
+def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+    import os as _os
+    payload = dict(result)
+    if "case_id" not in payload:
+        payload["case_id"] = case_id
+    path = _os.path.join(out_dir, "result.json")
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
+        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
+    except Exception as e:
+        return {"written": False, "path": path, "error": type(e).__name__}
+
+
+def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
+    """端到端完成器：读 case.json → 适配真实源码/日志 → 静态核验 → 成稿 → 装配 result.json。"""
+    import os as _os
+    payload: Dict[str, Any] = {"case_id": ""}
+    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
+    if case_path and case_path != "-":
+        try:
+            loaded = _load(case_path)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception as e:
+            payload = {"case_id": "", "input_error": type(e).__name__}
+    cid = str(payload.get("case_id", "") or "")
+
+    work = _adapt_case(payload, case_dir)
+    if not work.get("main_tex") and not work.get("files"):
+        result = {"case_id": cid, "status": "needs_attention", "input_mode": "case",
+                  "result": {"summary": "输入无 .tex 源码/文件，无法成稿（不伪造源码）"},
+                  "needs_review": ["请提供真实 LaTeX 源码（main_tex/files/main_tex_file）"]}
+        result["delivery"] = _write_solution(result, out_dir, cid)
+        return result
+
+    pl = pipeline(work, with_draft=True)
+    draft = pl.get("draft_detail") or {}
+    r = pl["result"]
+    result = {
+        "case_id": cid,
+        "status": pl["status"],
+        "input_mode": "case",
+        "source_count": len(draft.get("source_files", [])),
+        "adapter_notes": work.get("adapter_notes", []),
+        "result": {
+            "draft_text": draft.get("draft_text", ""),
+            "source_files": draft.get("source_files", []),
+            "fixes": draft.get("fixes", []),
+            "compile_status": draft.get("compile_status", ""),
+            "needs_compile_verify": True,
+            "source_check": r["source_check"],
+            "error_classification": r["error_classification"],
+            "content_check": r["content_check"],
+            "deliverable_check": r["deliverable_check"],
+            "reproducibility_check": r["reproducibility_check"],
+            "summary": ("源码结构%s；编译 %d 错/%d 警；内容%s；交付%s；复现%s；须平台实测编译" % (
+                "通过" if r["source_check"]["structure_ok"] else "有错",
+                r["error_classification"]["error_count"], r["error_classification"]["warning_count"],
+                "通过" if r["content_check"]["content_ok"] else "有错",
+                "可用" if r["deliverable_check"]["usable"] else "不合格",
+                "齐全" if r["reproducibility_check"]["reproducible"] else "缺项")),
+        },
+        "needs_review": draft.get("needs_author_confirmation", []),
+        "uncertainty": draft.get("uncertainty", []),
+    }
+    result["delivery"] = _write_solution(result, out_dir, cid)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -519,13 +770,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         ("check-reproducibility", "复现得了：构建记录"),
     ]:
         sp = sub.add_parser(name, help=helptext); sp.add_argument("input", help="JSON 输入")
+    sub.add_parser("render-draft", help="用真实字段渲染可编辑 LaTeX 交付包草稿").add_argument("input", help="JSON 全量输入")
+    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配源码/日志)→ 成稿 → result.json")
+    sv.add_argument("case", help="case.json 路径")
+    sv.add_argument("--out", default="/app/output", help="交付目录")
     pp = sub.add_parser("pipeline", help="端到端")
     pp.add_argument("input", help="JSON 全量输入")
     pp.add_argument("--compact", action="store_true", help="省 token：只回状态与待修问题清单")
+    pp.add_argument("--with-draft", action="store_true", help="脚本渲染交付包草稿")
 
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help(); return 0
+
+    if args.cmd == "solve":
+        out = solve(args.case, args.out)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "check-source":
         d = _load(args.input); out = check_source(d.get("main_tex", ""), d.get("sub_files"))
@@ -537,8 +798,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = check_deliverable(_load(args.input).get("files", {}))
     elif args.cmd == "check-reproducibility":
         d = _load(args.input); out = check_reproducibility(d.get("record", ""), d.get("required"))
+    elif args.cmd == "render-draft":
+        out = render_draft(_load(args.input))
     elif args.cmd == "pipeline":
-        out = pipeline(_load(args.input), compact=args.compact)
+        out = pipeline(_load(args.input), compact=args.compact, with_draft=args.with_draft)
     else:
         p.print_help(); return 1
 

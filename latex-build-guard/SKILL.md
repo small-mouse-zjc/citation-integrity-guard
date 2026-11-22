@@ -40,7 +40,7 @@ description: LaTeX 写作与编译守门人。当任务涉及 LaTeX 源码编写
 
 ## 工具：latex_engine.py
 
-位置：技能目录下 `scripts/latex_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求、不调用 TeX 编译器。
+位置：技能目录下 `scripts/latex_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求、不调用 TeX 编译器（8 子命令，含 solve/render-draft）。
 
 先确认可运行：
 ```bash
@@ -56,12 +56,19 @@ python scripts/latex_engine.py --help
 | `check-content` | 改得对：公式表格引用 | `content_ok`、`issues`（悬空引用/cite无bib/必填项缺失） |
 | `check-deliverable` | 交得可用：交付物 | `usable`、`tex_files`、`issues` |
 | `check-reproducibility` | 复现得了：构建记录 | `reproducible`、`missing` |
-| `pipeline` | 串联五步 | 完整结构化结果 |
+| `render-draft` | 用真实字段渲染可编辑 LaTeX 交付包草稿（不臆造编译成功） | `draft_text`、`source_files`、`fixes` |
+| `solve` | 端到端完成器：case.json →(适配源码/日志)→ 成稿 → result.json | `result.draft_text`、`delivery` |
+| `pipeline` | 串联五步（`--with-draft` 出草稿） | 完整结构化结果 |
 
-输入为 UTF-8 JSON。推荐一次跑完：
+输入为 UTF-8 JSON。端到端交付首选 `solve`，一次运行即从真实源码/日志走到可编辑交付包草稿与可复核交付：
 ```bash
-python scripts/latex_engine.py pipeline input.json > result.json
+python scripts/latex_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
+python scripts/latex_engine.py render-draft input.json > draft.json        # 仅渲染交付包草稿
+python scripts/latex_engine.py pipeline input.json --with-draft > result.json  # 带草稿的全流程
+python scripts/latex_engine.py pipeline input.json > result.json             # 仅结构化检查
 ```
+
+`solve` 适配的真实输入字段：`main_tex`/`main_tex_file`（.tex 路径）、`files`（{名:路径或内联}）、`bib`/`bib_file`、`sub_files`、`compile_log`/`compile_log_file`、`build_record`/`build_record_file`。读不到不臆造，记入 `adapter_notes`；无编译日志时编译状态标〔待编译验证〕，绝不声称编译成功。
 长文或多案例为省 token，用 `--compact` 只回状态、五项摘要与待修问题清单：
 ```bash
 python scripts/latex_engine.py pipeline input.json --compact > summary.json
@@ -96,11 +103,11 @@ python scripts/latex_engine.py pipeline input.json --compact > summary.json
 4. **改得对**：运行 `check-content`。修悬空 `\ref/\eqref`（补 label）、`\cite` 与 .bib 对应、表格列数匹配、模板必填项齐全。数值与公式含义回到原文核对，不臆造。
 5. **交得可用**：运行 `check-deliverable`。确认交付的是可编辑 .tex 工程（含必要 .bib/子文件/图片），不是 PDF 或片段。
 6. **复现得了**：运行 `check-reproducibility`。补齐构建记录（发行版、模板版本、宏包/字体版本、编译命令与轮次），并按记录在平台环境复编译验证一致性。
-7. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与全部字段；.tex 源码与产物另存为文件。每条改动附"原源码 → 改后 → 类型 → 理由 → 定位"。
+7. **装配输出**：直接 `python scripts/latex_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配源码/日志、渲染交付包草稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。每条改动附"原源码 → 改后 → 类型 → 理由 → 定位"。编译是否通过须 Agent 在平台实测，脚本不臆造。
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`、`result`（五项检查）、`evidence`（四原则落实 + error_locations + dangling_refs）、`uncertainty`（`needs_compile_verify=true` + 说明脚本不真编译）。目标产物须是可继续编辑维护的 .tex 源码。完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`、`result`（五项检查；`solve` 额外含 `draft_text`/`source_files`/`fixes`/`compile_status`）、`evidence`（四原则落实 + error_locations + dangling_refs）、`uncertainty`（`needs_compile_verify=true` + 不臆造说明）。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。目标产物须是可继续编辑维护的 .tex 源码。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 

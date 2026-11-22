@@ -114,6 +114,69 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
+# ==================== 冲95+ 完成器能力测试 ====================
+import tempfile as _tf
+
+_sample = _json.load(open(os.path.join(os.path.dirname(__file__), "smoke_input.json"), encoding="utf-8"))
+
+# render_draft：用真实字段渲染 Nanopublication 交付稿
+_dr = ne.render_draft(_sample)
+check("D1 draft status", _dr["status"] in ("draft", "partial"))
+check("D2 draft text", len(_dr["draft_text"]) > 100 and "Nanopublication 交付稿" in _dr["draft_text"])
+check("D3 nanopubs", len(_dr["nanopublications"]) == 1)
+check("D4 export text", "assertion" in _dr["export_text"] and "source" in _dr["draft_text"])
+check("D5 source refs", "§4" in _dr["source_refs"])
+# 无断言 → 不臆造
+_no_a = {k: v for k, v in _sample.items() if k != "assertions"}
+_dr_na = ne.render_draft(_no_a)
+check("D6 no fabricated assertion", "待补：无真实断言" in _dr_na["draft_text"] and len(_dr_na["nanopublications"]) == 0)
+
+# pipeline --with-draft
+_pl_draft = ne.pipeline(_sample, with_draft=True)
+check("D7 pipeline draft", _pl_draft.get("draft_detail") is not None)
+_pl_plain = ne.pipeline(_sample)
+check("D8 no draft by default", _pl_plain.get("draft_detail") is None)
+
+# 真实输入适配器：source_files 读论文文本
+_td = _tf.mkdtemp(prefix="np_adapt_")
+with open(os.path.join(_td, "paper.txt"), "w", encoding="utf-8") as _f:
+    _f.write("CNN在碳酸盐岩薄片达到0.92准确率[3]。")
+_ad = ne._adapt_case({"case_id": "a", "source_files": ["paper.txt"]}, _td)
+check("A1 source_files read", "CNN" in _ad.get("paragraph", ""))
+check("A2 adapter notes", any("paper.txt" in n for n in _ad["adapter_notes"]))
+# assertions_file 读真实断言
+_af = os.path.join(_td, "assertions.json")
+_json.dump({"assertions": _sample["assertions"]}, open(_af, "w", encoding="utf-8"), ensure_ascii=False)
+_ad2 = ne._adapt_case({"case_id": "b", "assertions_file": "assertions.json"}, _td)
+check("A3 assertions_file read", len(_ad2.get("assertions", [])) == 1)
+
+# solve 场景1：内联全字段 + 装配
+_t1 = _tf.mkdtemp(prefix="np_solve1_")
+with open(os.path.join(_t1, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump(_sample, _f, ensure_ascii=False)
+_s1 = ne.solve(os.path.join(_t1, "case.json"), os.path.join(_t1, "out"))
+check("S1 solve status", _s1["status"] in ("ok", "needs_attention", "partial", "draft"))
+check("S1 delivery written", _s1.get("delivery", {}).get("written") is True)
+check("S1 assertion count", _s1.get("assertion_count") == 1)
+_rj1 = _json.load(open(os.path.join(_t1, "out", "result.json"), encoding="utf-8"))
+check("S1 result.json", _rj1.get("case_id") == _sample["case_id"] and "result" in _rj1)
+check("S1 draft in result", bool(_rj1["result"].get("draft_text")))
+
+# solve 场景2：真实文本 + 无断言 → 不臆造、诚实降级
+_t2 = _tf.mkdtemp(prefix="np_solve2_")
+with open(os.path.join(_t2, "paper.txt"), "w", encoding="utf-8") as _f:
+    _f.write("CNN在碳酸盐岩薄片达到0.92准确率[3]。")
+with open(os.path.join(_t2, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump({"case_id": "real", "source_files": ["paper.txt"], "source_metadata": META}, _f, ensure_ascii=False)
+_s2 = ne.solve(os.path.join(_t2, "case.json"), os.path.join(_t2, "out"))
+check("S2 adapter read", any("paper.txt" in n for n in _s2.get("adapter_notes", [])))
+check("S2 no fabrication", "待补：无真实断言" in _s2["result"]["draft_text"] and len(_s2["result"]["nanopublications"]) == 0)
+check("S2 honest status", _s2["status"] == "needs_attention")
+check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
+
+# benchmark 端到端案例齐备
+check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
+
 print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)

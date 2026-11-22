@@ -35,12 +35,17 @@ description: 文献知识图谱构建守门人。当任务要求从科研论文�
 
 ## 工具：kg_engine.py
 
-位置：`scripts/kg_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络、不调用外部服务。
+位置：`scripts/kg_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络、不调用外部服务（10 子命令，含 solve/render-draft）。
 
 ```bash
 python scripts/kg_engine.py --help
-python scripts/kg_engine.py pipeline input.json > result.json
+python scripts/kg_engine.py solve /input/case.json --out /app/output   # 端到端建图+装配
+python scripts/kg_engine.py render-draft input.json > draft.json        # 仅渲染图谱交付稿
+python scripts/kg_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
+python scripts/kg_engine.py pipeline input.json > result.json             # 仅结构化检查
 ```
+
+`solve` 无需预填 entities 也能从真实 `source_index`（或 source_files 指向的论文材料）正文驱动抽取候选实体（受控词表正则，带 JATS 段落 ID 与原文短引），再经 check_entity 校验；不臆造实体/关系/证据。读不到不臆造，记入 `adapter_notes`。
 
 ### 子命令
 
@@ -53,7 +58,9 @@ python scripts/kg_engine.py pipeline input.json > result.json
 | `query-graph` | `answers[].subgraph/evidence/traceable/unresolved_edges`、`all_traceable` |
 | `incremental-update` | `existing_node_ids_preserved`、`changes`（added/merged/kept_conflicts/skipped）、`graph` |
 | `check-export` | `machine_readable/serializable`、`missing_*_fields`、`duplicate_node_ids` |
-| `pipeline` | `status`、`result`、`evidence`、`uncertainty` |
+| `render-draft` | 用真实字段渲染可编辑知识图谱交付稿（无实体标〔待补〕） | `draft_text`、`nodes`、`edges` |
+| `solve` | 端到端完成器：case.json →(适配/正文抽取)→ 建图 → result.json | `result.draft_text`、`delivery` |
+| `pipeline` | `status`、`result`、`evidence`、`uncertainty`（`--with-draft` 出交付稿） |
 
 ### 输入结构（pipeline）
 
@@ -91,7 +98,7 @@ python scripts/kg_engine.py pipeline input.json > result.json
 4. `align_entities` 处理别名与同名：同篇别名给依据合并，跨篇相同表面保留冲突节点。
 5. `bind-source` 逐节点/边核验来源绑定；`query-graph` 执行至少 3 个真实查询并核对每个结果可回查。
 6. 如增量加入新论文，用 `incremental-update` 保留既有编号并记录新增/合并/冲突。
-7. `check-export` 确认导出可读，`pipeline` 汇总。任何 `needs_attention` 项都要回到原文复核，不臆造补齐。
+7. 端到端交付直接 `python scripts/kg_engine.py solve /input/case.json --out /app/output`（自动适配材料、正文抽取、建图成稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。任何 `needs_attention` 项都要回到原文复核，不臆造补齐。
 
 ## 异常处理
 

@@ -48,6 +48,7 @@ pdf_layout_engine.py — 确定性科研 PDF 版面解析引擎
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -320,7 +321,7 @@ def extract_from_pdf(pdf_path: str, case_id: str = "") -> Dict[str, Any]:
             backends_tried.append("pymupdf:error:%s" % type(e).__name__)
 
     # 2) pdfplumber
-    if __import__("importlib").util.find_spec("pdfplumber"):
+    if importlib.util.find_spec("pdfplumber"):
         backends_tried.append("pdfplumber")
         try:
             pages = _extract_pdfplumber(pdf_path)
@@ -332,7 +333,7 @@ def extract_from_pdf(pdf_path: str, case_id: str = "") -> Dict[str, Any]:
             backends_tried.append("pdfplumber:error:%s" % type(e).__name__)
 
     # 3) pdfminer
-    if __import__("importlib").util.find_spec("pdfminer"):
+    if importlib.util.find_spec("pdfminer"):
         backends_tried.append("pdfminer")
         try:
             pages = _extract_pdfminer(pdf_path)

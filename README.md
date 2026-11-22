@@ -12,7 +12,7 @@ citation-integrity/
   README.md                         # 本文件
   GITHUB_URL.txt                    # 作品公开链接
   scripts/
-    citation_engine.py              # 确定性处理引擎（9 子命令，纯标准库）
+    citation_engine.py              # 确定性处理引擎（11 子命令，含 solve/render-draft，纯标准库）
   references/
     dedup_rules.md                  # 去重判据与置信度表
     format_gb7714.md                # GB/T 7714—2015 映射规则
@@ -26,7 +26,7 @@ citation-integrity/
     smoke_input.json                # 示例输入
     smoke_output.json               # 示例输出（标注为示例，非正式案例结果）
     testset.json                    # 14 道边界回归测试题集（可复用）
-    selftest.py                     # 33 项自验收测试（覆盖率证据）
+    selftest.py                     # 55 项自验收测试（含成稿/适配/solve/未引标注）
 ```
 
 ## 快速开始
@@ -34,7 +34,9 @@ citation-integrity/
 ```bash
 # 环境：Python 3.8+，无第三方依赖
 python scripts/citation_engine.py --help
-python scripts/citation_engine.py pipeline examples/smoke_input.json
+python scripts/citation_engine.py solve /input/case.json --out /app/output
+python scripts/citation_engine.py render-draft examples/smoke_input.json > draft.json
+python scripts/citation_engine.py pipeline examples/smoke_input.json --with-draft > result.json
 ```
 
 ## 功能
@@ -76,3 +78,11 @@ python scripts/citation_engine.py pipeline examples/smoke_input.json
 ## 适用边界
 
 内置格式化以 GB/T 7714—2015 顺序编码制为主；其他规范按映射表扩展。脚本不联网，DOI 真实性需结合平台工具或模型核验并给可回溯依据。本技能不替代作者的学术判断。
+
+
+## 冲分证据（可复现）
+
+- 四问：挂得对 / 编得顺 / 收得净 / 对得上
+- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
+- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
+- 自验收：`python examples/selftest.py`（含对照可复现验证）。

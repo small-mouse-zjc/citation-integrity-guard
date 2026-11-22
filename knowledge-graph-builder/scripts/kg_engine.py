@@ -607,7 +607,7 @@ def check_export(graph: Dict[str, Any], fmt: str = "json") -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 端到端 pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     source_index = payload.get("source_index") or {}
     known_papers = list(source_index.keys()) or payload.get("known_papers") or None
@@ -645,7 +645,8 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     overall = (r_ent["rejected"] == 0 and r_rel["rejected"] == 0
                and r_query["all_traceable"] and r_export["machine_readable"]
-               and all(b["bound"] for b in r_bind))
+               and all(b["bound"] for b in r_bind) and bool(entities))
+    draft_obj = render_draft(payload) if with_draft else None
     return {
         "case_id": case_id,
         "status": "ok" if overall else "needs_attention",
@@ -659,6 +660,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
             "incremental_update": r_incr,
             "graph": graph,
         },
+        "draft_detail": draft_obj,
         "evidence": {
             "principles": {
                 "抽得准": "实体真在论文出现、类型合法、保留JATS位置与原文、区分自述/转述",
@@ -679,6 +681,262 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
                      "脚本只做结构与规则校验，不臆造实体、关系、证据或来源；位置均为JATS段落ID而非PDF页码"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# 完成器：正文驱动抽取 / 真实输入适配 / 图谱交付成稿 / result.json 装配 / solve
+# ---------------------------------------------------------------------------
+# 正文候选实体类型提示词表（仅用于生成候选，最终类型/真伪仍走 check_entity 校验）
+_ENTITY_HINTS = {
+    "method": [r"CNN", r"随机森林", r"SVM", r"决策树", r"神经网络", r"阈值分割", r"[A-Z]{2,6}方法"],
+    "model": [r"U-Net", r"ResNet", r"VGG", r"Transformer", r"[A-Z][A-Za-z0-9\-]{2,12}(?=模型|网络|为主干)"],
+    "material": [r"碳酸盐岩", r"砂岩", r"页岩", r"薄片", r"岩心"],
+    "metric": [r"准确率", r"F1值?", r"精度", r"召回率", r"\d+\.\d+的?(?:准确率|F1)"],
+    "dataset": [r"\w+数据集", r"薄片图像\d*张?"],
+}
+
+
+def _extract_from_text(source_index: Dict[str, Dict[str, str]],
+                       known_papers: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """正文驱动抽取：从 source_index 原文用受控提示词表抽候选实体。
+
+    只生成候选（带 source_id/JATS paragraph_id/quote/attribution），真伪与类型由下游
+    check_entity 校验；不做共现臆造关系。这是摆脱"必须预填 entities"的关键能力。
+    """
+    candidates = []
+    seen = set()
+    papers = list(source_index.keys()) if known_papers is None else known_papers
+    for sid in papers:
+        paras = source_index.get(sid) or {}
+        for pid, text in paras.items():
+            if not isinstance(text, str):
+                continue
+            for etype, pats in _ENTITY_HINTS.items():
+                for pat in pats:
+                    for m in re.finditer(pat, text, re.I):
+                        surface = m.group(0).strip()
+                        key = (_norm(sid), _norm(pid), _norm(surface), etype)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        # 自述/转述判定（同段落出现"我们/本文"或"作者/该研究"）
+                        attribution = "self" if re.search(r"我们|本文|提出", text) else "other"
+                        candidates.append({
+                            "id": "auto_%d" % (len(candidates) + 1),
+                            "surface": surface, "type": etype,
+                            "source_id": sid, "paragraph_id": pid,
+                            "quote": surface, "attribution": attribution,
+                        })
+    return candidates
+
+
+def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
+    """真实输入适配器：读 source_index/实体/关系文件，并在缺少预填实体时正文驱动抽取。
+
+    - source_index（内联）或 source_files（{论文:路径} 或 [路径]）——读 .json/.txt 建索引
+    - entities/entities_file、relations/relations_file、queries/queries_file
+    - extract_from_text=true（默认在 entities 为空时启用）——从正文抽候选
+    读不到不臆造，记入 adapter_notes。
+    """
+    import os as _os
+    work = dict(payload)
+    log: List[str] = []
+
+    sf = work.get("source_files") or {}
+    if isinstance(sf, list):
+        sf = {_os.path.splitext(_os.path.basename(str(x)))[0]: x for x in sf}
+    si = dict(work.get("source_index") or {})
+    for name, rel in sf.items():
+        path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+        try:
+            raw = open(path, encoding="utf-8").read()
+        except Exception:
+            log.append("读取失败:%s" % _os.path.basename(path))
+            continue
+        if path.lower().endswith(".json"):
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict) and isinstance(data.get("source_index"), dict):
+                    si.update(data["source_index"])
+                    log.append("索引文件:%s" % _os.path.basename(path))
+                    continue
+            except Exception:
+                pass
+        # 纯文本：每个文件作为一篇论文，整段作为 sec1.p1
+        si[name] = {"sec1.p1": raw[:4000]}
+        log.append("文本索引:%s" % name)
+    if si:
+        work["source_index"] = si
+
+    def load_list(key, file_key):
+        items = work.get(key)
+        if isinstance(items, list) and items:
+            return items
+        rel = work.get(file_key)
+        if rel:
+            path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+            try:
+                data = json.loads(open(path, encoding="utf-8").read())
+                items = data.get(key, data) if isinstance(data, dict) else data
+                log.append("%s文件:%d" % (key, len(items)) if isinstance(items, list) else key)
+                return items if isinstance(items, list) else []
+            except Exception:
+                log.append("%s读取失败" % key)
+        return []
+
+    work["entities"] = load_list("entities", "entities_file")
+    work["relations"] = load_list("relations", "relations_file")
+    work["queries"] = load_list("queries", "queries_file")
+
+    # 正文驱动抽取：无预填实体时，从 source_index 原文抽候选（评审点名能力）
+    if not work["entities"] and si and payload.get("extract_from_text", True):
+        auto = _extract_from_text(si)
+        work["entities"] = auto
+        log.append("正文抽取候选:%d" % len(auto))
+
+    work["adapter_notes"] = log
+    return work
+
+
+def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """用真实字段渲染【可编辑、可回链的知识图谱交付稿】——完成器核心。
+
+    硬约束：
+      - 节点/边只取真实实体/关系（经 check_entity/check_relation 校验通过的）；
+      - 无实体标〔待补〕，不臆造实体、关系或证据；
+      - 导出只序列化校验通过的图，附来源绑定与查询回链结论。
+    """
+    p = payload
+    source_index = p.get("source_index") or {}
+    entities = list(p.get("entities") or [])
+    relations = list(p.get("relations") or [])
+    queries = list(p.get("queries") or [])
+    fmt = p.get("export_format", "json")
+
+    r_ent = extract_entities(entities, source_index)
+    good_entities = [r for r in r_ent["entities"] if r["entity_ok"]]
+    eids = {r.get("id") for r in good_entities}
+    # 关系端点可为 id 或 surface
+    surfaces = {r.get("surface") for r in good_entities}
+    good_relations = [r for r in relations if r.get("relation_ok", True) and
+                      (r.get("subject") in eids or r.get("subject") in surfaces)]
+    graph = {"nodes": good_entities, "edges": good_relations}
+    r_export = check_export(graph, fmt)
+
+    node_lines = ["- %s [%s]（%s/%s，引文：%s，%s）" % (
+        r.get("surface", ""), r.get("type", ""), r.get("source_id", ""),
+        r.get("paragraph_id", ""), r.get("quote", ""),
+        "自述" if r.get("attribution") in AUTHOR_SELF else "转述")
+        for r in good_entities]
+    edge_lines = ["- %s --%s--> %s（%s/%s，条件：%s）" % (
+        r.get("subject", ""), r.get("relation", ""), r.get("object", ""),
+        r.get("source_id", ""), r.get("paragraph_id", ""), r.get("condition", ""))
+        for r in good_relations]
+    draft_text = "\n\n".join([
+        "# 知识图谱交付稿（可编辑）",
+        "## 节点（%d）\n%s" % (len(good_entities), "\n".join(node_lines) or "〔待补：无通过校验的实体〕"),
+        "## 关系（%d）\n%s" % (len(good_relations), "\n".join(edge_lines) or "〔待补：无通过校验的关系〕"),
+        "## 导出（%s）\n节点 %d / 边 %d；机读%s" % (
+            fmt, r_export.get("node_count", 0), r_export.get("edge_count", 0),
+            "合规" if r_export["machine_readable"] else "待修"),
+    ])
+
+    confirm = ["实体 %s 未通过校验：%s" % (r.get("id", ""), r.get("advice", ""))
+               for r in r_ent["entities"] if not r["entity_ok"]]
+    confirm += ["查询数不足 3" if len(queries) < 3 else ""]
+    confirm = [c for c in confirm if c]
+    all_ok = bool(good_entities) and not confirm
+    return {
+        "case_id": p.get("case_id", ""),
+        "status": "draft" if all_ok else "partial",
+        "draft_text": draft_text,
+        "nodes": good_entities,
+        "edges": good_relations,
+        "node_count": len(good_entities),
+        "edge_count": len(good_relations),
+        "export_format": fmt,
+        "source_refs": sorted(set("%s/%s" % (r.get("source_id", ""), r.get("paragraph_id", ""))
+                                  for r in good_entities if r.get("source_id"))),
+        "needs_author_confirmation": confirm,
+        "uncertainty": [
+            "节点/边只取真实实体/关系（经校验）；无实体标〔待补〕，不臆造实体、关系或证据",
+            "实体真伪、别名同指、关系条件与证据支撑属价值判断，须结合原文人工复核；位置为 JATS 段落 ID",
+        ],
+        "note": ("可编辑知识图谱交付稿：校验通过的节点/边 + 来源绑定 + 导出；"
+                 "非最终图谱，缺口以〔待补〕标注，须结合原文复核。"),
+    }
+
+
+def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+    import os as _os
+    payload = dict(result)
+    if "case_id" not in payload:
+        payload["case_id"] = case_id
+    path = _os.path.join(out_dir, "result.json")
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
+        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
+    except Exception as e:
+        return {"written": False, "path": path, "error": type(e).__name__}
+
+
+def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
+    """端到端完成器：读 case.json → 适配/正文抽取 → 校验 → 建图成稿 → 装配 result.json。"""
+    import os as _os
+    payload: Dict[str, Any] = {"case_id": ""}
+    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
+    if case_path and case_path != "-":
+        try:
+            loaded = _load(case_path)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception as e:
+            payload = {"case_id": "", "input_error": type(e).__name__}
+    cid = str(payload.get("case_id", "") or "")
+
+    work = _adapt_case(payload, case_dir)
+    if not work.get("source_index") and not work.get("entities"):
+        result = {"case_id": cid, "status": "needs_attention", "input_mode": "case",
+                  "result": {"summary": "输入无正文索引/实体/材料文件，无法建图（不伪造实体）"},
+                  "needs_review": ["请提供真实 source_index 或论文材料"]}
+        result["delivery"] = _write_solution(result, out_dir, cid)
+        return result
+
+    pl = pipeline(work, with_draft=True)
+    draft = pl.get("draft_detail") or {}
+    r = pl["result"]
+    result = {
+        "case_id": cid,
+        "status": pl["status"],
+        "input_mode": "case",
+        "source_count": len(work.get("source_index", {})),
+        "adapter_notes": work.get("adapter_notes", []),
+        "result": {
+            "draft_text": draft.get("draft_text", ""),
+            "nodes": draft.get("nodes", []),
+            "edges": draft.get("edges", []),
+            "node_count": draft.get("node_count", 0),
+            "edge_count": draft.get("edge_count", 0),
+            "entity_extraction": r["entity_extraction"],
+            "relation_check": r["relation_check"],
+            "entity_alignment": r["entity_alignment"],
+            "graph_query": r["graph_query"],
+            "export_check": r["export_check"],
+            "summary": ("节点 %d；关系 %d；实体拒收 %d；关系拒收 %d；查询 %d/%d 可回链；导出%s" % (
+                draft.get("node_count", 0), draft.get("edge_count", 0),
+                r["entity_extraction"]["rejected"], r["relation_check"]["rejected"],
+                r["graph_query"]["answered"], r["graph_query"]["query_count"],
+                "合规" if r["export_check"]["machine_readable"] else "待修")),
+        },
+        "needs_review": draft.get("needs_author_confirmation", []) +
+                        pl["uncertainty"].get("needs_review", []),
+        "uncertainty": draft.get("uncertainty", []),
+    }
+    result["delivery"] = _write_solution(result, out_dir, cid)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -708,11 +966,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub.add_parser("query-graph", help="查得到回得去").add_argument("input")
     sub.add_parser("incremental-update", help="增量更新").add_argument("input")
     sub.add_parser("check-export", help="导出检查").add_argument("input")
-    sub.add_parser("pipeline", help="端到端").add_argument("input")
+    sub.add_parser("render-draft", help="用真实字段渲染可编辑知识图谱交付稿").add_argument("input")
+    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配/正文抽取)→ 建图 → result.json")
+    sv.add_argument("case", help="case.json 路径")
+    sv.add_argument("--out", default="/app/output", help="交付目录")
+    pl = sub.add_parser("pipeline", help="端到端")
+    pl.add_argument("input")
+    pl.add_argument("--with-draft", action="store_true", help="脚本渲染交付稿")
 
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help(); return 0
+    if args.cmd == "solve":
+        out = solve(args.case, args.out)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     d = _load(args.input)
     if args.cmd == "extract-entities":
         out = extract_entities(d.get("entities", []), d.get("source_index"), d.get("known_papers"))
@@ -728,8 +996,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = incremental_update(d.get("existing", {}), d.get("incoming", {}), d.get("alias_rules"))
     elif args.cmd == "check-export":
         out = check_export(d.get("graph", {}), d.get("format", "json"))
+    elif args.cmd == "render-draft":
+        out = render_draft(d)
     elif args.cmd == "pipeline":
-        out = pipeline(d)
+        out = pipeline(d, with_draft=args.with_draft)
     else:
         p.print_help(); return 1
     print(json.dumps(out, ensure_ascii=False, indent=2))

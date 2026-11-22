@@ -80,3 +80,48 @@
   }
 }
 ```
+
+
+## 端到端交付（完成器 solve / render-draft）
+
+### 真实输入字段（solve 适配）
+
+`solve case.json --out /app/output` 读取 case.json，支持以下真实输入字段（读不到不臆造，记入 `adapter_notes`）：
+
+- `paragraph` / `source_text`：真实论文段落文本。
+- `source_files`：`[路径]`，读 `.txt`/`.md`（并入源文本）或 `.json`（含 `assertions`/`source_metadata`/`paragraph`）。
+- `assertions` / `assertions_file`：内联断言数组或真实断言 JSON 文件。
+- `source_metadata` / `metadata_file`：内联来源元数据或真实 JSON 文件。
+- `export_format`：导出格式（json/jsonld/rdf）。
+
+### 输出：solve result.json
+
+```json
+{
+  "case_id": "...",
+  "status": "ok | needs_attention | partial",
+  "input_mode": "case",
+  "assertion_count": 1,
+  "adapter_notes": ["文本:paper.txt"],
+  "result": {
+    "draft_text": "# Nanopublication 交付稿（可编辑）\n## 源段落\n...\n## 结构化断言\n### NP1\n- 断言：...\n## 来源链路\n...\n## 导出（json）\n```json ...```",
+    "nanopublications": [{"assertion":"...","subject":"...","relation":"...","object":"...","evidence":"...","evidence_location":"§4"}],
+    "export_text": "[{"assertion": ...}]",
+    "assertion_checks": [...], "evidence_bindings": [...], "provenance": {...},
+    "export_check": {...}, "quality_check": {...},
+    "summary": "断言 1 条；证据绑定 1/1；来源字段 6/6；导出合规；重复 0"
+  },
+  "needs_review": ["断言1 证据：断言与证据词面无重叠，须人工确认"],
+  "uncertainty": ["断言/证据/元数据只取真实输入；无断言标〔待补〕，不臆造断言或证据"],
+  "delivery": {"written":true,"path":"/app/output/result.json","bytes":4049}
+}
+```
+
+- `result.draft_text`：可编辑 Nanopublication 交付稿：结构化断言（断言-三元组-证据-锚点-置信度）+ 来源链路 + 导出；**无真实断言标〔待补：无真实断言〕，不臆造断言或证据**。
+- `result.nanopublications` / `export_text`：从真实断言组装的 nanopub 列表与按 `export_format` 序列化的导出文本。
+- `status`：`ok`=证据全绑定 + 来源完整 + 导出合规 + 无重复；否则 `needs_attention`/`partial`，缺口进 `needs_review`。
+- `delivery`：落盘回执；`written=true` 且 `bytes>0` 才算交付成功。异常不静默吞错，写入 `input_error` 或显式降级。
+
+### render-draft / pipeline --with-draft
+
+`render-draft input.json` 与 `pipeline input.json --with-draft` 在输出中给出 `draft_detail`（含 `draft_text`/`nanopublications`/`export_text`/`needs_author_confirmation`）；默认 `pipeline` 不含成稿。两者都不臆造断言或证据，缺口标〔待补〕。

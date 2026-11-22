@@ -167,5 +167,53 @@
         }
       }
     }
-  ]
+  ],
+  "completion_cases": [
+    {
+      "case_id": "translate-inline-full",
+      "type": "end_to_end",
+      "desc": "内联 paragraphs+translations 全字段：solve 应端到端成稿并装配 result.json（delivery.written=true）",
+      "input_ref": "cases[0].input",
+      "expect": {
+        "status": "partial",
+        "delivery_written": true,
+        "bilingual_draft_nonempty": true
+      }
+    },
+    {
+      "case_id": "translate-real-file-no-translation",
+      "type": "end_to_end",
+      "desc": "真实 source_files 文本、无译文：适配器应读真实文件切段，缺译文标〔待翻译〕、不臆造、诚实降级",
+      "input": {
+        "case_id": "real",
+        "source_lang": "en",
+        "target_lang": "zh",
+        "source_files": [
+          "paper.txt"
+        ]
+      },
+      "companion_files": {
+        "paper.txt": "Carbonate reservoirs are heterogeneous. Porosity is 18.5% [1].\n\nA new method is proposed."
+      },
+      "expect": {
+        "source_count": 2,
+        "all_pending": true,
+        "no_fabrication": true,
+        "delivery_written": true
+      }
+    },
+    {
+      "case_id": "translate-source-text-split",
+      "type": "adapter",
+      "desc": "source_text 纯文本按空行/换行切段：适配器应产出稳定段号",
+      "input": {
+        "case_id": "split",
+        "source_text": "Line one here.\n\nLine two here."
+      },
+      "expect": {
+        "segment_count": 2
+      }
+    }
+  ],
+  "companion_note": "completion_cases 为端到端完成器/真实输入适配的复现案例（非正式评测/白板）；cases 仍为四问机制对照用的 clean+defect 两案。"
 }

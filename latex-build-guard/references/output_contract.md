@@ -67,3 +67,51 @@
   "uncertainty": {"needs_compile_verify": true, "note": "须在平台环境实际编译验证"}
 }
 ```
+
+
+## 端到端交付（完成器 solve / render-draft）
+
+### 真实输入字段（solve 适配）
+
+`solve case.json --out /app/output` 读取 case.json，支持以下真实输入字段（读不到不臆造，记入 `adapter_notes`）：
+
+- `main_tex` / `main_tex_file`：内联源码或真实 `.tex` 文件路径。
+- `files`：`{文件名: 内联内容或真实路径}`；若未给 main_tex，取含 `\documentclass` 的主文件。
+- `bib` / `bib_file`、`sub_files`（`{名:路径或内联}`）：真实文献库与子文件。
+- `compile_log` / `compile_log_file`：真实编译日志；无日志不臆造编译成功。
+- `build_record` / `build_record_file`：真实构建记录。
+
+### 输出：solve result.json
+
+```json
+{
+  "case_id": "...",
+  "status": "ok | needs_attention | partial",
+  "input_mode": "case",
+  "source_count": 2,
+  "adapter_notes": ["读取main_tex:main.tex"],
+  "result": {
+    "draft_text": "# LaTeX 交付包草稿（可编辑）\n### main.tex\n```latex ...```\n# 编译状态\n已提供真实编译日志：0 错误 / 0 警告\n# 待修清单\n...",
+    "source_files": ["main.tex", "refs.bib"],
+    "fixes": [{"where":"source","type":"...","reason":"..."}],
+    "compile_status": "〔待编译验证：未提供真实 compile_log，本引擎不调用编译器、不臆造编译成功〕",
+    "needs_compile_verify": true,
+    "source_check": {...}, "error_classification": {...}, "content_check": {...},
+    "deliverable_check": {...}, "reproducibility_check": {...},
+    "summary": "源码结构通过；编译 0 错/0 警；内容通过；交付可用；复现齐全；须平台实测编译"
+  },
+  "needs_review": ["编译结果须由 Agent 在平台环境实测，脚本不臆造成功"],
+  "uncertainty": ["源码/日志只取真实输入；无日志标〔待编译验证〕，不臆造编译成功"],
+  "delivery": {"written":true,"path":"/app/output/result.json","bytes":3347}
+}
+```
+
+- `result.draft_text`：可编辑 LaTeX 交付包草稿：真实源码 + 编译状态 + 逐维核验 + 待修清单；**无真实编译日志时编译状态标〔待编译验证〕，绝不声称编译成功**。
+- `result.fixes`：待修清单（source/compile/content/deliverable/repro），来自真实静态检查结论。
+- `result.compile_status`：如实呈现编译日志统计；无日志显式标注待编译验证。
+- `status`：`ok`=源码/内容/交付/复现齐全且编译日志无错；否则 `needs_attention`/`partial`。注意 `ok` 仅表示静态检查通过，**编译是否通过仍须平台实测**。
+- `delivery`：落盘回执；`written=true` 且 `bytes>0` 才算交付成功。异常不静默吞错，写入 `input_error` 或显式降级。
+
+### render-draft / pipeline --with-draft
+
+`render-draft input.json` 与 `pipeline input.json --with-draft` 在输出中给出 `draft_detail`（含 `draft_text`/`source_files`/`fixes`/`compile_status`/`needs_compile_verify`）；默认 `pipeline` 与 `--compact` 不含成稿。三者都不臆造编译成功。

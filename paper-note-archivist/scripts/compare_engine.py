@@ -48,6 +48,28 @@ def _resolve(result: Dict[str, Any], expr: str):
 def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
     r = ENGINE.pipeline(payload)
     result = r.get("result", {}) if isinstance(r, dict) else {}
+
+    # 真实朴素基线成稿：把论文章节标题逐条平铺（不做逐章笔记/卡片/锚点回链）
+    sections = payload.get("paper_sections", []) or []
+    baseline_text = "\n".join("- %s" % str(s) for s in sections)
+    # Skill 成稿：用真实字段渲染逐章结构化笔记草稿
+    draft = ENGINE.render_draft(payload)
+    skill_text = draft.get("draft_text", "")
+    draft_cmp = {
+        "baseline_text": baseline_text or "〔基线无可用材料〕",
+        "baseline_chars": len(baseline_text),
+        "baseline_parts": len(sections),
+        "skill_text": skill_text,
+        "skill_chars": len(skill_text),
+        "skill_parts": len(draft.get("chapter_blocks", [])),
+        "skill_card_fields": sum(1 for v in draft.get("reading_card", {}).values()
+                                 if v.get("status") == "reported"),
+        "skill_source_refs": len(draft.get("source_refs", [])),
+        "note": ("基线=章节标题逐条平铺（真实生成的朴素稿）；"
+                 "Skill=逐章笔记+六字段卡片+知识点+锚点回链成稿草稿。"
+                 "仅比较结构与覆盖证据，不编造质量分；正式质量对照由平台白板给出。"),
+    }
+
     dims = []
     for dim, baseline, field, gate in PROFILE["dimensions"]:
         flagged, positives = _resolve(result, field)
@@ -67,6 +89,7 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "comparison",
         "four_questions": PROFILE["four"],
         "dimensions": dims,
+        "draft_comparison": draft_cmp,
         "summary": {
             "four_questions_covered": len(PROFILE["four"]) == 4 and len(dims) == 4,
             "dimensions_with_evidence": fired,

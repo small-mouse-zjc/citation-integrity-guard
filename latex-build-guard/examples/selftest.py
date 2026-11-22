@@ -146,6 +146,63 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
+# ==================== 冲95+ 完成器能力测试 ====================
+import tempfile as _tf
+
+# render_draft：用真实字段渲染可编辑 LaTeX 交付包草稿
+_dr = le.render_draft(payload)
+check("D1 draft status", _dr["status"] in ("draft", "partial"))
+check("D2 draft text", len(_dr["draft_text"]) > 100 and "LaTeX 交付包草稿" in _dr["draft_text"])
+check("D3 source files", "main.tex" in _dr["source_files"])
+check("D4 compile status honest", "错误" in _dr["compile_status"])
+check("D5 needs compile verify", _dr["needs_compile_verify"] is True)
+# 无编译日志 → 不臆造编译成功
+_no_log = {k: v for k, v in payload.items() if k != "compile_log"}
+_dr_nl = le.render_draft(_no_log)
+check("D6 no fabricated compile", "待编译验证" in _dr_nl["compile_status"])
+
+# pipeline --with-draft
+_pl_draft = le.pipeline(payload, with_draft=True)
+check("D7 pipeline draft", _pl_draft.get("draft_detail") is not None)
+_pl_plain = le.pipeline(payload)
+check("D8 no draft by default", _pl_plain.get("draft_detail") is None)
+
+# 真实输入适配器：main_tex_file 读真实 .tex
+_td = _tf.mkdtemp(prefix="latex_adapt_")
+with open(os.path.join(_td, "main.tex"), "w", encoding="utf-8") as _f:
+    _f.write("\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n")
+_ad = le._adapt_case({"case_id": "a", "main_tex_file": "main.tex"}, _td)
+check("A1 main_tex_file read", "\\documentclass" in _ad.get("main_tex", ""))
+check("A2 adapter notes", any("main_tex" in n for n in _ad["adapter_notes"]))
+
+# solve 场景1：内联全字段 + 装配
+_t1 = _tf.mkdtemp(prefix="latex_solve1_")
+with open(os.path.join(_t1, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump(payload, _f, ensure_ascii=False)
+_s1 = le.solve(os.path.join(_t1, "case.json"), os.path.join(_t1, "out"))
+check("S1 solve status", _s1["status"] in ("ok", "needs_attention", "partial", "draft"))
+check("S1 delivery written", _s1.get("delivery", {}).get("written") is True)
+_rj1 = _json.load(open(os.path.join(_t1, "out", "result.json"), encoding="utf-8"))
+check("S1 result.json", _rj1.get("case_id") == payload["case_id"] and "result" in _rj1)
+check("S1 draft in result", bool(_rj1["result"].get("draft_text")))
+
+# solve 场景2：真实 .tex 文件 + 无编译日志 → 不臆造编译成功、诚实降级
+_t2 = _tf.mkdtemp(prefix="latex_solve2_")
+with open(os.path.join(_t2, "main.tex"), "w", encoding="utf-8") as _f:
+    _f.write("\\documentclass{article}\n\\begin{document}\nHello.\n\\end{document}\n")
+with open(os.path.join(_t2, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump({"case_id": "real", "main_tex_file": "main.tex",
+                "build_record": "TeX Live 2023. pdflatex. 编译2轮."}, _f, ensure_ascii=False)
+_s2 = le.solve(os.path.join(_t2, "case.json"), os.path.join(_t2, "out"))
+check("S2 adapter read", any("main.tex" in n for n in _s2.get("adapter_notes", [])))
+check("S2 no fabricated compile", "待编译验证" in _s2["result"]["compile_status"])
+check("S2 honest status", _s2["status"] == "needs_attention")
+check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
+
+# benchmark 端到端案例齐备
+TOTAL += 19
+check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
+
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:
     print("失败:", FAILS)

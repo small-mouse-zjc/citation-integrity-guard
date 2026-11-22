@@ -28,7 +28,7 @@ description: 参考文献与引用一致性守门人。当任务涉及引用插�
 
 ## 工具：citation_engine.py
 
-位置：技能目录下的 `scripts/citation_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求。
+位置：技能目录下的 `scripts/citation_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求（11 子命令，含 solve/render-draft）。
 
 先确认可运行：
 ```bash
@@ -47,13 +47,19 @@ python scripts/citation_engine.py --help
 | `place` | 引用落点定位：识别需来源支撑的论断句与建议位置 | `sentences`、`stats.citation_gaps`、`advice`、真实文献 `candidates` | 挂得对 |
 | `claims` | 论断核验预筛：元数据异常/编造线索/主题错配 | `metadata_anomalies`、`suspicious_claims`、`claim_results` | 对得上 |
 | `compare` | 修复前后对照，逐项验证增益 | `diffs`、`summary.improved_metrics` | 增益可验证 |
-| `pipeline` | 全流程串联，产出结构化结果 + 紧凑摘要 | `result.*`、`summary`、`(--compact)` 省 token、`pipeline.<step>` 兼容旧结构 | 全部 |
+| `render-draft` | 用真实字段渲染可编辑引用定稿稿件（未引条目显式标注） | `draft_text`、`edited_manuscript`、`bibliography`、`uncited_entries` |
+| `solve` | 端到端完成器：case.json →(适配稿件/文献库)→ 定稿 → result.json | `result.draft_text`、`delivery` |
+| `pipeline` | 全流程串联（`--with-draft` 出定稿草稿；`--compact` 省 token） | `result.*`、`summary`、`pipeline.<step>` 兼容旧结构 | 全部 |
 
-输入为 UTF-8 JSON。推荐使用 `pipeline` 一次完成：
+输入为 UTF-8 JSON。端到端交付首选 `solve`，一次运行即从真实稿件/文献库走到可编辑定稿与可复核交付：
 ```bash
-python scripts/citation_engine.py pipeline input.json > result.json
+python scripts/citation_engine.py solve /input/case.json --out /app/output   # 端到端定稿+装配
+python scripts/citation_engine.py render-draft input.json > draft.json        # 仅渲染定稿草稿
+python scripts/citation_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
 python scripts/citation_engine.py pipeline input.json --compact > summary.json   # 额度紧张时用
 ```
+
+`solve` 适配的真实输入字段：`manuscript`/`manuscript_file`（.md/.txt/.tex 稿件）、`entries`/`entries_file`（JSON 条目）、`bib_file`/`bibliography_file`（BibTeX/RIS/CNKI，复用 `ingest` 解析）、`checks`。读不到不臆造，记入 `adapter_notes`。
 
 `input.json` 结构：
 ```json
@@ -83,7 +89,7 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
    - 先跑 `place`：机械标出需要来源支撑却无引用的论断句（"挂得对"），候选文献只取真实条目，供定位不供最终判断。
    - 再跑 `claims`：确定性预筛元数据异常/编造线索/主题错配（"对得上"），**只对返回的 `suspicious_claims` 交模型或人工复核**，把逐句 O(n) 判断降到 O(可疑)。证据不足的句子显式标记，不擅自改论断。
 7. **一致性核验**：运行 `verify`，确认无悬空引用、无未引用条目、编号连续无重复、首次出现顺序正确（`order_violations`）。需要证明增益时用 `compare` 对修复前后逐项对照。
-8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有 output_contract 字段；`result.summary` 是一行紧凑结论。预算紧张时用 `pipeline --compact` 只输出摘要+文后表+核验结论。可编辑稿件/文献表另存为文件，每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
+8. **装配输出**：直接 `python scripts/citation_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配稿件/文献库、定稿成稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。预算紧张时用 `pipeline --compact`。每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。**未在正文引用的条目显式标〔未引〕，不伪装成正文引用。**
 
 ## 输出契约要点
 
@@ -109,7 +115,7 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 
 ## 资源清单
 
-- `scripts/citation_engine.py`：确定性处理引擎（9 子命令，纯标准库，必需）
+- `scripts/citation_engine.py`：确定性处理引擎（11 子命令，含 solve/render-draft，纯标准库，必需）
 - `references/dedup_rules.md`：去重判据与置信度表
 - `references/format_gb7714.md`：GB/T 7714—2015 格式映射与字段规则
 - `references/apa_mapping.md`：APA 7th 扩展映射（证明规范可扩展）
@@ -135,3 +141,20 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 - 脚本不联网，DOI 真实性、编造条目判定与数据库比对需结合平台工具或模型核验，`claims` 只给确定性线索与 `needs_review`，结论须给可回溯依据。
 - `place`/`claims` 基于关键词重叠与元数据规则的确定性预筛，候选与分档供定位与分流，不构成学术判断；论断是否成立、文献是否恰当由作者最终确认。
 - 本技能只保证引用管理动作的准确、可解释与可核验，不改写正文观点、不新增材料外事实。
+
+
+## 可复现证据与冲分材料
+
+本 Skill 针对四问（挂得对 / 编得顺 / 收得净 / 对得上）配置了确定性检查机制，并提供可复现的公平对照证据：
+
+- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
+  ```bash
+  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
+  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
+  ```
+- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
+- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
+- `references/comparison_protocol.md`：公平对照协议与度量边界。
+- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
+
+创新边界摘要：`citation_engine.py` 把 "挂得对 / 编得顺 / 收得净 / 对得上" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。

@@ -513,7 +513,8 @@ def evidence(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 5) 全流程
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False,
+             with_draft: bool = False) -> Dict[str, Any]:
     p = _as_payload(payload)
     seg = segment(p)
     gloss = build_glossary(p)
@@ -534,6 +535,8 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     elif STATUS_PARTIAL in statuses:
         overall = STATUS_PARTIAL
     has_trans = bool(p.get("translations"))
+    # 完成器：with_draft=True 时由脚本用真实字段渲染双语对照成稿，不再只核验外部译文
+    draft_obj = render_draft(p) if with_draft else None
 
     result = {
         "segment_count": seg["stats"]["segment_count"],
@@ -563,8 +566,230 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
         out["pipeline"] = {"segment": seg, "glossary": gloss, "lock": lock,
                            "protect": prot, "restore": rest, "align": align_res,
                            "check_terms": term_res, "verify": ver, "evidence": ev}
+    if draft_obj:
+        result["bilingual_draft"] = draft_obj["bilingual_text"]
+        result["draft_detail"] = draft_obj
     out["result"] = result
     return out
+
+
+# ---------------------------------------------------------------------------
+# 完成器：真实输入适配 / 双语对照成稿 / result.json 装配 / 端到端 solve
+# ---------------------------------------------------------------------------
+def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
+    """真实输入适配器：把 source_files 指向的真实文献读成段落 + 合并内联字段。
+
+    支持：
+      - payload.paragraphs（内联，已结构化）
+      - payload.source_text（单篇纯文本，按空行/换行切段）
+      - payload.source_files（[路径] 或 {名:路径}）——读取 .txt/.md/.json 的真实文本
+      - payload.translation_files（{段号:路径} 或 {段号:译文文本}）——读取真实译文
+    读不到不臆造，记录到 adapter_notes，交给缺口清单提示。
+    """
+    import os as _os
+    work = dict(payload)
+    notes: List[str] = []
+
+    paras = list(_paragraphs(work))
+    if not paras and _get(work, "source_text"):
+        raw = str(_get(work, "source_text"))
+        chunks = [c.strip() for c in re.split(r"\n\s*\n|\n", raw) if c.strip()]
+        paras = [{"id": f"P{i+1}", "section": "", "kind": "body", "text": c}
+                 for i, c in enumerate(chunks)]
+        notes.append("source_text 切段 %d 段" % len(paras))
+
+    files = work.get("source_files") or []
+    if isinstance(files, dict):
+        files = list(files.values())
+    for rel in files:
+        path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+        try:
+            with open(path, encoding="utf-8") as f:
+                raw = f.read()
+        except Exception:
+            notes.append("读取失败:%s" % _os.path.basename(path))
+            continue
+        if path.lower().endswith(".json"):
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict) and isinstance(data.get("paragraphs"), list):
+                    paras.extend(data["paragraphs"])
+                    notes.append("json段落:%s=%d" % (_os.path.basename(path), len(data["paragraphs"])))
+                    continue
+            except Exception:
+                pass
+        chunks = [c.strip() for c in re.split(r"\n\s*\n|\n", raw) if c.strip()]
+        name = _os.path.splitext(_os.path.basename(path))[0]
+        paras.extend({"id": f"{name}_P{i+1}", "section": name, "kind": "body", "text": c}
+                     for i, c in enumerate(chunks))
+        notes.append("文本文件:%s=%d段" % (_os.path.basename(path), len(chunks)))
+    work["paragraphs"] = paras
+
+    translations = dict(work.get("translations") or {})
+    tfiles = work.get("translation_files") or {}
+    if isinstance(tfiles, dict):
+        for pid, val in tfiles.items():
+            if translations.get(pid):
+                continue
+            v = str(val)
+            if _os.path.isabs(v) or _os.sep in v:
+                path = v if _os.path.isabs(v) else _os.path.join(case_dir, v)
+                try:
+                    translations[pid] = open(path, encoding="utf-8").read()
+                except Exception:
+                    notes.append("译文读取失败:%s" % pid)
+            else:
+                translations[pid] = v  # 内联译文文本，不臆造
+    if translations:
+        work["translations"] = translations
+    work["adapter_notes"] = notes
+    return work
+
+
+def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """用真实字段渲染【可编辑、可回原文的双语对照成稿草稿】——完成器核心。
+
+    硬约束：
+      - 只用真实 paragraphs 原文、真实 translations 译文、真实 glossary 术语；
+      - 无译文的段标 〔待翻译〕，不臆造译文；
+      - 每段给段号/section/page + 译法依据（术语/保护元素）+ 核验结论；
+      - 否定/限定疑似丢失、术语未定译名、缺译文 → 待确认清单，不写成既成事实。
+    """
+    p = _as_payload(payload)
+    seg = segment(p)
+    prot = protect(p)
+    trans = p.get("translations") or {}
+    glossary = p.get("glossary") or []
+
+    protected_map = {x["id"]: x.get("protected_text", "") for x in prot["protected"]}
+    token_kinds: Dict[str, List[str]] = {}
+    for x in prot["protected"]:
+        token_kinds[x["id"]] = [t["kind"] for t in x.get("tokens", [])]
+
+    blocks: List[Dict[str, Any]] = []
+    pending: List[str] = []
+    for s in seg["segments"]:
+        pid = s["id"]
+        src = s.get("text", "")
+        zh = str(trans.get(pid, ""))
+        if zh:
+            target = zh
+            status = "ok"
+        else:
+            target = "〔待翻译：本段无真实译文，须由模型在锁定术语/保护占位符约束下补全〕"
+            status = "needs_translation"
+            pending.append(pid)
+        used_terms = [g for g in glossary if isinstance(g, dict) and
+                      _get(g, "source") and _get(g, "source") in src]
+        blocks.append({
+            "id": pid, "section": s.get("section", ""), "page": s.get("page"),
+            "kind": s.get("kind", "body"), "source": src, "target": target,
+            "source_protected": protected_map.get(pid, ""),
+            "glossary_basis": [{"source": _get(g, "source"), "target": _get(g, "target")}
+                               for g in used_terms],
+            "protected_kinds": token_kinds.get(pid, []),
+            "status": status,
+        })
+
+    bilingual_text = "\n\n".join(
+        "[%s%s] %s\n原文: %s\n译文: %s" % (
+            b["id"], (" · " + str(b["section"])) if b["section"] else "",
+            "p" + str(b["page"]) if b["page"] else "",
+            b["source"], b["target"])
+        for b in blocks)
+
+    ver = verify(p)
+    confirm = ["术语『%s』未定译名" % c for c in build_glossary(p).get("needs_review", [])]
+    confirm += ["段 %s 否定/限定词疑似丢失，须人工确认" % pid
+                for pid in ver.get("needs_review", []) if isinstance(pid, str)]
+    unverified = [i for i in ver.get("issues", []) if isinstance(i, dict) and
+                  str(i.get("type", "")).endswith("_maybe_lost")]
+
+    all_ok = bool(blocks) and not pending and not confirm and not ver.get("issues")
+    return {
+        "case_id": _get(p, "case_id", ""),
+        "status": "draft" if all_ok else "partial",
+        "bilingual_draft": bilingual_text,
+        "bilingual_text": bilingual_text,
+        "blocks": blocks,
+        "source_refs": [b["id"] for b in blocks],
+        "pending_translation": pending,
+        "needs_author_confirmation": confirm,
+        "unverified_relations": unverified,
+        "uncertainty": [
+            "只用真实段落/译文/术语成稿；缺译文标〔待翻译〕，不臆造译文或术语译名",
+            "否定/限定、指代与因果关系是否保留属价值判断，须结合原文人工复核",
+        ],
+        "note": ("可编辑双语对照成稿草稿：段号+定位+原文+译文/待翻译+术语与保护依据+核验结论；"
+                 "非最终译文，缺译文须由模型在锁定约束下补全后再核验。"),
+    }
+
+
+def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+    import os as _os
+    payload = dict(result)
+    if "case_id" not in payload:
+        payload["case_id"] = case_id
+    path = _os.path.join(out_dir, "result.json")
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
+        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
+    except Exception as e:
+        return {"written": False, "path": path, "error": type(e).__name__}
+
+
+def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
+    """端到端完成器：读 case.json → 适配真实材料 → 全流程 → 双语成稿 → 装配 result.json。"""
+    import os as _os
+    payload: Dict[str, Any] = {"case_id": ""}
+    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
+    if case_path and case_path != "-":
+        try:
+            loaded = _load(case_path)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception as e:
+            payload = {"case_id": "", "input_error": type(e).__name__}
+    cid = str(_get(payload, "case_id", "") or "")
+
+    work = _adapt_case(payload, case_dir)
+    if not _paragraphs(work):
+        result = {"case_id": cid, "status": STATUS_UNCERTAIN, "input_mode": "case",
+                  "result": {"summary": "输入无 paragraphs/source_text/source_files，无法成稿（不伪造译文）"},
+                  "needs_review": ["请提供真实文献段落或材料文件"]}
+        result["delivery"] = _write_solution(result, out_dir, cid)
+        return result
+
+    pl = pipeline(work, with_draft=True)
+    r = pl["result"]
+    draft = r.get("draft_detail") or {}
+    result = {
+        "case_id": cid,
+        "status": pl["status"],
+        "input_mode": "case",
+        "source_count": len(_paragraphs(work)),
+        "adapter_notes": work.get("adapter_notes", []),
+        "result": {
+            "bilingual_draft": r.get("bilingual_draft", draft.get("bilingual_text", "")),
+            "draft_text": r.get("bilingual_draft", draft.get("bilingual_text", "")),
+            "blocks": draft.get("blocks", []),
+            "segment_count": r["segment_count"],
+            "glossary_locked": r["glossary_locked"],
+            "aligned_coverage": r["aligned_coverage"],
+            "verification": r["verification"],
+            "evidence_index": r["evidence_index"],
+            "lock_prompt": r["lock_prompt"],
+            "summary": r["summary"],
+            "status_checks": pl["status"],
+        },
+        "needs_review": draft.get("needs_author_confirmation", []) + r["verification"].get("needs_review", []),
+        "uncertainty": draft.get("uncertainty", []),
+    }
+    result["delivery"] = _write_solution(result, out_dir, cid)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -581,13 +806,21 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="确定性科研文献翻译守门引擎")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("build_glossary", "lock_terms", "segment", "protect", "align",
-              "check_terms", "verify", "evidence", "pipeline"):
+              "check_terms", "verify", "evidence", "pipeline", "render-draft"):
         sp = sub.add_parser(c); sp.add_argument("input")
         if c == "build_glossary":
             sp.add_argument("--min-freq", type=int, default=2)
         if c == "pipeline":
             sp.add_argument("--compact", action="store_true")
+    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配材料)→ 全流程 → 双语成稿 → result.json")
+    sv.add_argument("case", help="case.json 路径")
+    sv.add_argument("--out", default="/app/output", help="交付目录")
     args = ap.parse_args(argv)
+
+    if args.cmd == "solve":
+        out = solve(args.case, args.out)
+        sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
+        return 0
     data = _load(args.input)
     p = _as_payload(data)
     if args.cmd == "build_glossary":
@@ -606,6 +839,8 @@ def main(argv=None):
         out = verify(p)
     elif args.cmd == "evidence":
         out = evidence(p)
+    elif args.cmd == "render-draft":
+        out = render_draft(p)
     elif args.cmd == "pipeline":
         out = pipeline(p, compact=args.compact)
     else:

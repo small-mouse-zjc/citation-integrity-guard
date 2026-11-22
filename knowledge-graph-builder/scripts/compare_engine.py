@@ -48,6 +48,32 @@ def _resolve(result: Dict[str, Any], expr: str):
 def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
     r = ENGINE.pipeline(payload)
     result = r.get("result", {}) if isinstance(r, dict) else {}
+
+    # 真实朴素基线成稿：把 source_index 原文段落裸平铺（不做实体抽取/建图/证据绑定）
+    si = payload.get("source_index", {}) or {}
+    baseline_lines = []
+    for sid, paras in si.items():
+        if isinstance(paras, dict):
+            for pid, text in paras.items():
+                baseline_lines.append("[%s/%s] %s" % (sid, pid, text))
+    baseline_text = "\n".join(baseline_lines)
+    # Skill 成稿：用真实字段渲染知识图谱交付稿
+    draft = ENGINE.render_draft(payload)
+    skill_text = draft.get("draft_text", "")
+    draft_cmp = {
+        "baseline_text": baseline_text or "〔基线无可用材料〕",
+        "baseline_chars": len(baseline_text),
+        "baseline_parts": sum(len(v) for v in si.values() if isinstance(v, dict)),
+        "skill_text": skill_text,
+        "skill_chars": len(skill_text),
+        "skill_parts": len(draft.get("nodes", [])),
+        "skill_edges": len(draft.get("edges", [])),
+        "skill_source_refs": len(draft.get("source_refs", [])),
+        "note": ("基线=原文段落裸平铺（真实生成的朴素稿）；"
+                 "Skill=校验通过的节点/边+来源绑定+导出交付稿（不臆造实体/关系/证据）。"
+                 "仅比较结构与覆盖证据，不编造质量分；正式质量对照由平台白板给出。"),
+    }
+
     dims = []
     for dim, baseline, field, gate in PROFILE["dimensions"]:
         flagged, positives = _resolve(result, field)
@@ -67,6 +93,7 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "comparison",
         "four_questions": PROFILE["four"],
         "dimensions": dims,
+        "draft_comparison": draft_cmp,
         "summary": {
             "four_questions_covered": len(PROFILE["four"]) == 4 and len(dims) == 4,
             "dimensions_with_evidence": fired,

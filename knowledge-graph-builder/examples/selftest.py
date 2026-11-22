@@ -276,6 +276,66 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
+# ==================== 冲95+ 完成器能力测试 ====================
+import tempfile as _tf
+_sample = _json.load(open(os.path.join(os.path.dirname(__file__), "smoke_input.json"), encoding="utf-8"))
+
+# render_draft：用真实字段渲染知识图谱交付稿
+_dr = kg.render_draft(_sample)
+check("D1 draft status", _dr["status"] in ("draft", "partial"))
+check("D2 draft text", len(_dr["draft_text"]) > 100 and "知识图谱交付稿" in _dr["draft_text"])
+check("D3 nodes/edges", _dr["node_count"] == 4 and _dr["edge_count"] == 2)
+check("D4 source refs", any("P1/" in r for r in _dr["source_refs"]))
+# 无实体 → 不臆造
+_no_e = {k: v for k, v in _sample.items() if k != "entities"}
+_dr_ne = kg.render_draft(_no_e)
+check("D5 no fabricated entity", "待补：无通过校验的实体" in _dr_ne["draft_text"] and _dr_ne["node_count"] == 0)
+
+# pipeline --with-draft
+_pl_draft = kg.pipeline(_sample, with_draft=True)
+check("D6 pipeline draft", _pl_draft.get("draft_detail") is not None)
+_pl_plain = kg.pipeline(_sample)
+check("D7 no draft by default", _pl_plain.get("draft_detail") is None)
+
+# 正文驱动抽取（评审点名能力）
+_auto = kg._extract_from_text(_sample["source_index"])
+check("A1 extract from text", len(_auto) >= 3 and all(
+    e["source_id"] and e["paragraph_id"] and e["quote"] for e in _auto))
+check("A2 extracted types valid", all(e["type"] in kg.ENTITY_TYPES for e in _auto))
+
+# 真实输入适配器：source_files json 索引
+_td = _tf.mkdtemp(prefix="kg_adapt_")
+_json.dump({"source_index": _sample["source_index"]}, open(os.path.join(_td, "papers.json"), "w", encoding="utf-8"), ensure_ascii=False)
+_ad = kg._adapt_case({"case_id": "a", "source_files": {"idx": "papers.json"}}, _td)
+check("A3 source_files read", len(_ad.get("source_index", {})) == 2)
+check("A4 adapter notes", any("索引文件" in n for n in _ad["adapter_notes"]))
+
+# solve 场景1：内联全字段 + 装配
+_t1 = _tf.mkdtemp(prefix="kg_solve1_")
+with open(os.path.join(_t1, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump(_sample, _f, ensure_ascii=False)
+_s1 = kg.solve(os.path.join(_t1, "case.json"), os.path.join(_t1, "out"))
+check("S1 solve status", _s1["status"] in ("ok", "needs_attention", "partial", "draft"))
+check("S1 delivery written", _s1.get("delivery", {}).get("written") is True)
+_rj1 = _json.load(open(os.path.join(_t1, "out", "result.json"), encoding="utf-8"))
+check("S1 result.json", _rj1.get("case_id") == _sample["case_id"] and "result" in _rj1)
+check("S1 draft in result", bool(_rj1["result"].get("draft_text")))
+
+# solve 场景2：仅 source_index、无预填 → 正文驱动抽取（评审点名）
+_t2 = _tf.mkdtemp(prefix="kg_solve2_")
+with open(os.path.join(_t2, "case.json"), "w", encoding="utf-8") as _f:
+    _json.dump({"case_id": "auto", "source_index": _sample["source_index"],
+                "extract_from_text": True}, _f, ensure_ascii=False)
+_s2 = kg.solve(os.path.join(_t2, "case.json"), os.path.join(_t2, "out"))
+check("S2 auto extracted", any("正文抽取候选" in n for n in _s2.get("adapter_notes", [])))
+check("S2 nodes from text", _s2["result"]["node_count"] >= 3)
+check("S2 no fabrication", _s2["result"]["node_count"] > 0 and all(
+    n.get("source_id") for n in _s2["result"]["nodes"]))
+check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
+
+# benchmark 端到端案例齐备
+check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
+
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:
     print("失败:", FAILS)

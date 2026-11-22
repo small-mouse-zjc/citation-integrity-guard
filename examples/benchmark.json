@@ -1,0 +1,239 @@
+{
+  "schema": "intro-style-benchmark/v1",
+  "purpose": "写作04 参考文献与引用管理 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
+  "work": "citation-integrity",
+  "four_questions": [
+    "挂得对",
+    "编得顺",
+    "收得净",
+    "对得上"
+  ],
+  "cases": [
+    {
+      "case_id": "smoke-demo",
+      "type": "clean",
+      "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
+      "input": {
+        "_note": "示例输入（非正式评测案例）。展示去重/编号/落点/论断预筛/对照能力。引用支持 [n] 与 [@id]。",
+        "case_id": "smoke-demo",
+        "entries": [
+          {
+            "id": "wang2020",
+            "old_number": 1,
+            "authors": [
+              "Wang, J.",
+              "Li, H."
+            ],
+            "title": "CO2 flooding and phase behavior in reservoirs",
+            "year": 2020,
+            "journal": "Fuel",
+            "volume": 281,
+            "pages": "118-126",
+            "doi": "10.1016/j.fuel.2020.118032",
+            "type": "article"
+          },
+          {
+            "id": "wang2020_dup",
+            "authors": [
+              "Wang, J.",
+              "Li, H."
+            ],
+            "title": "CO2 flooding and phase behavior in reservoirs",
+            "year": 2020,
+            "journal": "Fuel",
+            "volume": 281,
+            "doi": "https://doi.org/10.1016/j.fuel.2020.118032",
+            "type": "article"
+          },
+          {
+            "id": "zhang2019",
+            "old_number": 2,
+            "authors": [
+              "Zhang, M.",
+              "Chen, Y."
+            ],
+            "title": "Biomarker geochemistry of natural gas",
+            "year": 2019,
+            "journal": "Organic Geochemistry",
+            "volume": 130,
+            "pages": "1-15",
+            "type": "article"
+          },
+          {
+            "id": "smith2021",
+            "old_number": 3,
+            "authors": [
+              "Smith, A. B."
+            ],
+            "title": "A review of CO2 sequestration",
+            "year": 2021,
+            "type": "article"
+          }
+        ],
+        "manuscript": "Biomarkers constrain gas origin [2]. CO2 injection alters phase behavior [@wang2020]. A broad review exists [3]. The measured porosity reached 18.5% with high accuracy. Results are summarized in Table 1.",
+        "checks": {
+          "place": true,
+          "claims": true,
+          "compare_before": {
+            "manuscript": "CO2 injection alters phase behavior [7]. Dangling reference [9].",
+            "entries": [
+              {
+                "id": "wang2020",
+                "new_number": 1
+              },
+              {
+                "id": "zhang2019",
+                "new_number": 2
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "case_id": "smoke-demo-DEFECT",
+      "type": "defect",
+      "desc": "按四问注入典型缺陷，Skill 应检出并标注",
+      "input": {
+        "_note": "示例输入（非正式评测案例）。展示去重/编号/落点/论断预筛/对照能力。引用支持 [n] 与 [@id]。",
+        "case_id": "smoke-demo-DEFECT",
+        "entries": [
+          {
+            "id": "wang2020",
+            "old_number": 1,
+            "authors": [
+              "Wang, J.",
+              "Li, H."
+            ],
+            "title": "CO2 flooding and phase behavior in reservoirs",
+            "year": 2020,
+            "journal": "Fuel",
+            "volume": 281,
+            "pages": "118-126",
+            "doi": "10.1016/j.fuel.2020.118032",
+            "type": "article"
+          },
+          {
+            "id": "wang2020_dup",
+            "authors": [
+              "Wang, J.",
+              "Li, H."
+            ],
+            "title": "CO2 flooding and phase behavior in reservoirs",
+            "year": 2020,
+            "journal": "Fuel",
+            "volume": 281,
+            "doi": "https://doi.org/10.1016/j.fuel.2020.118032",
+            "type": "article"
+          },
+          {
+            "id": "zhang2019",
+            "old_number": 2,
+            "authors": [
+              "Zhang, M.",
+              "Chen, Y."
+            ],
+            "title": "Biomarker geochemistry of natural gas",
+            "year": 2019,
+            "journal": "Organic Geochemistry",
+            "volume": 130,
+            "pages": "1-15",
+            "type": "article"
+          },
+          {
+            "id": "smith2021",
+            "old_number": 3,
+            "authors": [
+              "Smith, A. B."
+            ],
+            "title": "A review of CO2 sequestration",
+            "year": 2021,
+            "type": "article"
+          }
+        ],
+        "manuscript": "Carbonate reservoirs have been widely studied[9]. CO2 injection was simulated[1].",
+        "checks": {
+          "place": true,
+          "claims": true,
+          "compare_before": {
+            "manuscript": "CO2 injection alters phase behavior [7]. Dangling reference [9].",
+            "entries": [
+              {
+                "id": "wang2020",
+                "new_number": 1
+              },
+              {
+                "id": "zhang2019",
+                "new_number": 2
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "completion_cases": [
+    {
+      "case_id": "ci-inline-full",
+      "type": "end_to_end",
+      "desc": "内联 entries+manuscript：solve 应去重/重编号/成稿并装配 result.json",
+      "input_ref": "cases[0].input",
+      "expect": {
+        "delivery_written": true,
+        "draft_nonempty": true,
+        "bibliography_nonempty": true
+      }
+    },
+    {
+      "case_id": "ci-real-files",
+      "type": "end_to_end",
+      "desc": "真实 md 稿件 + BibTeX 文献库：适配器应解析真实文件并成稿",
+      "input": {
+        "case_id": "real",
+        "manuscript_file": "ms.md",
+        "bib_file": "refs.bib"
+      },
+      "companion_files": {
+        "ms.md": "CO2 injection alters phase behavior [1]. Biomarkers constrain gas origin [2].",
+        "refs.bib": "@article{w2020, title={CO2 flooding}, author={Wang, J.}, year={2020}, journal={Fuel}}\n@article{z2019, title={Biomarker geochemistry}, author={Zhang, M.}, year={2019}, journal={Org Geochem}}"
+      },
+      "expect": {
+        "bib_parsed": 2,
+        "cited": 2,
+        "delivery_written": true
+      }
+    },
+    {
+      "case_id": "ci-uncited-honest",
+      "type": "quality",
+      "desc": "文献库含未引条目：成稿应显式标〔未引〕，不伪装成正文引用（修复 renumber 隐患）",
+      "input": {
+        "case_id": "u",
+        "entries": [
+          {
+            "id": "a",
+            "title": "Cited",
+            "authors": [
+              "X"
+            ],
+            "year": 2020
+          },
+          {
+            "id": "b",
+            "title": "Never cited",
+            "authors": [
+              "Y"
+            ],
+            "year": 2021
+          }
+        ],
+        "manuscript": "Supported [1]."
+      },
+      "expect": {
+        "uncited_flagged": true,
+        "no_fabricated_citation": true
+      }
+    }
+  ],
+  "companion_note": "completion_cases 为端到端完成器/真实输入适配/未引诚实标注复现案例（非正式评测/白板）；cases 仍为四问机制对照的 clean+defect 两案。"
+}

@@ -283,7 +283,7 @@ def build_reading_card(fields: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     paper_sections = payload.get("paper_sections", []) or []
     note_sections = payload.get("note_sections", []) or []
@@ -303,6 +303,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
                  r_anchor.get("empty_input"))
     overall = (not any_empty and r_align["aligned"] and r_card["complete"] and
                r_anchor["all_anchored"] and not r_know["needs_review"])
+    draft_obj = render_draft(payload) if with_draft else None
     return {
         "case_id": case_id,
         "status": "ok" if overall else "needs_attention",
@@ -314,6 +315,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
             "reading_card": r_readcard,
             "structured_notes": payload.get("notes", []),
         },
+        "draft_detail": draft_obj,
         "evidence": {
             "principles": {
                 "对得上": "笔记骨架跟随论文章节", "留得住": "关键字段与前提齐备",
@@ -335,6 +337,267 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
                      "脚本只做结构与格式校验，不臆造未报告内容"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# 完成器：真实输入适配 / 结构化笔记成稿 / result.json 装配 / 端到端 solve
+# ---------------------------------------------------------------------------
+def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
+    """真实输入适配器：把真实论文材料读成章节文本 + 笔记 + 卡片字段。
+
+    支持：
+      - paper_sections / note_sections / card / notes（内联，已结构化）
+      - paper_text（真实论文全文，按章节标题行切段为 paper_sections）
+      - section_files（[路径] 或 {章节名:路径}）——读真实 .txt/.md/.json
+      - notes_text（真实笔记全文，按行/条目切为 notes）
+      - notes_files（{锚点:路径}）——读真实笔记片段
+    读不到不臆造，记录到 adapter_notes。
+    """
+    import os as _os
+    work = dict(payload)
+    notes_log: List[str] = []
+
+    sections = list(work.get("paper_sections") or [])
+    if not sections and _get_str(work, "paper_text"):
+        raw = str(work["paper_text"])
+        # 按「摘要/引言/方法/结果/讨论/结论」等章节标题行切段
+        heads = SECTION_ORDER
+        sections = [s.strip() for s in re.split(r"\n\s*\n|\n", raw) if s.strip()]
+        # 保留原文行作为章节标签（若命中已知章节，规范为标题词）
+        sections = [_canon_section(s) for s in sections]
+        notes_log.append("paper_text 切段 %d" % len(sections))
+    files = work.get("section_files") or []
+    if isinstance(files, dict):
+        files = [{k: v} for k, v in files.items()]
+    # 字符串路径项归一化为 {文件名: 路径}
+    files = [{_os.path.basename(str(x)): x} if isinstance(x, str) else x for x in files]
+    for ent in files:
+        if isinstance(ent, dict):
+            for name, rel in ent.items():
+                path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+                try:
+                    raw = open(path, encoding="utf-8").read()
+                except Exception:
+                    notes_log.append("读取失败:%s" % _os.path.basename(path))
+                    continue
+                if path.lower().endswith(".json"):
+                    try:
+                        data = json.loads(raw)
+                        if isinstance(data, dict):
+                            for key in ("paper_sections", "sections"):
+                                if isinstance(data.get(key), list):
+                                    sections.extend(data[key])
+                            for key in ("card", "fields"):
+                                if isinstance(data.get(key), dict):
+                                    work.setdefault("card", {}).update(data[key])
+                            notes_log.append("json材料:%s" % _os.path.basename(path))
+                            continue
+                    except Exception:
+                        pass
+                chunks = [c.strip() for c in re.split(r"\n\s*\n|\n", raw) if c.strip()]
+                sections.extend(chunks)
+                notes_log.append("文本文件:%s=%d段" % (_os.path.basename(path), len(chunks)))
+    work["paper_sections"] = sections
+
+    notes = list(work.get("notes") or [])
+    if not notes and _get_str(work, "notes_text"):
+        lines = [ln.strip() for ln in str(work["notes_text"]).splitlines() if ln.strip()]
+        notes = [{"id": "n%d" % (i + 1), "text": ln} for i, ln in enumerate(lines)]
+        notes_log.append("notes_text 切条 %d" % len(notes))
+    nfiles = work.get("notes_files") or {}
+    if isinstance(nfiles, dict):
+        for anchor, rel in nfiles.items():
+            path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
+            try:
+                txt = open(path, encoding="utf-8").read()
+                notes.append({"id": "n%d" % (len(notes) + 1), "text": txt, "anchor": anchor})
+                notes_log.append("笔记文件:%s" % anchor)
+            except Exception:
+                notes_log.append("笔记读取失败:%s" % anchor)
+    if notes:
+        work["notes"] = notes
+
+    # valid_anchors：内联优先，否则从笔记自带 anchor 汇总
+    if not work.get("valid_anchors") and notes:
+        work["valid_anchors"] = [n["anchor"] for n in notes if n.get("anchor")]
+    work["adapter_notes"] = notes_log
+    return work
+
+
+def _get_str(p: Dict[str, Any], key: str) -> str:
+    v = p.get(key)
+    return v if isinstance(v, str) else ""
+
+
+def _canon_section(line: str) -> str:
+    """把原文行规范为章节标题词（命中已知章节时），否则保留原行前 40 字。"""
+    for key in SECTION_ORDER:
+        pats = SECTION_HINTS[key]
+        if _has(line[:30], pats):
+            return key
+    return line[:40]
+
+
+def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """用真实字段渲染【可编辑、可回链的逐章结构化笔记成稿】——完成器核心。
+
+    硬约束：
+      - 章节骨架只取真实 paper_sections；笔记只取真实 notes；
+      - 六字段卡片只用真实 card 字段，缺的标〔待补：未报告〕，不臆造；
+      - 每条笔记带锚点，悬空锚点标记待确认；
+      - 知识点去重归一，同义但不敢自动合并的进待确认。
+    """
+    p = payload
+    sections = list(p.get("paper_sections") or [])
+    notes = list(p.get("notes") or [])
+    card = dict(p.get("card") or {})
+    points = list(p.get("knowledge_points") or [])
+    valid_anchors = p.get("valid_anchors")
+
+    r_align = check_section_alignment(sections, [s for s in sections])
+    r_card = build_reading_card(card)
+    r_anchor = verify_anchors(notes, valid_anchors)
+    r_know = normalize_knowledge(points, p.get("dup_threshold", 0.72))
+
+    # 逐章笔记：章节 → 命中该章的笔记（按 anchor 或文本包含）
+    chapter_blocks = []
+    for sec in sections:
+        sec_norm = _norm(sec)
+        related = [n for n in notes
+                   if sec_norm and (sec_norm in _norm(n.get("text", "")) or
+                                    sec_norm in _norm(n.get("anchor", "")))]
+        chapter_blocks.append({
+            "section": sec,
+            "notes": [{"id": n.get("id", ""), "text": n.get("text", ""),
+                       "anchor": n.get("anchor", "〔待补：无锚点〕")} for n in related],
+            "status": "ok" if related else "needs_content",
+        })
+    # 未被任何章节吸收的笔记单列
+    absorbed = {n.get("id") for b in chapter_blocks for n in b["notes"]}
+    orphans = [{"id": n.get("id", ""), "text": n.get("text", ""),
+                "anchor": n.get("anchor", "〔待补：无锚点〕")}
+               for n in notes if n.get("id") not in absorbed]
+
+    card_lines = []
+    for key, meta in CARD_FIELDS.items():
+        entry = r_card["card"][key]
+        val = entry.get("value")
+        line = "- %s：%s" % (meta["label"], val if val else "〔待补：原文未报告〕")
+        if entry.get("anchor"):
+            line += "（锚点：%s）" % entry["anchor"]
+        card_lines.append(line)
+    card_text = "\n".join(card_lines)
+
+    point_lines = ["- %s：%s%s" % (
+        e.get("label", ""), e.get("definition", ""),
+        "（锚点：%s）" % e["anchor"] if e.get("anchor") else "")
+        for e in r_know.get("entries", [])]
+    point_text = "\n".join(point_lines) if point_lines else "〔待补：无可归一知识点〕"
+
+    full_text = "\n\n".join(
+        ["# 逐章笔记"] +
+        ["## %s\n%s" % (b["section"], "\n".join("  - [%s] %s（%s）" % (
+            n["id"], n["text"], n["anchor"]) for n in b["notes"]) or "〔待补：本章无笔记〕")
+         for b in chapter_blocks] +
+        (["## 游离笔记"] + ["  - [%s] %s（%s）" % (n["id"], n["text"], n["anchor"])
+                          for n in orphans] if orphans else []) +
+        ["# 论文卡片\n" + card_text, "# 知识点\n" + point_text])
+
+    confirm = ["卡片字段『%s』未报告" % f for f in r_card["missing_fields"]]
+    confirm += ["笔记 %s 锚点悬空/无效" % n["id"] for n in
+                (r_anchor.get("no_anchor", []) + r_anchor.get("bad_anchor", []))]
+    confirm += ["知识点『%s』近似但须人工确认是否合并" % m.get("reason", "")
+                for m in r_know.get("needs_review", [])]
+
+    all_ok = (bool(sections) and bool(notes) and not confirm and
+              not any(b["status"] == "needs_content" for b in chapter_blocks))
+    return {
+        "case_id": p.get("case_id", ""),
+        "status": "draft" if all_ok else "partial",
+        "draft_text": full_text,
+        "chapter_blocks": chapter_blocks,
+        "orphan_notes": orphans,
+        "reading_card": r_card["card"],
+        "knowledge_entries": r_know.get("entries", []),
+        "source_refs": sorted(set(n.get("anchor", "") for n in notes if n.get("anchor"))),
+        "needs_author_confirmation": confirm,
+        "uncertainty": [
+            "章节骨架、笔记、卡片字段只取真实输入；缺的标〔待补〕，不臆造内容或锚点",
+            "笔记是否忠实原文、锚点是否真对应、知识点是否同义属价值判断，须人工复核",
+        ],
+        "note": ("可编辑结构化笔记成稿：逐章笔记 + 六字段卡片 + 知识点 + 锚点回链；"
+                 "非最终稿，缺口以〔待补〕标注，须结合原文补全与复核。"),
+    }
+
+
+def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+    import os as _os
+    payload = dict(result)
+    if "case_id" not in payload:
+        payload["case_id"] = case_id
+    path = _os.path.join(out_dir, "result.json")
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
+        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
+    except Exception as e:
+        return {"written": False, "path": path, "error": type(e).__name__}
+
+
+def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
+    """端到端完成器：读 case.json → 适配真实材料 → 校验 → 笔记成稿 → 装配 result.json。"""
+    import os as _os
+    payload: Dict[str, Any] = {"case_id": ""}
+    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
+    if case_path and case_path != "-":
+        try:
+            loaded = _load(case_path)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception as e:
+            payload = {"case_id": "", "input_error": type(e).__name__}
+    cid = str(payload.get("case_id", "") or "")
+
+    work = _adapt_case(payload, case_dir)
+    if not work.get("paper_sections") and not work.get("notes"):
+        result = {"case_id": cid, "status": "needs_attention", "input_mode": "case",
+                  "result": {"summary": "输入无章节/笔记/材料文件，无法成稿（不伪造内容）"},
+                  "needs_review": ["请提供真实论文材料（paper_sections/paper_text/section_files）"]}
+        result["delivery"] = _write_solution(result, out_dir, cid)
+        return result
+
+    pl = pipeline(work, with_draft=True)
+    draft = pl.get("draft_detail") or {}
+    result = {
+        "case_id": cid,
+        "status": pl["status"],
+        "input_mode": "case",
+        "source_count": len(work.get("paper_sections", [])),
+        "adapter_notes": work.get("adapter_notes", []),
+        "result": {
+            "draft_text": draft.get("draft_text", ""),
+            "chapter_blocks": draft.get("chapter_blocks", []),
+            "reading_card": draft.get("reading_card", {}),
+            "knowledge_entries": draft.get("knowledge_entries", []),
+            "section_alignment": pl["result"]["section_alignment"],
+            "card_fields": pl["result"]["card_fields"],
+            "anchor_verification": pl["result"]["anchor_verification"],
+            "structured_notes": pl["result"]["structured_notes"],
+            "summary": ("逐章笔记 %d 章；卡片 %d/6 字段；锚点回链 %d/%d；知识点 %d 条" % (
+                len(draft.get("chapter_blocks", [])),
+                6 - len(pl["result"]["card_fields"]["missing"]),
+                pl["result"]["anchor_verification"]["anchored_count"],
+                len(work.get("notes", [])),
+                len(draft.get("knowledge_entries", [])))),
+        },
+        "needs_review": draft.get("needs_author_confirmation", []) +
+                        pl["uncertainty"].get("needs_review", []),
+        "uncertainty": draft.get("uncertainty", []),
+    }
+    result["delivery"] = _write_solution(result, out_dir, cid)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -367,11 +630,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     ]:
         sp = sub.add_parser(name, help=helptext); sp.add_argument("input", help="JSON 输入")
 
-    sub.add_parser("pipeline", help="端到端").add_argument("input", help="JSON 全量输入")
+    sub.add_parser("render-draft", help="用真实字段渲染逐章结构化笔记成稿草稿").add_argument("input", help="JSON 全量输入")
+    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配材料)→ 成稿 → result.json")
+    sv.add_argument("case", help="case.json 路径")
+    sv.add_argument("--out", default="/app/output", help="交付目录")
+    pl = sub.add_parser("pipeline", help="端到端（--with-draft 出成稿）")
+    pl.add_argument("input", help="JSON 全量输入")
+    pl.add_argument("--with-draft", action="store_true", help="脚本渲染成稿草稿")
 
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help(); return 0
+
+    if args.cmd == "solve":
+        out = solve(args.case, args.out)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "check-section-alignment":
         d = _load(args.input); out = check_section_alignment(d.get("paper_sections", []), d.get("note_sections", []))
@@ -383,8 +657,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         d = _load(args.input); out = normalize_knowledge(d.get("points", []), d.get("dup_threshold", 0.72))
     elif args.cmd == "build-reading-card":
         d = _load(args.input); out = build_reading_card(d.get("fields", {}))
+    elif args.cmd == "render-draft":
+        out = render_draft(_load(args.input))
     elif args.cmd == "pipeline":
-        out = pipeline(_load(args.input))
+        out = pipeline(_load(args.input), with_draft=args.with_draft)
     else:
         p.print_help(); return 1
 

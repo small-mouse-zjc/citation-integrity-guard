@@ -17,7 +17,7 @@ knowledge-graph-builder/
   SKILL.md                     技能定义（YAML frontmatter + 四问 + 铁律 + 工作流）
   README.md                    本文件
   GITHUB_URL.txt               公开作品链接
-  scripts/kg_engine.py         纯标准库确定性引擎（8 子命令）
+  scripts/kg_engine.py         纯标准库确定性引擎（10 子命令，含 solve/render-draft）
   references/
     output_contract.md         pipeline 输出字段契约
     entity_types.md            实体类型与 attribution 规则
@@ -26,7 +26,7 @@ knowledge-graph-builder/
     evidence_binding.md        来源绑定与 JATS 位置规范
     query_templates.md         3 类查询模板与示例
   examples/
-    selftest.py                40 项自验收测试
+    selftest.py                62 项自验收测试（含成稿/正文抽取/solve）
     smoke_input.json           冒烟输入
     smoke_output.json          引擎真实运行的冒烟输出
     minimal_example.md         最小可运行示例
@@ -35,8 +35,10 @@ knowledge-graph-builder/
 ## 运行
 
 ```bash
-python examples/selftest.py                         # 40/40
-python scripts/kg_engine.py pipeline examples/smoke_input.json > out.json
+python examples/selftest.py                         # 62/62
+python scripts/kg_engine.py solve /input/case.json --out /app/output
+python scripts/kg_engine.py render-draft examples/smoke_input.json > draft.json
+python scripts/kg_engine.py pipeline examples/smoke_input.json --with-draft > out.json
 ```
 
 无第三方依赖，无网络请求。Python 3.8+。
