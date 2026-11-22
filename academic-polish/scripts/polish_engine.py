@@ -448,6 +448,91 @@ def evidence(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # pipeline
 # ---------------------------------------------------------------------------
+HEDGE_WORDS = ("may", "might", "could", "would", "suggest", "suggests", "indicate",
+               "indicates", "appear", "appears", "likely", "possibly", "probably",
+               "potentially", "seem", "seems", "tend", "tends", "preliminary")
+BOOST_WORDS = ("demonstrate", "demonstrates", "prove", "proves", "confirm", "confirms",
+               "establish", "establishes", "reveal", "reveals", "clearly",
+               "definitively", "undoubtedly", "always", "never")
+
+
+def _claim_level(text: str) -> str:
+    """把句子/段落的断言强度粗分为 strong / hedged / neutral。"""
+    low = (text or "").lower()
+    h = sum(1 for w in HEDGE_WORDS if _has_word(low, w))
+    b = sum(1 for w in BOOST_WORDS if _has_word(low, w))
+    if h and h >= b:
+        return "hedged"
+    if b:
+        return "strong"
+    return "neutral"
+
+
+def audit_polish(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """润色成稿审计：断言强度漂移（最伤学术语义）、排版硬伤、长句可读性。
+
+    断言强度守恒是学术润色的硬约束：润色可以更流畅，但不能把 may suggest
+    改成 demonstrates，也不能把 established 改成 might indicate。
+    """
+    p = _as_payload(payload)
+    paras = _paragraphs(p)
+    pm = _polished_map(p)
+    issues: List[Dict[str, Any]] = []
+    lengths: List[int] = []
+    claim_counts = {"strong": 0, "hedged": 0, "neutral": 0}
+    for i, para in enumerate(paras):
+        pid = str(para.get("id", "P"))
+        src = str(para.get("text", ""))
+        pol = pm.get(pid, "")
+        if not pol:
+            continue
+        sl, pl = _claim_level(src), _claim_level(pol)
+        claim_counts[sl] += 1
+        if sl != pl:
+            if pl == "strong" and sl != "strong":
+                issues.append({"paragraph": pid, "type": "claim_strength_upgrade",
+                               "severity": "major",
+                               "reason": "原文为 %s，润色后变成 strong（新增 demonstrate/prove 类断言），"
+                                         "证据强度被抬高" % sl})
+            elif sl == "strong" and pl != "strong":
+                issues.append({"paragraph": pid, "type": "claim_strength_downgrade",
+                               "severity": "minor",
+                               "reason": "原文 strong，润色后弱化为 %s，结论力度被削" % pl})
+        # 排版硬伤（只报可自动定位的）
+        if '"' in pol or "'" in pol:
+            issues.append({"paragraph": pid, "type": "straight_quotes", "severity": "minor",
+                           "reason": "存在直引号，正式排版应使用弯引号“”‘’"})
+        if re.search(r"[ \t]{2,}", pol):
+            issues.append({"paragraph": pid, "type": "double_space", "severity": "minor",
+                           "reason": "存在连续空格"})
+        if re.search(r"\s+[,.;:，。；：]", pol):
+            issues.append({"paragraph": pid, "type": "space_before_punct", "severity": "minor",
+                           "reason": "标点前有多余空格"})
+        if re.search(r"\d+\s*-\s*\d+", pol):
+            issues.append({"paragraph": pid, "type": "hyphen_range", "severity": "minor",
+                           "reason": "数字区间建议使用 en dash（2020–2025）"})
+        for sent in re.split(r"(?<=[.!?。！？])\s+", pol):
+            words = re.findall(r"[A-Za-z0-9']+", sent)
+            if not words:
+                continue
+            lengths.append(len(words))
+            if len(words) > 50:
+                issues.append({"paragraph": pid, "type": "sentence_too_long",
+                               "severity": "minor",
+                               "reason": "单句 %d 词，建议拆分（学术可读性阈值 50 词）" % len(words)})
+    avg = round(sum(lengths) / len(lengths), 1) if lengths else 0.0
+    long_ratio = round(sum(1 for n in lengths if n > 40) / len(lengths), 3) if lengths else 0.0
+    major = [x for x in issues if x.get("severity") == "major"]
+    return {
+        "paragraphs_compared": sum(1 for x in paras if pm.get(str(x.get("id", "P")))), "issues": issues,
+        "major_count": len(major), "issue_count": len(issues),
+        "metrics": {"avg_sentence_words": avg, "max_sentence_words": max(lengths) if lengths else 0,
+                    "long_sentence_ratio": long_ratio, "claim_levels": claim_counts},
+        "advice": ("未发现断言强度漂移" if not major else
+                   "%d 段断言强度被改动，须回退到原文力度" % len(major)),
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False,
              with_draft: bool = False) -> Dict[str, Any]:
     p = _as_payload(payload)
@@ -459,6 +544,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     prot = protect(p)
     ver = verify(p)
     ev = evidence(p)
+    aud = audit_polish(p)
     statuses = [seg["status"], gram["status"], terms["status"], reg["status"],
                 pres["status"], prot["status"], ver["status"], ev["status"]]
     overall = STATUS_OK
@@ -480,6 +566,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         "verification": {"consistent": ver["consistent"], "issues": ver["issues"],
                          "needs_review": ver["needs_review"]},
         "evidence_index": ev["evidence"],
+        "polish_audit": aud,
         "summary": (
             "段 %d / 句 %d；硬错误 %d；术语不一致 %d；语域提示 %d；"
             "守护元素 %d（数值/引用/图表/公式/化学式/限定/否定）；"

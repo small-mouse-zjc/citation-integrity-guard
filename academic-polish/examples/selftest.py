@@ -139,5 +139,18 @@ np = pe.pipeline(ap)
 check("TC4 preserve not checked without polished", np["result"]["preservation"]["checked"] is False)
 check("TC5 honest needs_review", any("无真实" in n for n in np["result"]["verification"]["needs_review"]))
 
+# 断言强度守恒审计：may suggest → demonstrates 必须被报为 major
+_ap = {"case_id": "audit", "paragraphs": [
+    {"id": "P1", "text": "The data may suggest that porosity increases with depth."},
+    {"id": "P2", "text": "We demonstrate that the method is robust."},
+], "polished": {
+    "P1": "The data demonstrates that porosity increases with depth.",
+    "P2": "The method might be robust.",
+}}
+_au = pe.audit_polish(_ap)
+check("PA1 flags claim upgrade", any(i["type"] == "claim_strength_upgrade" for i in _au["issues"]))
+check("PA2 flags claim downgrade", any(i["type"] == "claim_strength_downgrade" for i in _au["issues"]))
+check("PA3 major counted", _au["major_count"] >= 1)
+
 print("\nTOTAL FAILURES:", len(FAILS), FAILS)
 sys.exit(1 if FAILS else 0)

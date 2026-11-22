@@ -163,3 +163,16 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 - `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
 
 创新边界摘要：`citation_engine.py` 把 "挂得对 / 编得顺 / 收得净 / 对得上" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
+
+## 参考文献元数据审计（reference_audit）
+
+在去重/编号/格式之外，逐条检查“这条文献本身是否可被审稿人接受”，写入 `result.reference_audit`：
+
+- 文献类型识别（J/M/C/D/S/P/EB），按类型核对必备字段（如 J 需要 authors/title/journal/year/volume/pages）；
+- `implausible_year`：年份早于 1800 或晚于当前年；
+- `malformed_doi` / `duplicate_doi`：DOI 形态与重复；
+- `author_etal_mix`：作者列表混用 et al.；
+- `avg_completeness`：按必备字段覆盖 + DOI 计算的条目完整度（0–100）；
+- `type_distribution`：文献类型分布。
+
+输出与原有 `bibliography` 并列，便于先修元数据再排版。

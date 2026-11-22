@@ -204,6 +204,16 @@ check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
 # benchmark 端到端案例齐备
 check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
 
+# 主题聚类：同主题知识点应合并，孤立点保留为 singleton
+_th = ne.synthesize_themes([
+    {"id": "k1", "text": "深层孔隙度随埋深增加而降低"},
+    {"id": "k2", "text": "孔隙度降低主要受压实作用控制"},
+    {"id": "k3", "text": "研究区位于塔里木盆地北部"},
+])
+check("TH1 clusters formed", _th["cluster_count"] >= 2)
+check("TH2 related points merged", any(len(c["point_ids"]) >= 2 for c in _th["clusters"]))
+check("TH3 singleton kept", len(_th["singletons"]) >= 1 and _th["coverage"] > 0)
+
 print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)

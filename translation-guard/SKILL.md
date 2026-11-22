@@ -147,3 +147,16 @@ python scripts/translation_guard.py pipeline input.json --with-draft > result.js
 - `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
 
 创新边界摘要：`translation_guard.py` 把 "术语稳 / 段落全 / 关系准 / 可核验" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
+
+## 逐段译文审计（translation_audit）
+
+`solve` / `pipeline` 现在会对每一段做可计算的译文体检，结果写入 `result.translation_audit`：
+
+- `missing_translation`：该段无译文（成稿中标〔待翻译〕）；
+- `possibly_untranslated`：目标语为中文但汉字占比 <15%，疑似原文照抄；
+- `length_outlier`：译文/原文长度比 <0.45 或 >2.4；
+- `number_drift`：源段与译段的数字集合不一致（列出缺/多）；
+- `term_conflict` / `term_collision`：同一术语多译名 / 同一译名对应多术语；
+- `glossary_coverage`：术语表中目标译名在译文中实际出现的比例。
+
+用法：正常跑 `solve` 即可，无需额外命令；审计不通过时逐条列出段号，便于回改。

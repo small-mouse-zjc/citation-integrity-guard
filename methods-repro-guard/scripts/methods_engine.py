@@ -416,6 +416,57 @@ def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+STATS_CHECKS = {
+    "sample_size": {"label": "样本量", "critical": True,
+                    "patterns": [r"\bn\s*=\s*\d+", r"样本(数|量)", r"sample size", r"共\s*\d+\s*(个|例|份|条)"]},
+    "replicates": {"label": "重复次数", "critical": True,
+                   "patterns": [r"重复", r"独立(实验|重复)", r"replicat", r"triplicat", r"三次", r"±"]},
+    "dispersion": {"label": "离散度", "critical": True,
+                   "patterns": [r"标准差", r"标准误", r"±", r"\bSD\b", r"\bSEM\b", r"置信区间|confidence interval|\bCI\b"]},
+    "test_name": {"label": "统计检验名称", "critical": True,
+                  "patterns": [r"t\s*检验|t-test", r"方差分析|ANOVA", r"秩和|Mann.?Whitney",
+                               r"卡方|chi.?square", r"Kruskal", r"Wilcoxon", r"检验"]},
+    "alpha": {"label": "显著性水平", "critical": False,
+              "patterns": [r"p\s*[<>=]\s*0?\.\d+", r"α\s*=|alpha\s*=", r"显著性水平", r"置信水平"]},
+    "effect_size": {"label": "效应量", "critical": False,
+                    "patterns": [r"效应量|effect size", r"Cohen", r"η2|eta.?squared", r"\bR2\b|R\s*方"]},
+    "correction": {"label": "多重比较校正", "critical": False,
+                   "patterns": [r"Bonferroni", r"FDR", r"Holm", r"多重比较|multiple comparison"]},
+    "stats_software": {"label": "统计软件与版本", "critical": False,
+                       "patterns": [r"SPSS", r"\bR\s*(版本|version|\d)", r"GraphPad", r"Origin",
+                                    r"Python\s*\d", r"statsmodels|scipy"]},
+}
+
+
+def audit_stats(section_text: str) -> Dict[str, Any]:
+    """统计报告充分性审计：样本量/重复/离散度/检验/α/效应量/校正/软件。
+
+    审稿人最先挑方法章节的统计硬伤；这里把“写没写”变成可核验清单。
+    """
+    text = str(section_text or "")
+    present: Dict[str, bool] = {}
+    missing_critical: List[str] = []
+    missing_recommended: List[str] = []
+    for key, meta in STATS_CHECKS.items():
+        ok = _has(text, meta["patterns"])
+        present[key] = ok
+        if not ok:
+            (missing_critical if meta["critical"] else missing_recommended).append(meta["label"])
+    score = sum(1 for k, v in present.items() if v) / len(STATS_CHECKS)
+    return {
+        "elements": {k: {"label": STATS_CHECKS[k]["label"], "present": v,
+                         "critical": STATS_CHECKS[k]["critical"]} for k, v in present.items()},
+        "present_count": sum(1 for v in present.values() if v),
+        "required_count": len(STATS_CHECKS),
+        "score": round(score, 3),
+        "missing_critical": missing_critical,
+        "missing_recommended": missing_recommended,
+        "complete": not missing_critical,
+        "advice": ("统计报告关键项齐全" if not missing_critical else
+                   "缺关键统计项：%s（审稿人可直接据此要求补分析）" % "、".join(missing_critical)),
+    }
+
+
 def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     section = payload.get("section_text", "")
@@ -430,6 +481,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
     r_repro = check_reproducibility(section, payload.get("required_repro"))
     r_gap = probe_gaps(gaps + r_comp["missing"] + r_repro["missing"], limitations, open_q)
     r_param = build_param_table(params)
+    r_stats = audit_stats(section)
 
     # 汇总所有缺口成追问清单（去重）
     all_gaps = (r_comp["missing"] + r_repro["missing"] + r_val["unsupported"] +
@@ -449,6 +501,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
             "reproducibility": r_repro,
             "gap_probe": r_gap,
             "parameter_table": r_param,
+            "stats_audit": r_stats,
             "method_experiment_draft": method_draft,
             "draft_detail": draft_obj,
         },
@@ -565,6 +618,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "parameter_table": draft.get("parameter_table", []),
             "value_evidence": draft.get("value_evidence", ""),
             "source_refs": draft.get("source_refs", []),
+            "stats_audit": pl["result"].get("stats_audit"),
             "status_checks": pl["status"],
             "summary": pl["result"],
         },

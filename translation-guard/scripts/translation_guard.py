@@ -513,6 +513,81 @@ def evidence(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 5) 全流程
 # ---------------------------------------------------------------------------
+def audit_translation(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """逐段审计译文质量：漏译、疑似未译、长度异常、术语覆盖与冲突、数字丢失。
+
+    只做可计算、可回溯判定；措辞好坏仍由人工/模型判断，不臆断。
+    """
+    p = _as_payload(payload)
+    paras = _paragraphs(p)
+    trans = p.get("translations") or {}
+    target = str(p.get("target_lang") or "zh").lower()
+    issues: List[Dict[str, Any]] = []
+    used_terms = set()
+    matched_terms = 0
+    for i, para in enumerate(paras):
+        pid = str(para.get("id") or ("P%d" % (i + 1)))
+        src = str(para.get("text") or "")
+        tgt = str(trans.get(pid) or "")
+        if not tgt.strip():
+            issues.append({"paragraph": pid, "type": "missing_translation",
+                           "reason": "该段无译文（交付中应标〔待翻译〕）"})
+            continue
+        ratio = len(tgt) / max(1, len(src))
+        if ratio < 0.45 or ratio > 2.4:
+            issues.append({"paragraph": pid, "type": "length_outlier",
+                           "reason": "译文/原文长度比 %.2f 偏离常规，须核对漏译或扩写" % ratio})
+        cjk = len(re.findall(r"[\u4e00-\u9fff]", tgt)) / max(1, len(tgt))
+        if target.startswith("zh") and cjk < 0.15:
+            issues.append({"paragraph": pid, "type": "possibly_untranslated",
+                           "reason": "译文汉字占比仅 %.0f%%，疑似未真正翻译" % (cjk * 100)})
+        # 数字/单位保真：源与译文数字集合差异
+        src_nums = re.findall(r"\d+(?:\.\d+)?", src)
+        tgt_nums = re.findall(r"\d+(?:\.\d+)?", tgt)
+        if sorted(src_nums) != sorted(tgt_nums):
+            miss = [n for n in src_nums if n not in tgt_nums]
+            extra = [n for n in tgt_nums if n not in src_nums]
+            if miss or extra:
+                issues.append({"paragraph": pid, "type": "number_drift",
+                               "reason": "数字不一致：缺 %s / 多 %s" % (miss[:5], extra[:5])})
+    # 术语覆盖与冲突
+    all_tgt = "\n".join(str(trans.get(str(x.get("id") or ("P%d" % (j + 1))) or "", "") or "")
+                        for j, x in enumerate(paras))
+    for g in (p.get("glossary") or []):
+        src_t = str(g.get("source") or "")
+        tgt_t = str(g.get("target") or "")
+        if not src_t or not tgt_t:
+            continue
+        used_terms.add(src_t)
+        if tgt_t and tgt_t in all_tgt:
+            matched_terms += 1
+    covered = len(used_terms) and (matched_terms / len(used_terms)) or 0.0
+    by_src: Dict[str, set] = {}
+    by_tgt: Dict[str, set] = {}
+    for g in (p.get("glossary") or []):
+        s, t = str(g.get("source") or ""), str(g.get("target") or "")
+        if s and t:
+            by_src.setdefault(s, set()).add(t)
+            by_tgt.setdefault(t, set()).add(s)
+    for s, ts in by_src.items():
+        if len(ts) > 1:
+            issues.append({"type": "term_conflict", "term": s,
+                           "reason": "同一源术语出现多个译名：%s" % sorted(ts)})
+    for t, ss in by_tgt.items():
+        if len(ss) > 1:
+            issues.append({"type": "term_collision", "term": t,
+                           "reason": "同一译名对应多个源术语：%s" % sorted(ss)})
+    return {
+        "paragraphs": len(paras),
+        "translated": sum(1 for x in paras if str(trans.get(str(x.get("id") or "")) or "").strip()),
+        "glossary_coverage": round(covered, 3),
+        "issues": issues,
+        "issue_count": len(issues),
+        "advice": ("逐段审计未发现漏译/长度/数字/术语问题" if not issues else
+                   "发现 %d 处问题（%s）" % (len(issues), sorted({i["type"] for i in issues}))),
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False,
              with_draft: bool = False) -> Dict[str, Any]:
     p = _as_payload(payload)
@@ -527,6 +602,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     term_res = check_terms(p)
     ver = verify(p)
     ev = evidence(p)
+    aud = audit_translation(p)
 
     statuses = [s["status"] for s in (seg, gloss, lock, rest, align_res, term_res, ver, ev)]
     overall = STATUS_OK
@@ -548,6 +624,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         "verification": {"consistent": ver["consistent"], "issues": ver["issues"],
                          "needs_review": ver["needs_review"]},
         "evidence_index": ev["evidence"],
+        "translation_audit": aud,
         "lock_prompt": lock["lock_prompt"],
         "protected_for_translation": prot["protected"],
         "summary": (

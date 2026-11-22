@@ -148,3 +148,14 @@ python scripts/nanopub_engine.py pipeline input.json > result.json             #
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`assertions.csv`（断言清单）、`nanopublications.json`（机器可读导出）、`export.txt`、`fixes.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 段落自动拆解为原子断言（split）
+
+新增 `split_assertions()` 与 CLI 子命令 `split`：
+
+- 输入只有段落、没有手工断言时，自动按句/从句拆成原子断言（英文按标点与连接词，中文按逗号/分号/句号）；
+- 每条断言推断主语/宾语、关系词与置信度，并保留证据字符偏移与 `para n` 锚点，可回原文；
+- 受控关系词边界匹配（increases/reduces/improves/achieves 等），避免子串误命中；
+- `solve` 在“有段落无断言”时自动调用，写出 `split_report`，状态为 `partial`（不是失败）。
+
+CLI 示例：`python scripts/nanopub_engine.py split case.json --out out/`

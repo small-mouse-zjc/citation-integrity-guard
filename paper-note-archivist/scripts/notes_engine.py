@@ -29,6 +29,7 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -283,6 +284,86 @@ def build_reading_card(fields: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
+STOPWORDS = {"the", "a", "an", "of", "and", "to", "in", "is", "are", "for", "with",
+             "on", "that", "this", "we", "our", "study", "paper", "method",
+             "result", "results", "using", "based", "can", "be", "by"}
+
+
+def _point_text(p: Dict[str, Any]) -> str:
+    for k in ("statement", "point", "text", "content", "title", "claim", "label"):
+        if p.get(k):
+            return str(p[k])
+    return ""
+
+
+def synthesize_themes(points: List[Dict[str, Any]], threshold: float = 0.45,
+                      min_shared: int = 2) -> Dict[str, Any]:
+    """把知识点聚成主题簇：同簇内共享实词，输出主题标签与覆盖度。
+
+    去重只解决“重复”，聚类才回答“这些发现能否拼成几条主线”。
+    """
+    items = []
+    for i, p in enumerate(points or []):
+        txt = _point_text(p)
+        toks = {w for w in _norm(txt).split() if w and w not in STOPWORDS and len(w) > 1}
+        # 中文无空格：用二字切片补足可比较的实词单元，否则中文知识点永远无法聚类
+        for seg in re.findall(r"[\u4e00-\u9fff]{2,}", txt):
+            for k in range(len(seg) - 1):
+                toks.add(seg[k:k + 2])
+        items.append({"id": str(p.get("id") or ("kp%d" % (i + 1))), "text": txt, "tokens": toks})
+    parent = list(range(len(items)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            a, b = items[i]["tokens"], items[j]["tokens"]
+            if not a or not b:
+                continue
+            shared = a & b
+            ov = len(shared) / min(len(a), len(b))
+            # 中文二字切片会摊薄 Jaccard；共享 3 个实词单元，或共享 2 个且占短文本 45% 即同主题
+            if len(shared) >= 3 or (len(shared) >= 2 and ov >= threshold):
+                union(i, j)
+    clusters: Dict[int, List[int]] = {}
+    for i in range(len(items)):
+        clusters.setdefault(find(i), []).append(i)
+    out_clusters = []
+    for idxs in clusters.values():
+        common: Counter = Counter()
+        for i in idxs:
+            common.update(items[i]["tokens"])
+        keywords = [w for w, _ in common.most_common(5)]
+        out_clusters.append({
+            "theme_id": "T%d" % (len(out_clusters) + 1),
+            "label": items[idxs[0]]["text"][:40] or "未命名主题",
+            "point_ids": [items[i]["id"] for i in idxs],
+            "size": len(idxs),
+            "keywords": keywords,
+        })
+    out_clusters.sort(key=lambda c: (-c["size"], c["theme_id"]))
+    for k, c in enumerate(out_clusters, 1):
+        c["theme_id"] = "T%d" % k
+    singletons = [c["point_ids"][0] for c in out_clusters if c["size"] == 1]
+    covered = sum(c["size"] for c in out_clusters if c["size"] > 1)
+    return {
+        "point_count": len(items), "cluster_count": len(out_clusters),
+        "clusters": out_clusters, "singletons": singletons,
+        "coverage": round(covered / len(items), 3) if items else 0.0,
+        "advice": ("知识点已成 %d 条主题线（覆盖 %d/%d）" % (len(out_clusters), covered, len(items))
+                   if items else "无知识点，无法聚类"),
+    }
+
+
 def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     paper_sections = payload.get("paper_sections", []) or []
@@ -296,6 +377,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
     r_card = check_card_fields(card, payload.get("required_fields"))
     r_anchor = verify_anchors(notes, valid_anchors)
     r_know = normalize_knowledge(points, payload.get("dup_threshold", 0.72))
+    r_themes = synthesize_themes(r_know.get("entries") or points)
     r_readcard = build_reading_card(card)
 
     # 全局空输入门禁：三段核心输入任一为空，都不得报 ok
@@ -312,6 +394,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
             "card_fields": r_card,
             "anchor_verification": r_anchor,
             "knowledge_normalization": r_know,
+            "theme_synthesis": r_themes,
             "reading_card": r_readcard,
             "structured_notes": payload.get("notes", []),
         },

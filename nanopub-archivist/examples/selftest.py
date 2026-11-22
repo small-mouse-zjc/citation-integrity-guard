@@ -170,8 +170,11 @@ with open(os.path.join(_t2, "case.json"), "w", encoding="utf-8") as _f:
     _json.dump({"case_id": "real", "source_files": ["paper.txt"], "source_metadata": META}, _f, ensure_ascii=False)
 _s2 = ne.solve(os.path.join(_t2, "case.json"), os.path.join(_t2, "out"))
 check("S2 adapter read", any("paper.txt" in n for n in _s2.get("adapter_notes", [])))
-check("S2 no fabrication", "待补：无真实断言" in _s2["result"]["draft_text"] and len(_s2["result"]["nanopublications"]) == 0)
-check("S2 honest status", _s2["status"] == "needs_attention")
+check("S2 自动拆断言", len(_s2["result"]["nanopublications"]) >= 1 and _s2.get("assertion_count") >= 1)
+_src = "CNN在碳酸盐岩薄片达到0.92准确率[3]。"
+check("S2 证据回原文",
+      all((p.get("evidence") or "") in _src for p in _s2["result"]["nanopublications"]))
+check("S2 honest status", _s2["status"] in ("partial", "draft", "ok"))
 check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
 
 # benchmark 端到端案例齐备

@@ -148,3 +148,13 @@ python scripts/methods_engine.py pipeline input.json > result.json             #
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`draft.md`（方法与实验成稿）、`params.csv`（参数表），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 统计报告充分性审计（stats_audit）
+
+方法章节除“六类要素齐全”外，新增统计报告清单，写入 `result.stats_audit`：
+
+- 关键项（critical）：样本量 n、重复次数、离散度（SD/SEM/CI）、统计检验名称；
+- 建议项：显著性水平 α/p、效应量、多重比较校正、统计软件与版本；
+- 输出 `present_count / score / missing_critical / missing_recommended`。
+
+缺关键项时 `complete=false`，并在 `advice` 中说明审稿人可能据此要求补分析；不臆造任何统计值。

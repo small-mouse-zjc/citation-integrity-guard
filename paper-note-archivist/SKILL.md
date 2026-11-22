@@ -153,3 +153,14 @@ python scripts/notes_engine.py pipeline input.json > result.json             # �
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`notes.md`（结构化笔记/阅读卡）、`draft.md`（综述稿），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 知识点主题聚类（theme_synthesis）
+
+去重解决“重复”，聚类回答“这些发现能否拼成几条主线”。新增 `synthesize_themes`，写入 `result.theme_synthesis`：
+
+- 以实词重叠把知识点聚成主题簇（中文按二字切片，避免无空格无法比较）；
+- 每个簇输出 `theme_id / label / point_ids / size / keywords`；
+- `singletons`：未能归入任何主题的孤立知识点；
+- `coverage`：被主题覆盖的知识点比例。
+
+用于检查笔记是否只有零散摘录、缺少综合；孤立点应补关联或说明为何独立。

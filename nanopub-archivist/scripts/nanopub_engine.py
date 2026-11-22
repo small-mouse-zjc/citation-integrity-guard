@@ -48,9 +48,10 @@ def _has(s: str, pats: List[str]) -> bool:
 RELATION_VOCAB = {
     "indicates": ["表明", "指示", "显示", "indicate", "suggest", "show"],
     "causes": ["导致", "引起", "造成", "cause", "lead to", "result in"],
-    "correlates": ["相关", "关联", "correlate", "associate"],
-    "improves": ["提升", "改善", "提高", "优于", "达到", "达至", "improve", "outperform", "better than", "achieve"],
-    "reduces": ["降低", "减少", "下降", "reduce", "decrease", "lower"],
+    "correlates": ["相关", "关联", "correlate", "associated with", "associate"],
+    "improves": ["提升", "改善", "提高", "达到", "达至", "优于", "improve", "outperform", "better than", "achieve", "achieves", "achieved"],
+    "increases": ["增加", "升高", "增大", "increase", "increases", "increased", "rise", "rises", "grow", "grows"],
+    "reduces": ["降低", "减少", "下降", "reduce", "reduced", "decrease", "decreases", "decline", "fall", "falls"],
     "is_a": ["属于", "是一种", "是", "is a", "is an", "be a"],
     "consistent_with": ["一致", "符合", "consistent", "agree"],
     "contradicts": ["矛盾", "不一致", "冲突", "contradict", "conflict"],
@@ -62,18 +63,219 @@ OVERBROAD = [r"所有|一切|总是|永远|完全|绝对|任何情况|all|always
 QUALIFIERS = [r"在.{0,15}条件", r"当.{0,15}时", r"约|大约|左右|approximately|about", r"部分|某些|特定",
               r"within|under|given|provided|在.{0,10}范围", r"\d+%|\d+\.\d+"]
 # 证据位置格式
-ANCHOR_RE = re.compile(r"(p(?:age)?\.?\s*\d+|§\s*[\d.]+|fig(?:ure)?\.?\s*\d+|tab(?:le)?\.?\s*\d+|"
+ANCHOR_RE = re.compile(r"(p(?:age)?\.?\s*\d+|para\s*\d+|¶\s*\d+|§\s*[\d.]+|fig(?:ure)?\.?\s*\d+|tab(?:le)?\.?\s*\d+|"
                        r"第[一二三四五六七八九十百\d]+(?:章|节|段|页)|图\s*\d+|表\s*\d+|L\d+)", re.I)
 # 复合句信号
 COMPOUND = [r"并且|而且|同时|以及|此外|且(?!.{0,3}说)|并(?!.{0,3}且)|and\b|moreover|furthermore|in addition",
             r"因为|所以|由于|因此|because|therefore|thus|since", r"但是|然而|although|however|but\b"]
 
 
+def _cue_re(p: str) -> str:
+    """英文线索加词边界，避免 achieve 命中 achieved 把主语切坏；中文原样。"""
+    if re.fullmatch(r"[A-Za-z][A-Za-z \-]*", p or ""):
+        return r"\b" + re.escape(p) + r"\b"
+    return p
+
+
 def _map_relation(text: str) -> Optional[str]:
     for rel, pats in RELATION_VOCAB.items():
-        if _has(text, pats):
-            return rel
+        for p in pats:
+            if re.search(_cue_re(p), text or "", re.I):
+                return rel
     return None
+
+
+# ---------------------------------------------------------------------------
+# 0) 拆得细：从真实段落文本自动拆出原子断言（不是等输入给好断言）
+# ---------------------------------------------------------------------------
+_ABBREV = ["et al.", "e.g.", "i.e.", "Fig.", "Figs.", "Eq.", "Ref.", "No.", "vs.",
+           "approx.", "cf.", "Sec.", "Tab.", "Dr.", "et seq.", "resp."]
+_CLAUSE_RE = (r";\s*|\s*；\s*|,\s+(?:and|but|whereas|while|yet|thereby)\s+|"
+              r"，\s*(?:并且|而且|同时|但是|然而|因此|所以|此外|进而|从而)\s*|"
+              r"，\s*并(?!列|且)")
+_VERB_HINT = (r"\b(is|are|was|were|be|been|has|have|had|can|may|might|could|will|would|"
+              r"did|does|do|increase|increases|increased|decrease|decreases|decreased|"
+              r"show|shows|showed|suggest|suggests|suggested|indicate|indicates|indicated|"
+              r"require|requires|required|cause|causes|caused|lead|leads|led|improve|improves|improved|"
+              r"reduce|reduces|reduced|remain|remains|remained|depend|depends|depended|"
+              r"occur|occurs|occurred|reach|reaches|reached|achieve|achieves|achieved|"
+              r"measure|measured|observe|observed|find|found|report|reports|reported|"
+              r"propose|proposes|proposed|use|uses|used|apply|applies|applied|compare|compares|compared|"
+              r"contain|contains|contained|provide|provides|provided|present|presents|presented|"
+              r"discuss|discusses|discussed|evaluate|evaluates|evaluated|estimate|estimates|estimated|"
+              r"calculate|calculates|calculated|test|tests|tested|explain|explains|explained|define|defines|defined)\b")
+_VERB_HINT_ZH = (r"(是|为|有|达|约|增加|降低|升高|下降|表明|显示|指示|导致|引起|需要|采用|"
+                 r"提出|实现|观察|存在|高于|低于|接近|达到|构成|包含|属于|依赖|影响|改善|"
+                 r"减少|提升|验证|证明|说明|认为|发现|测得|约为|保持在)")
+_COND_HEAD = (r"^(when|if|under|in|at|for|with|given|provided|while|once|after|before|"
+              r"当|在|若|如果|对于|给定|在.{0,12}(条件|情况|范围|温度|压力|尺度|浓度))")
+
+
+def _mask_periods(text: str) -> str:
+    out = text
+    for a in _ABBREV:
+        out = out.replace(a, a.replace(".", "\u2024"))
+    out = re.sub(r"(\d)\.(\d)", "\\1\u2024\\2", out)
+    out = re.sub(r"(\b[A-Z])\.(\s*[A-Z])", "\\1\u2024\\2", out)  # 人名缩写 J. Smith
+    return out
+
+
+def split_sentences(text: str) -> List[Dict[str, Any]]:
+    """切句并保留字符偏移；保护 et al./e.g./小数/人名缩写。"""
+    masked = _mask_periods(text or "")
+    spans: List[Tuple[int, int]] = []
+    last = 0
+    for m in re.finditer(r"[\.!\?。！？]+[\"”’'\)\]]*(?=\s|\Z|[^\x00-\x7f])", masked):
+        if m.end() <= last:
+            continue
+        spans.append((last, m.end()))
+        last = m.end()
+    if last < len(masked) and masked[last:].strip():
+        spans.append((last, len(masked)))
+    out = []
+    for s, e in spans:
+        raw = text[s:e].strip()
+        if not raw:
+            continue
+        out.append({"text": raw, "start": s, "end": e})
+    return out
+
+
+def _split_spans(text: str, pat: str) -> List[Tuple[str, int, int]]:
+    parts: List[Tuple[str, int, int]] = []
+    last = 0
+    for m in re.finditer(pat, text):
+        seg = text[last:m.start()]
+        if seg.strip():
+            parts.append((seg.strip(), last, m.start()))
+        last = m.end()
+    seg = text[last:]
+    if seg.strip():
+        parts.append((seg.strip(), last, len(text)))
+    return parts
+
+
+def _has_verb(s: str) -> bool:
+    return bool(re.search(_VERB_HINT, s, re.I) or re.search(_VERB_HINT_ZH, s))
+
+
+def split_clauses(sentence: str) -> List[Tuple[str, int, int]]:
+    """句内拆从句：分号/并列连词/因果连词；把条件状语并回主句，避免拆出无谓语的碎片。"""
+    parts = _split_spans(sentence, _CLAUSE_RE)
+    if len(parts) <= 1:
+        return parts or [(sentence, 0, len(sentence))]
+    merged: List[Tuple[str, int, int]] = []
+    pending: Optional[Tuple[str, int, int]] = None
+
+    def _join(a: str, b: str) -> str:
+        return "，" if re.search(r"[\u4e00-\u9fff]", a + b) else ", "
+
+    for seg, s, e in parts:
+        if pending is not None:
+            seg = _join(pending[0].rstrip("，, "), seg) + seg
+            s = pending[1]
+            pending = None
+        if not _has_verb(seg) or re.match(_COND_HEAD, seg, re.I):
+            # 没有谓语或纯条件状语 → 先挂起，并到下一条
+            if merged:
+                merged[-1] = (_join(merged[-1][0], seg) + seg, merged[-1][1], e)
+            else:
+                pending = (seg, s, e)
+            continue
+        merged.append((seg, s, e))
+    if pending is not None:
+        if merged:
+            merged[-1] = (_join(merged[-1][0], pending[0]) + pending[0], merged[-1][1], pending[2])
+        else:
+            merged.append(pending)
+    return merged
+
+
+def _subject_object(clause: str) -> Tuple[str, str, Optional[str]]:
+    """粗判 主体-关系-对象：取关系词左右两侧；判不出就退到首个谓语前后，仍判不出留空。"""
+    best = None
+    for rel, pats in RELATION_VOCAB.items():
+        for p in pats:
+            m = re.search(_cue_re(p), clause, re.I)
+            if m and (best is None or m.start() < best[1]):
+                best = (rel, m.start(), m.end())
+    if best:
+        rel, s, e = best
+        subj = clause[:s].strip(" ，,。;；:：()（）")
+        obj = clause[e:].strip(" ，,。;；:：()（）")
+    else:
+        rel = None
+        m = re.search(_VERB_HINT, clause, re.I) or re.search(_VERB_HINT_ZH, clause)
+        if not m:
+            return "", "", None
+        subj = clause[:m.start()].strip(" ，,。;；:：()（）")
+        obj = clause[m.end():].strip(" ，,。;；:：()（）")
+    subj = re.sub(r"^(however|moreover|therefore|thus|meanwhile|in addition)\s*[,，]?\s*",
+                  "", subj, flags=re.I)
+    subj = re.sub(r"^(此外|同时|然而|因此|所以|而且|但是)\s*[，,]?\s*", "", subj)
+    return subj.strip(), obj.strip(), rel
+
+
+def _confidence_of(clause: str) -> Tuple[str, str]:
+    if re.search(r"(may|might|could|possibly|presumably|可能|或许|推测|疑似)", clause, re.I):
+        return "medium", "含推测性情态词，按 indirect/待确认处理"
+    if re.search(r"(suggest|indicate|imply|表明|提示|暗示)", clause, re.I):
+        return "medium", "推断类动词，证据类型应为 indirect"
+    return "high", "句中直接陈述，可作为 direct 证据"
+
+
+def split_assertions(text: str, page_hint: str = "", max_items: int = 60) -> Dict[str, Any]:
+    """把段落拆成原子断言列表（带证据片段与字符偏移），供 pipeline 直接使用。"""
+    sentences = split_sentences(text)
+    items: List[Dict[str, Any]] = []
+    stats = {"sentence_count": len(sentences), "clause_count": 0, "compound_clause_count": 0,
+             "overbroad_count": 0, "no_relation_count": 0}
+    for si, sent in enumerate(sentences, 1):
+        clause_parts = split_clauses(sent["text"])
+        stats["clause_count"] += len(clause_parts)
+        if len(clause_parts) > 1:
+            stats["compound_clause_count"] += 1
+        for ci, (clause, cs, ce) in enumerate(clause_parts, 1):
+            if not clause.strip():
+                continue
+            subj, obj, rel = _subject_object(clause)
+            conf, conf_basis = _confidence_of(clause)
+            anchor = ""
+            m = ANCHOR_RE.search(clause) or ANCHOR_RE.search(sent["text"])
+            if m:
+                anchor = m.group(0)
+            anchor = anchor or (page_hint if page_hint else ("para %d" % si))
+            if not rel:
+                stats["no_relation_count"] += 1
+            if _has(clause, OVERBROAD) and not _has(clause, QUALIFIERS):
+                stats["overbroad_count"] += 1
+            items.append({
+                "id": "A%d" % (len(items) + 1),
+                "text": clause,
+                "subject": subj,
+                "relation": rel or "unclear",
+                "object": obj,
+                "evidence": clause,
+                "evidence_type": "direct" if conf == "high" else "indirect",
+                "anchor": anchor,
+                "confidence": conf,
+                "confidence_basis": conf_basis,
+                "source_sentence": sent["text"],
+                "evidence_start": sent["start"] + cs,
+                "evidence_end": sent["start"] + ce,
+            })
+            if len(items) >= max_items:
+                break
+        if len(items) >= max_items:
+            break
+    return {
+        "assertions": items,
+        "report": stats,
+        "advice": ("共拆出 %d 条断言（%d 句 → %d 从句）；未识别关系 %d 条须人工补，过宽断言 %d 条须收窄" % (
+            len(items), stats["sentence_count"], stats["clause_count"],
+            stats["no_relation_count"], stats["overbroad_count"])),
+    }
+
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +600,15 @@ def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
         except Exception:
             log.append("元数据读取失败")
 
+    # 关键：只给段落、没给现成断言时，自动拆原子断言（题面“拆得细”的入口）
+    if not work.get("assertions") and isinstance(work.get("paragraph"), str) and work["paragraph"].strip():
+        sp = split_assertions(work["paragraph"])
+        if sp.get("assertions"):
+            work["assertions"] = sp["assertions"]
+            work["split_report"] = sp["report"]
+            work["split_advice"] = sp["advice"]
+            log.append("自动拆断言:%d 条（%d 句）" % (len(sp["assertions"]), sp["report"]["sentence_count"]))
+
     work["adapter_notes"] = log
     return work
 
@@ -527,6 +738,8 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
         "status": pl["status"],
         "input_mode": "case",
         "assertion_count": len(work.get("assertions", [])),
+        "split_report": work.get("split_report", {}),
+        "split_advice": work.get("split_advice", ""),
         "adapter_notes": work.get("adapter_notes", []),
         "result": {
             "draft_text": draft.get("draft_text", ""),
@@ -573,6 +786,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Nanopublication 确定性构建与核验引擎")
     sub = p.add_subparsers(dest="cmd")
     sp = sub.add_parser("check-assertion", help="拆得细"); sp.add_argument("input")
+    sp = sub.add_parser("split", help="从真实段落自动拆原子断言（句→从句→断言，带证据偏移）"); sp.add_argument("input")
     sp = sub.add_parser("bind-evidence", help="对得上"); sp.add_argument("input")
     sp = sub.add_parser("check-provenance", help="追得回"); sp.add_argument("input")
     sp = sub.add_parser("check-export", help="读得懂"); sp.add_argument("input")
@@ -594,6 +808,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.cmd == "check-assertion":
         out = check_assertion(_load(args.input).get("text", ""))
+    elif args.cmd == "split":
+        d = _load(args.input)
+        out = split_assertions(str(d.get("text") or d.get("paragraph") or ""), str(d.get("page_hint", "")))
     elif args.cmd == "bind-evidence":
         d = _load(args.input)
         out = bind_evidence(d.get("assertion", ""), d.get("evidence", ""),

@@ -849,6 +849,54 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 9) pipeline
 # ---------------------------------------------------------------------------
+CARS_CUES = {
+    "territory": ("in recent years", "recently", "has attracted", "have attracted",
+                  "increasing attention", "widely studied", "近年来", "随着", "广泛关注",
+                  "日益", "逐渐成为"),
+    "niche": ("however", "nevertheless", "remains unclear", "remains challenging",
+              "few studies", "little is known", "has not been", "lack of", "gap",
+              "然而", "但是", "仍不", "尚未", "缺乏", "不足", "空白", "有待"),
+    "occupy": ("this paper", "this study", "we propose", "we present", "we develop",
+               "here we", "本文", "本研究", "我们提出", "我们开发", "本研究提出"),
+}
+CITE_RE = re.compile(r"\[\s*\d+(?:\s*[,，\-–]\s*\d+)*\s*\]")
+
+
+def audit_narrative(background: str, works: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """引言叙事审计（CARS 三语步）：确立领域 → 指出缺口 → 占据缺口。
+
+    另外统计“带引用支撑的句子占比”，用来判断背景是踩在文献上还是空转。
+    """
+    text = str(background or "")
+    sents = [s.strip() for s in re.split(r"(?<=[.!?。！？])\s*", text) if s.strip()]
+    low = text.lower()
+    moves: Dict[str, Any] = {}
+    for name, cues in CARS_CUES.items():
+        hits = [c for c in cues if c.lower() in low]
+        moves[name] = {"found": bool(hits), "cues": hits[:5]}
+    cited_sents = [s for s in sents if CITE_RE.search(s)]
+    density = round(len(cited_sents) / len(sents), 3) if sents else 0.0
+    missing = [k for k, v in moves.items() if not v["found"]]
+    issues: List[Dict[str, Any]] = []
+    if sents and not moves["territory"]["found"]:
+        issues.append({"type": "missing_territory", "reason": "缺少领域确立句（近年进展/重要性）"})
+    if sents and not moves["niche"]["found"]:
+        issues.append({"type": "missing_niche", "reason": "未明确指出现有研究缺口/局限"})
+    if sents and not moves["occupy"]["found"]:
+        issues.append({"type": "missing_occupy", "reason": "未说明本文如何填补缺口"})
+    if sents and density < 0.34:
+        issues.append({"type": "low_citation_density",
+                       "reason": "仅 %.0f%% 的句子带引用，背景易被判为无支撑综述" % (density * 100)})
+    return {
+        "moves": moves, "missing_moves": missing,
+        "sentences": len(sents), "cited_sentences": len(cited_sents),
+        "citation_density": density,
+        "issues": issues, "issue_count": len(issues),
+        "advice": ("三语步齐备且引用密度达标" if not issues else
+                   "需补：%s" % "、".join(i["type"] for i in issues)),
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     background = payload.get("background", "")
@@ -863,6 +911,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     r_gap = derive_gap(works, target_scenario=payload.get("target_scenario", ""))
     r_align = align_claims(claims, evidence_index)
     r_cov = coverage(works)
+    r_narr = audit_narrative(background, works)
 
     # 研究空白 → 本文工作对应（若提供 contribution_links）
     links = payload.get("contribution_links", [])
@@ -888,6 +937,8 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
                 "claims_unbacked": len(r_align["unbacked"]),
                 "claims_inflated": len(r_align["inflated"]),
                 "missing_metadata": len(r_cov["missing_metadata"]),
+                "narrative_missing_moves": len(r_narr["missing_moves"]),
+                "citation_density": r_narr["citation_density"],
                 "auto_grouped": sum(1 for g in r_group["groups"] for w in g["works"]
                                     if w.get("group_auto_suggested")),
             },
@@ -902,6 +953,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             "research_gap": r_gap,
             "contribution_alignment": r_align,
             "citation_coverage": r_cov,
+            "narrative_audit": r_narr,
             "gap_to_contribution": gap_to_contrib,
         },
         "evidence": {
@@ -991,6 +1043,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
 
     draft = render_draft(payload)
     pl = pipeline(payload, compact=True)
+    narr = audit_narrative(payload.get("background", ""), payload.get("works"))
     result = {
         "case_id": cid,
         "status": draft["status"],
@@ -1002,6 +1055,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "paragraphs": draft["paragraphs"],
             "source_refs": draft["source_refs"],
             "summary": pl.get("summary", {}),
+            "narrative_audit": narr,
             "check_status": pl.get("status"),
         },
         "uncertainty": draft["uncertainty"],

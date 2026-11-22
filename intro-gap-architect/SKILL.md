@@ -154,3 +154,15 @@ python scripts/intro_engine.py compare  input.json > comparison.json     # 公�
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`draft.md`（成稿）、`deliverable.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 引言叙事审计（narrative_audit，CARS 三语步）
+
+除空转铺垫检测外，新增对引言修辞结构的确定性审计，写入 `result.narrative_audit`：
+
+- `territory`：是否确立领域（recent years / 近年来 / 广泛关注等线索）；
+- `niche`：是否指出缺口（however / remains unclear / 尚未 / 缺乏等）；
+- `occupy`：是否说明本文如何填补（this paper / 本文提出等）；
+- `citation_density`：带引用标记的句子占比（<34% 提示“背景缺文献支撑”）；
+- `missing_moves` + `issues`：缺哪一语步，直接给出补写方向。
+
+中英文线索均可识别；只报结构缺失，不代替作者判断缺口是否真成立。

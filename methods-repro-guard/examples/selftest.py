@@ -167,6 +167,14 @@ rj = _js.load(open(_os.path.join(td, "out", "result.json"), encoding="utf-8"))
 check("D8 solve result assembled", rj.get("case_id") == "smoke" and "result" in rj)
 check("D9 solve adapted materials", sv.get("source_count", 0) >= 1)
 
+# 统计报告审计：完整统计段应关键项齐备，空段应报缺
+_s_full = me.audit_stats("样本量 n = 30，重复三次，结果以均值±标准差表示。"
+                         "采用 t 检验，p < 0.05，效应量 Cohen's d = 0.6，"
+                         "多重比较用 Bonferroni 校正，统计软件 SPSS 26。")
+check("ST1 full stats complete", _s_full["complete"] is True and _s_full["present_count"] == 8)
+_s_bad = me.audit_stats("我们做了实验，结果很好。")
+check("ST2 empty stats flags critical", set(_s_bad["missing_critical"]) >= {"样本量", "重复次数", "离散度", "统计检验名称"})
+
 print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)

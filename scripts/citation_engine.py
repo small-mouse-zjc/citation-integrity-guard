@@ -1108,6 +1108,90 @@ def compare(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 9) 全流程
 # ---------------------------------------------------------------------------
+TYPE_RULES = {
+    "J": ("authors", "title", "journal", "year", "volume", "pages"),
+    "M": ("authors", "title", "publisher", "year"),
+    "C": ("authors", "title", "booktitle", "year", "pages"),
+    "D": ("authors", "title", "school", "year"),
+    "S": ("title", "number", "year"),
+    "P": ("authors", "title", "number", "year"),
+    "EB": ("authors", "title", "url", "year"),
+}
+TYPE_ALIAS = {"journal": "J", "article": "J", "j": "J", "book": "M", "m": "M",
+              "conference": "C", "inproceedings": "C", "c": "C", "thesis": "D",
+              "dissertation": "D", "d": "D", "standard": "S", "s": "S",
+              "patent": "P", "p": "P", "web": "EB", "online": "EB", "eb": "EB"}
+
+
+def _entry_type(e: Dict[str, Any]) -> str:
+    raw = str(e.get("type") or e.get("genre") or "").strip()
+    if raw.upper() in TYPE_RULES:
+        return raw.upper()
+    return TYPE_ALIAS.get(raw.lower(), "?")
+
+
+def audit_references(entries: List[Dict[str, Any]],
+                     current_year: Optional[int] = None) -> Dict[str, Any]:
+    """逐条参考文献审计：类型标识、必备字段、年份合理性、DOI 形态与重复。
+
+    与“能排版”不同，这里回答“这条文献本身是否可被审稿人接受”。
+    """
+    from datetime import datetime
+    year_now = current_year or datetime.now().year
+    issues: List[Dict[str, Any]] = []
+    type_dist: Dict[str, int] = {}
+    scores: List[int] = []
+    doi_seen: Dict[str, int] = {}
+    for i, e in enumerate(entries, 1):
+        eid = str(e.get("id") or e.get("key") or ("ref%d" % i))
+        t = _entry_type(e)
+        type_dist[t] = type_dist.get(t, 0) + 1
+        if t == "?":
+            issues.append({"entry": eid, "type": "unknown_type",
+                           "reason": "未识别文献类型（应标注 [J]/[M]/[C]/[D]/[S]/[P]/[EB]）"})
+            fields = ("authors", "title", "year")
+        else:
+            fields = TYPE_RULES[t]
+        missing = [f for f in fields if not e.get(f)]
+        if missing:
+            issues.append({"entry": eid, "type": "missing_fields",
+                           "reason": "%s 类型缺必备字段：%s" % (t, "/".join(missing))})
+        yr = e.get("year")
+        try:
+            y = int(str(yr)[:4]) if yr else None
+        except Exception:
+            y = None
+        if y and (y > year_now or y < 1800):
+            issues.append({"entry": eid, "type": "implausible_year",
+                           "reason": "年份 %s 不在合理区间（1800–%d）" % (yr, year_now)})
+        doi = _norm_doi(str(e.get("doi") or ""))
+        if doi:
+            if not re.match(r"^10\.\d{4,9}/\S+$", doi):
+                issues.append({"entry": eid, "type": "malformed_doi",
+                               "reason": "DOI 形态异常：%s" % doi})
+            if doi in doi_seen:
+                issues.append({"entry": eid, "type": "duplicate_doi",
+                               "reason": "与第 %d 条 DOI 相同（%s）" % (doi_seen[doi], doi)})
+            else:
+                doi_seen[doi] = i
+        authors = e.get("authors")
+        if isinstance(authors, list) and len(authors) > 3 and any("et al" in str(a).lower() for a in authors):
+            issues.append({"entry": eid, "type": "author_etal_mix",
+                           "reason": "作者列表中混用 et al.，GB/T 7714 应列前 3 位后加“等”"})
+        # 条目完整度打分（0–100，按必备字段覆盖 + DOI 加分）
+        if fields:
+            got = sum(1 for f in fields if e.get(f))
+            base = int(round(got / len(fields) * 90))
+            scores.append(min(100, base + (10 if doi else 0)))
+    avg = round(sum(scores) / len(scores), 1) if scores else 0.0
+    return {
+        "entries": len(entries), "type_distribution": type_dist,
+        "avg_completeness": avg, "issues": issues, "issue_count": len(issues),
+        "advice": ("参考文献元数据未见硬伤" if not issues else
+                   "发现 %d 处问题（%s）" % (len(issues), sorted({x["type"] for x in issues}))),
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False,
              with_draft: bool = False) -> Dict[str, Any]:
     """
@@ -1131,6 +1215,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     empty_input = (not entries) and (not str(manuscript or "").strip())
 
     norm = normalize(entries, threshold=threshold)
+    audit = audit_references(norm["entries"])
     ren = renumber(manuscript, norm["entries"], rewrite=True)
     fmt = format_bib(ren["entries"])
     # 一致性核验应基于改写后的正文：若发生了编号改写，用改写稿核验才能真正反映修复结果
@@ -1167,6 +1252,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
             "problems": ver["problems"],
             "order_violations": ver["order_violations"],
         },
+        "reference_audit": audit,
         "citation_placement": ({
             "stats": place["stats"], "advice": place["advice"],
             "gaps": [s["sentence"] for s in place["sentences"]
@@ -1192,6 +1278,8 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         f"编号：{len(ren['mapping'])} 条，悬空 {len(ver['dangling_citations'])}、"
         f"未引 {len(ver['uncited_entries'])}、连续={'是' if not ver['numbering_gaps'] else '否'}",
         f"一致性：{'通过' if ver['consistent'] else '有问题'}",
+        f"文献审计：类型 {len(audit['type_distribution'])} 类、完整度均值 {audit['avg_completeness']}、"
+        f"问题 {audit['issue_count']}",
     ]
     if place:
         summary_lines.append(f"落点：缺引论断句 {place['stats']['citation_gaps']}")
@@ -1209,6 +1297,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
             "bibliography": result["bibliography"],
             "input_quality": result["input_quality"],
             "consistency": result["consistency"],
+            "reference_audit": result["reference_audit"],
             "citation_placement": result["citation_placement"],
             "claim_check": result["claim_check"],
         }
@@ -1437,6 +1526,7 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "consistency": r.get("consistency", {}),
             "citation_placement": r.get("citation_placement"),
             "claim_check": r.get("claim_check"),
+            "reference_audit": r.get("reference_audit"),
             "input_quality": r.get("input_quality", {}),
             "summary": r.get("summary", ""),
         },

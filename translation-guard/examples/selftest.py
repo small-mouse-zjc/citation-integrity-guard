@@ -195,5 +195,20 @@ check("S2 honest pending", all("待翻译" in b["target"] for b in sv2["result"]
 check("S2 no fabrication", sv2["result"]["blocks"][0]["target"].find("碳酸") == -1)
 check("S2 delivery written", sv2.get("delivery", {}).get("written") is True)
 
+# 逐段审计：漏译 / 数字漂移 / 术语冲突都应被指出
+_aud = tg.audit_translation({
+    "case_id": "audit", "source_lang": "en", "target_lang": "zh",
+    "paragraphs": [{"id": "P1", "text": "Porosity is 18.5% in sample A."},
+                   {"id": "P2", "text": "We propose a new method."}],
+    "translations": {"P1": "样品A的孔隙度为20%。"},
+    "glossary": [{"source": "porosity", "target": "孔隙度"},
+                 {"source": "porosity", "target": "孔渗"},
+                 {"source": "method", "target": "方法"}],
+})
+check("A1 audit flags number drift", any(i["type"] == "number_drift" for i in _aud["issues"]))
+check("A2 audit flags missing translation", any(i["type"] == "missing_translation" for i in _aud["issues"]))
+check("A3 audit flags term conflict", any(i["type"] == "term_conflict" for i in _aud["issues"]))
+check("A4 audit glossary coverage", 0 < _aud["glossary_coverage"] <= 1)
+
 print("\nTOTAL FAILURES:", len(FAILS), FAILS)
 sys.exit(1 if FAILS else 0)

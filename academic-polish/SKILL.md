@@ -98,3 +98,15 @@ python scripts/compare_engine.py examples/smoke_input.json
 - 不调用外部润色/翻译服务，不臆造润色措辞；真实改文由模型在锁定约束下补全。
 - 硬错误检测面向高置信度模式，不保证覆盖全部语法错误。
 - 资源规模遵守 ≤50 个 UTF-8 文本文件、单文件 ≤500KB、总计 ≤2MB、无软链。
+
+## 润色成稿审计（polish_audit）
+
+在守护元素守恒之外，新增**断言强度守恒**与排版审计，结果写入 `result.polish_audit`：
+
+- `claim_strength_upgrade`（major）：原文 hedged/neutral，润色后被改成 demonstrate/prove 类强断言——学术上最危险的改写；
+- `claim_strength_downgrade`：原文 strong，被弱化成 may/might；
+- `straight_quotes` / `double_space` / `space_before_punct` / `hyphen_range`：可自动定位的排版硬伤；
+- `sentence_too_long`：单句 >50 词；
+- `metrics`：平均/最长句长、长句比例、断言强度分布。
+
+润色原则：可以更流畅，但不能改变证据强度；审计报 major 时必须回退。

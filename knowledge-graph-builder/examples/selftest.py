@@ -336,6 +336,21 @@ check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
 # benchmark 端到端案例齐备
 check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
 
+# 图级体检：孤立点/自环/重复边/悬空端点/域值违规都要报
+_ga = kg.audit_graph({
+    "nodes": [{"id": "n1", "type": "method"}, {"id": "n2", "type": "dataset"},
+              {"id": "n3", "type": "material"}, {"id": "n3", "type": "material"}],
+    "edges": [{"source": "n1", "target": "n2", "type": "applied_to"},
+              {"source": "n1", "target": "n2", "type": "applied_to"},
+              {"source": "n2", "target": "n2", "type": "part_of"},
+              {"source": "n1", "target": "missing", "type": "uses"}],
+}, relation_schema={"applied_to": {"from": ["method"], "to": ["dataset"]}})
+check("GA1 duplicate node flagged", any(i["type"] == "duplicate_node_id" for i in _ga["issues"]))
+check("GA2 duplicate edge flagged", any(i["type"] == "duplicate_edge" for i in _ga["issues"]))
+check("GA3 self loop flagged", any(i["type"] == "self_loop" for i in _ga["issues"]))
+check("GA4 dangling flagged", any(i["type"] == "dangling_edge" for i in _ga["issues"]))
+check("GA5 isolated counted", _ga["isolated_count"] >= 1 and _ga["components"] >= 2)
+
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:
     print("失败:", FAILS)

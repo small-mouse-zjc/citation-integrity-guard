@@ -607,6 +607,106 @@ def check_export(graph: Dict[str, Any], fmt: str = "json") -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 端到端 pipeline
 # ---------------------------------------------------------------------------
+def _node_id(n: Dict[str, Any]) -> str:
+    return str(n.get("id") or n.get("entity_id") or n.get("surface") or n.get("name") or "")
+
+
+def _edge_end(e: Dict[str, Any], *keys: str) -> str:
+    for k in keys:
+        v = e.get(k)
+        if isinstance(v, dict):
+            v = v.get("id") or v.get("name")
+        if v:
+            return str(v)
+    return ""
+
+
+def audit_graph(graph: Dict[str, Any],
+                relation_schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """图级体检：孤立点、自环、重复边、连通分量、度分布与关系 schema 域值校验。
+
+    单条实体/关系合规不等于图可用；审稿看的是“这张图有没有结构硬伤”。
+    """
+    nodes = graph.get("nodes", []) or []
+    edges = graph.get("edges", []) or []
+    ids = [_node_id(n) for n in nodes]
+    id_set = {i for i in ids if i}
+    dup_nodes = sorted({i for i in ids if i and ids.count(i) > 1})
+    degree: Dict[str, int] = {i: 0 for i in id_set}
+    self_loops, dangling, dup_edges = [], [], []
+    triple_seen = set()
+    rel_types: Dict[str, int] = {}
+    schema_issues = []
+    node_type = {i: str(n.get("type") or "") for i, n in zip(ids, nodes)}
+    for e in edges:
+        s = _edge_end(e, "source", "subject", "head", "from")
+        t = _edge_end(e, "target", "object", "tail", "to")
+        et = str(e.get("type") or e.get("relation") or e.get("predicate") or "?")
+        rel_types[et] = rel_types.get(et, 0) + 1
+        if s and s == t:
+            self_loops.append(s)
+        for x in (s, t):
+            if x and x in degree:
+                degree[x] += 1
+            elif x:
+                dangling.append({"edge": et, "missing": x})
+        key = (s, et, t)
+        if key in triple_seen:
+            dup_edges.append({"source": s, "type": et, "target": t})
+        triple_seen.add(key)
+        if relation_schema and et in relation_schema:
+            rule = relation_schema[et] or {}
+            if rule.get("from") and node_type.get(s) not in rule["from"]:
+                schema_issues.append({"edge": et, "end": "source", "node": s,
+                                      "type": node_type.get(s), "allowed": rule["from"]})
+            if rule.get("to") and node_type.get(t) not in rule["to"]:
+                schema_issues.append({"edge": et, "end": "target", "node": t,
+                                      "type": node_type.get(t), "allowed": rule["to"]})
+    # 连通分量（仅统计有边的节点；孤立点单列）
+    parent = {i: i for i in id_set}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for e in edges:
+        s = _edge_end(e, "source", "subject", "head", "from")
+        t = _edge_end(e, "target", "object", "tail", "to")
+        if s in parent and t in parent:
+            ra, rb = find(s), find(t)
+            if ra != rb:
+                parent[rb] = ra
+    comps = {}
+    for i in id_set:
+        comps.setdefault(find(i), []).append(i)
+    isolated = sorted([i for i, d in degree.items() if d == 0])
+    top = sorted(degree.items(), key=lambda kv: -kv[1])[:5]
+    issues = []
+    if dup_nodes:
+        issues.append({"type": "duplicate_node_id", "items": dup_nodes})
+    if dangling:
+        issues.append({"type": "dangling_edge", "items": dangling})
+    if self_loops:
+        issues.append({"type": "self_loop", "items": self_loops})
+    if dup_edges:
+        issues.append({"type": "duplicate_edge", "items": dup_edges})
+    if schema_issues:
+        issues.append({"type": "schema_violation", "items": schema_issues})
+    return {
+        "node_count": len(nodes), "edge_count": len(edges),
+        "relation_types": rel_types,
+        "components": len(comps), "largest_component": max((len(v) for v in comps.values()), default=0),
+        "isolated_nodes": isolated, "isolated_count": len(isolated),
+        "degree_avg": round(sum(degree.values()) / max(1, len(ids)), 2),
+        "top_degree": [{"node": k, "degree": v} for k, v in top],
+        "issues": issues, "issue_count": len(issues),
+        "advice": ("图结构未见硬伤" if not issues else
+                   "发现 %d 类结构问题（%s）" % (len(issues), [i["type"] for i in issues])),
+    }
+
+
 def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     source_index = payload.get("source_index") or {}
@@ -646,6 +746,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
     overall = (r_ent["rejected"] == 0 and r_rel["rejected"] == 0
                and r_query["all_traceable"] and r_export["machine_readable"]
                and all(b["bound"] for b in r_bind) and bool(entities))
+    r_audit = audit_graph(graph, payload.get("relation_schema"))
     draft_obj = render_draft(payload) if with_draft else None
     return {
         "case_id": case_id,
@@ -658,6 +759,7 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
             "graph_query": r_query,
             "export_check": r_export,
             "incremental_update": r_incr,
+            "graph_audit": r_audit,
             "graph": graph,
         },
         "draft_detail": draft_obj,
@@ -925,11 +1027,14 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
             "entity_alignment": r["entity_alignment"],
             "graph_query": r["graph_query"],
             "export_check": r["export_check"],
-            "summary": ("节点 %d；关系 %d；实体拒收 %d；关系拒收 %d；查询 %d/%d 可回链；导出%s" % (
+            "graph_audit": r.get("graph_audit"),
+            "summary": ("节点 %d；关系 %d；实体拒收 %d；关系拒收 %d；查询 %d/%d 可回链；导出%s；"
+                        "结构问题 %d" % (
                 draft.get("node_count", 0), draft.get("edge_count", 0),
                 r["entity_extraction"]["rejected"], r["relation_check"]["rejected"],
                 r["graph_query"]["answered"], r["graph_query"]["query_count"],
-                "合规" if r["export_check"]["machine_readable"] else "待修")),
+                "合规" if r["export_check"]["machine_readable"] else "待修",
+                (r.get("graph_audit") or {}).get("issue_count", 0))),
         },
         "needs_review": draft.get("needs_author_confirmation", []) +
                         pl["uncertainty"].get("needs_review", []),

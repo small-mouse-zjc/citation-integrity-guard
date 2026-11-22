@@ -197,5 +197,22 @@ check("T35 solve returns structure", "status" in sv and "result" in sv)
 # T36 solve 装配回执字段存在（pdf_not_found 分支也带回执）
 check("T36 solve delivery receipt", "delivery" in sv)
 
+# 解析产物一致性审计：错位表、公式跳号、题注不配都要报
+_pa = pe.audit_parse(
+    {"sections": [{"text": "1 Intro", "level": 1}, {"text": "1.1.1 Deep", "level": 3}]},
+    {"tables": [{"page": 2, "rows": 2, "cols": 3,
+                 "markdown": "| a | b | c |\n| --- | --- | --- |\n| 1 | 2 |"}],
+     "stats": {"table_count": 1}},
+    {"formulas": [{"number": "(1)"}, {"number": "(1)"}, {"number": "(3)"}]},
+    {"captions": [{"kind": "table", "number": "2"}, {"kind": "table", "number": "2"}],
+     "stats": {"table_captions": 2}},
+    {"ordered": [{"page": 1}, {"page": 3}, {"page": 2}]},
+)
+check("PA1 ragged table flagged", any(i["type"] == "ragged_table" for i in _pa["issues"]))
+check("PA2 duplicate formula flagged", any(i["type"] == "duplicate_formula_number" for i in _pa["issues"]))
+check("PA3 formula gap flagged", any(i["type"] == "formula_number_gap" for i in _pa["issues"]))
+check("PA4 heading jump flagged", any(i["type"] == "heading_level_jump" for i in _pa["issues"]))
+check("PA5 page reversal flagged", any(i["type"] == "page_order_reversal" for i in _pa["issues"]))
+
 print("\nTOTAL FAILURES:", len(FAILS), FAILS)
 sys.exit(1 if FAILS else 0)

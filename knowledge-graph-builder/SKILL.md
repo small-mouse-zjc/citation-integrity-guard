@@ -128,3 +128,15 @@ python scripts/kg_engine.py pipeline input.json > result.json             # 仅�
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`graph.json`（节点/边）、`graph.md`（图谱说明）、`queries.md`（查询示例），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 图级结构体检（graph_audit）
+
+单条实体/关系合规不等于图可用。新增 `audit_graph()`，写入 `result.graph_audit`：
+
+- `duplicate_node_id`、`dangling_edge`（端点不存在）、`self_loop`、`duplicate_edge`（同一 source-type-target 重复）；
+- `components` / `largest_component` / `isolated_nodes`：连通性与孤立实体；
+- `degree_avg` / `top_degree`：度分布与枢纽节点；
+- `relation_types`：关系类型分布；
+- 可选 `relation_schema`（如 `{"applied_to":{"from":["method"],"to":["dataset"]}}`）做域值校验，违规逐条列出。
+
+孤立点过多或存在悬空边时，查询与导出都会失真；审计先行，再交付图谱。

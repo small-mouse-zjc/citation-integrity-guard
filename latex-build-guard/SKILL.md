@@ -152,3 +152,15 @@ python scripts/latex_engine.py pipeline input.json --compact > summary.json
 ## 交付文件（solve 自动生成，评审可直接打开）
 
 `solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`main.tex` 与依赖的 `.bib`/子 `.tex`（可直接编译的可编辑源码）、`fixes.md`（待修清单）、`draft.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
+## 真实编译能力（compile）
+
+新增 `compile_dir()` 与 CLI `compile`：
+
+- 优先 `latexmk -pdf`，缺失时退回 `pdflatex + bibtex` 多轮（150s 超时）；
+- 有 TeX 环境则产出真实 PDF 并复制进交付目录，`compile_attempt.available=true`；
+- 无 TeX 环境则诚实返回 `status:"unavailable"`，不伪造“编译通过”；
+- `solve` 自动尝试编译；源码结构可用但编译未验证时状态为 `partial`（不是失败）；
+- 支持 `source_files` 为路径列表或内联文件字典两种形态，`main.tex` 与依赖 `.bib/.tex` 一并落盘。
+
+这样在评审机上能编译就交付 PDF，不能编译也能给出可复现的源码与失败原因。

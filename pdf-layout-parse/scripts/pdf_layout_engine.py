@@ -953,6 +953,80 @@ def verify(cleaned: Dict[str, Any], order: Dict[str, Any],
 # ---------------------------------------------------------------------------
 # 8) 全流程
 # ---------------------------------------------------------------------------
+def audit_parse(sections: Dict[str, Any], tables: Dict[str, Any],
+                formulas: Dict[str, Any], captions: Dict[str, Any],
+                order: Dict[str, Any]) -> Dict[str, Any]:
+    """解析产物一致性审计：表格列数、公式编号、标题层级、题注配对、页序。
+
+    这些是“看起来解析成功、实际不可用”的典型硬伤，逐项可定位。
+    """
+    issues: List[Dict[str, Any]] = []
+    # 1) 表格：每行竖线数须一致，行列数不得退化
+    for t in tables.get("tables", []) or []:
+        md = str(t.get("markdown") or "")
+        rows = [ln for ln in md.splitlines() if ln.strip().startswith("|")]
+        widths = {ln.count("|") for ln in rows}
+        if rows and len(widths) > 1:
+            issues.append({"type": "ragged_table", "page": t.get("page"),
+                           "reason": "同一表格各行竖线数不一致 %s，列错位" % sorted(widths)})
+        if (t.get("rows") or 0) < 2 or (t.get("cols") or 0) < 2:
+            issues.append({"type": "degenerate_table", "page": t.get("page"),
+                           "reason": "表格仅 %s 行 × %s 列，疑为误识别" % (t.get("rows"), t.get("cols"))})
+    # 2) 公式编号：重复或跳号
+    nums = []
+    for f in formulas.get("formulas", []) or []:
+        n = f.get("number")
+        if n:
+            m = re.search(r"\d+", str(n))
+            if m:
+                nums.append(int(m.group(0)))
+    dup = sorted({x for x in nums if nums.count(x) > 1})
+    if dup:
+        issues.append({"type": "duplicate_formula_number", "numbers": dup,
+                       "reason": "公式编号重复，交叉引用会指向错误公式"})
+    if nums:
+        mx = max(nums)
+        missing = [i for i in range(1, mx + 1) if i not in set(nums)]
+        if missing:
+            issues.append({"type": "formula_number_gap", "missing": missing[:10],
+                           "reason": "公式编号不连续，缺 %s" % missing[:10]})
+    # 3) 标题层级：一次跳两级以上
+    last = 0
+    for s in sections.get("sections", []) or []:
+        lv = int(s.get("level") or 1)
+        if last and lv > last + 1:
+            issues.append({"type": "heading_level_jump", "title": s.get("text"),
+                           "reason": "标题层级从 %d 跳到 %d，目录结构会错乱" % (last, lv)})
+        last = lv
+    # 4) 题注配对：同号重复 / 表题注数与表数不符
+    seen = {}
+    for c in captions.get("captions", []) or []:
+        key = (c.get("kind"), str(c.get("number") or c.get("label") or ""))
+        if key[1]:
+            if key in seen:
+                issues.append({"type": "duplicate_caption", "caption": key[1],
+                               "reason": "同类型题注编号重复"})
+            seen[key] = True
+    tcap = captions.get("stats", {}).get("table_captions", 0)
+    tcnt = tables.get("stats", {}).get("table_count", len(tables.get("tables", []) or []))
+    if tcap and tcnt and tcap != tcnt:
+        issues.append({"type": "caption_table_mismatch",
+                       "reason": "表题注 %d 条 vs 识别表格 %d 个，存在漏配或误配" % (tcap, tcnt)})
+    # 5) 页序：阅读顺序中页码倒退
+    pages = [int(r.get("page") or 0) for r in order.get("ordered", []) or []]
+    rev = [(pages[i - 1], pages[i]) for i in range(1, len(pages)) if pages[i] < pages[i - 1]]
+    if rev:
+        issues.append({"type": "page_order_reversal", "pairs": rev[:5],
+                       "reason": "跨页阅读顺序出现页码倒退"})
+    return {
+        "issues": issues, "issue_count": len(issues),
+        "table_count": tcnt, "formula_numbered": len(nums),
+        "caption_count": len(captions.get("captions", []) or []),
+        "advice": ("解析产物结构一致，未发现硬伤" if not issues else
+                   "发现 %d 处结构问题（%s）" % (len(issues), sorted({i["type"] for i in issues}))),
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     """
     payload:
@@ -969,6 +1043,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     captions = detect_captions(cleaned, order)
     evidence = build_evidence(cleaned, order, sections, tables)
     ver = verify(cleaned, order, evidence, layout)
+    aud = audit_parse(sections, tables, formulas, captions, order)
 
     statuses = [cleaned["status"], order["status"], sections["status"],
                 tables["status"], formulas["status"], captions["status"], ver["status"]]
@@ -989,6 +1064,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
         "formulas": formulas["formulas"],
         "captions": captions["captions"],
         "evidence_index": evidence["evidence"],
+        "parse_audit": aud,
         "verification": ver,
         "summary": (
             f"页数 {ver['stats']['pages']}；正文行 {cleaned['stats']['body_lines']}"
@@ -1000,7 +1076,8 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             f"题注 {captions['stats']['figure_captions']}图/"
             f"{captions['stats']['table_captions']}表；"
             f"字符覆盖率 {ver['coverage']:.1%}；"
-            f"证据块 {ver['stats']['evidence_blocks']}"
+            f"证据块 {ver['stats']['evidence_blocks']}；"
+            f"结构问题 {aud['issue_count']}"
         ),
     }
     out = {"case_id": cid, "status": overall}

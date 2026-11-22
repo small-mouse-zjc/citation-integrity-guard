@@ -411,6 +411,77 @@ def check_reproducibility(record: str, required: Optional[List[str]] = None) -> 
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
+def compile_dir(src_dir: str, main_name: str = "main.tex", max_rounds: int = 3,
+                timeout: int = 150) -> Dict[str, Any]:
+    """在真实 TeX 环境里尝试编译（latexmk 优先，退回 pdflatex+bibtex 多轮）。
+
+    没有编译器就诚实报告 unavailable，不假装编译通过；编译日志按既有分类器归类。
+    """
+    import os as _os
+    import shutil as _shutil
+    import subprocess as _sp
+    import tempfile as _tf
+
+    main_path = _os.path.join(src_dir, main_name)
+    if not _os.path.exists(main_path):
+        return {"available": False, "status": "no_source", "reason": "输出目录没有 %s" % main_name}
+    latexmk = _shutil.which("latexmk")
+    pdflatex = _shutil.which("pdflatex")
+    if not latexmk and not pdflatex:
+        return {"available": False, "status": "unavailable", "rounds": 0,
+                "reason": "当前环境无 latexmk/pdflatex，未做真实编译；静态检查已给出，编译须在装有 TeX 的环境复核"}
+
+    work = _tf.mkdtemp(prefix="texbuild_")
+    for fn in _os.listdir(src_dir):
+        p = _os.path.join(src_dir, fn)
+        if _os.path.isfile(p) and fn.lower().endswith((".tex", ".bib", ".cls", ".sty", ".bst", ".png", ".jpg", ".pdf")):
+            _shutil.copy2(p, _os.path.join(work, fn))
+
+    logs = []
+    pdf = _os.path.join(work, _os.path.splitext(main_name)[0] + ".pdf")
+    ok = False
+    rounds = 0
+    try:
+        if latexmk:
+            cmd = [latexmk, "-pdf", "-interaction=nonstopmode", "-halt-on-error", main_name]
+            r = _sp.run(cmd, cwd=work, capture_output=True, text=True, errors="ignore", timeout=timeout)
+            rounds = 1
+            logs.append(r.stdout or "")
+            ok = _os.path.exists(pdf)
+        else:
+            has_bib = any(f.lower().endswith(".bib") for f in _os.listdir(work))
+            cmd = [pdflatex, "-interaction=nonstopmode", "-halt-on-error", main_name]
+            for i in range(max_rounds):
+                rounds += 1
+                r = _sp.run(cmd, cwd=work, capture_output=True, text=True, errors="ignore", timeout=timeout)
+                logs.append(r.stdout or "")
+                if has_bib and i == 0:
+                    br = _sp.run(["bibtex", _os.path.splitext(main_name)[0]],
+                                 cwd=work, capture_output=True, text=True, errors="ignore", timeout=60)
+                    logs.append(br.stdout or "")
+            ok = _os.path.exists(pdf)
+    except Exception as e:
+        return {"available": True, "status": "error", "reason": "%s: %s" % (type(e).__name__, e),
+                "rounds": rounds, "pdf": False}
+
+    log_text = "\n".join(logs)
+    errs = classify_errors(log_text)
+    pdf_bytes = _os.path.getsize(pdf) if ok else 0
+    return {
+        "available": True,
+        "status": "success" if ok else "failed",
+        "compiler": "latexmk" if latexmk else "pdflatex",
+        "rounds": rounds,
+        "pdf": ok,
+        "pdf_bytes": pdf_bytes,
+        "error_count": errs.get("error_count", 0),
+        "warning_count": errs.get("warning_count", 0),
+        "errors": errs.get("errors", [])[:10],
+        "log_tail": log_text[-2000:],
+        "work_dir": work,
+    }
+
+
 def pipeline(payload: Dict[str, Any], compact: bool = False,
              with_draft: bool = False) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
@@ -419,6 +490,10 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     log = payload.get("compile_log", "") or ""
     bib = payload.get("bib", "") or ""
     files = payload.get("files", {}) or {}
+    # 交付物=facts：给了 main_tex 就视为交付了 main.tex，避免"有源码却判无源码"
+    if isinstance(files, dict) and main_tex and "main.tex" not in files:
+        files = dict(files)
+        files["main.tex"] = main_tex
     record = payload.get("build_record", "") or ""
     required_fields = payload.get("template_required_fields")
 
@@ -738,9 +813,13 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
     pl = pipeline(work, with_draft=True)
     draft = pl.get("draft_detail") or {}
     r = pl["result"]
+    _st = pl["status"]
+    if _st != "ok" and (r.get("deliverable_check") or {}).get("usable") and \
+            (r.get("source_check") or {}).get("structure_ok"):
+        _st = "partial"   # 源码可用但编译/记录未验证 → 部分完成，而不是“不合格”
     result = {
         "case_id": cid,
-        "status": pl["status"],
+        "status": _st,
         "input_mode": "case",
         "source_count": len(draft.get("source_files", [])),
         "adapter_notes": work.get("adapter_notes", []),
@@ -779,6 +858,23 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
                     fh.write(content)
     except Exception:
         pass
+
+    # 真实编译尝试：有 TeX 就真编译并回传日志/错误定位；没有就诚实标 unavailable
+    if _os.path.exists(_os.path.join(out_dir, "main.tex")):
+        ci = compile_dir(out_dir)
+        result["compile_attempt"] = ci
+        if ci.get("available") and ci.get("pdf"):
+            try:
+                import shutil as _sh
+                _sh.copy2(_os.path.join(ci["work_dir"], "main.pdf"),
+                          _os.path.join(out_dir, "main.pdf"))
+            except Exception:
+                pass
+            result["status"] = "draft"
+        elif ci.get("available") and ci.get("status") == "failed":
+            result["needs_review"].append("真实编译失败：%d 个错误，见 compile_attempt.errors 的文件/行号" % ci.get("error_count", 0))
+        else:
+            result["needs_review"].append(ci.get("reason", "未做真实编译"))
     result["delivery"] = _write_solution(result, out_dir, cid)
     return result
 
@@ -819,6 +915,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     pp.add_argument("input", help="JSON 全量输入")
     pp.add_argument("--compact", action="store_true", help="省 token：只回状态与待修问题清单")
     pp.add_argument("--with-draft", action="store_true", help="脚本渲染交付包草稿")
+    cp = sub.add_parser("compile", help="真实编译：latexmk/pdflatex 多轮，回传日志与错误定位")
+    cp.add_argument("dir", help="含 main.tex 的交付目录")
+    cp.add_argument("--main", default="main.tex")
+    cp.add_argument("--timeout", type=int, default=150)
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -826,6 +926,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "solve":
         out = solve(args.case, args.out)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+    if args.cmd == "compile":
+        out = compile_dir(args.dir, args.main, timeout=args.timeout)
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 

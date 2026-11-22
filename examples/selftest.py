@@ -234,5 +234,20 @@ check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
 # benchmark 端到端案例齐备
 check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
 
+# 文献元数据审计：缺字段 / 未来年份 / DOI 重复与畸形 必须被逐条指出
+_ra = ce.audit_references([
+    {"id": "r1", "type": "J", "authors": ["A"], "title": "T", "journal": "G",
+     "year": 2030, "doi": "10.1016/j.abc.2024.01.001"},
+    {"id": "r2", "type": "unknown-x", "authors": ["B"], "title": "U", "year": 2020,
+     "doi": "not-a-doi"},
+    {"id": "r3", "type": "J", "authors": ["C"], "title": "V", "journal": "G",
+     "year": 2021, "doi": "10.1016/j.abc.2024.01.001"},
+])
+check("RA1 missing fields flagged", any(i["type"] == "missing_fields" for i in _ra["issues"]))
+check("RA2 implausible year flagged", any(i["type"] == "implausible_year" for i in _ra["issues"]))
+check("RA3 duplicate DOI flagged", any(i["type"] == "duplicate_doi" for i in _ra["issues"]))
+check("RA4 malformed DOI flagged", any(i["type"] == "malformed_doi" for i in _ra["issues"]))
+check("RA5 avg completeness bounded", 0 <= _ra["avg_completeness"] <= 100)
+
 print("\nTOTAL FAILURES:", len(FAILS), FAILS)
 sys.exit(1 if FAILS else 0)

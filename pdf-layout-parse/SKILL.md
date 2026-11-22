@@ -150,3 +150,15 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 - `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
 
 创新边界摘要：`pdf_layout_engine.py` 把 "提得全 / 排得对 / 拆得清 / 核得回" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
+
+## 解析产物一致性审计（parse_audit）
+
+除字符覆盖率核验外，新增结构硬伤审计，写入 `result.parse_audit`：
+
+- `ragged_table`：同一表格各行竖线数不一致（列错位）；`degenerate_table`：<2 行或 <2 列；
+- `duplicate_formula_number` / `formula_number_gap`：公式编号重复或跳号；
+- `heading_level_jump`：标题层级一次跳两级以上；
+- `duplicate_caption` / `caption_table_mismatch`：题注同号重复、表题注数与表数不符；
+- `page_order_reversal`：跨页阅读顺序页码倒退。
+
+这些问题常常“看起来解析成功、实际不可用”，审计给出页码/标题定位，便于回修。
