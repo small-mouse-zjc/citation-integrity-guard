@@ -108,9 +108,14 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 - 先存诚实的部分结果（reading_text + evidence）再增量完善。
 - 三案例复用同一流程与同一套中间表示约定，避免重复摸索。
 
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`layout.json` + `layout.md`（版面结构）、`tables.json` + `tables.md`（表格），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
 ## 资源清单
 
 - `scripts/pdf_layout_engine.py`：端到端版面解析引擎（11 子命令，含 `solve` 完成器；主体纯标准库，PDF 提取多后端自动回退）
+- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
 - `references/output_contract.md`：输入输出字段契约
 - `references/reading_order_rules.md`：分栏与阅读顺序判定规则
 - `references/table_structure.md`：表格结构重建规则

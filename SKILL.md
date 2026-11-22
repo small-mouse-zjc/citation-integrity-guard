@@ -113,9 +113,14 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 | 稿件格式不支持/文件损坏 | 说明无法处理的具体位置与原因，保存已完成的诚实部分结果 |
 | 正文论断与文献不匹配 | 逐句标记 `claim_source_mismatch`，给出主题差异说明，不擅自改论断 |
 
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`manuscript.md`（改后稿件）、`draft.md`、`references.csv`（文献条目）、`references.bib`（若有 BibTeX），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
 ## 资源清单
 
 - `scripts/citation_engine.py`：确定性处理引擎（11 子命令，含 solve/render-draft，纯标准库，必需）
+- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
 - `references/dedup_rules.md`：去重判据与置信度表
 - `references/format_gb7714.md`：GB/T 7714—2015 格式映射与字段规则
 - `references/apa_mapping.md`：APA 7th 扩展映射（证明规范可扩展）

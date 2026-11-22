@@ -938,7 +938,7 @@ def _load(path_or_json: str) -> Any:
         return json.load(f)
 
 
-def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
     """装配 solve 结果到 out_dir/result.json，返回落盘回执（不静默吞错）。"""
     import os as _os
     payload = dict(result)
@@ -1093,6 +1093,16 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
+
+def _write_solution(result, out_dir, case_id):
+    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
+    core = _write_solution_core(result, out_dir, case_id)
+    try:
+        from artifacts import write_artifacts
+        core["artifacts"] = write_artifacts(result, out_dir, "intro-gap-architect")
+    except Exception as e:  # 渲染失败不影响 result.json 已落盘
+        core["artifacts_error"] = type(e).__name__
+    return core
 
 
 if __name__ == "__main__":

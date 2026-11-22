@@ -81,9 +81,14 @@ python scripts/compare_engine.py examples/smoke_input.json
 对照只呈现四问检查机制的可运行证据与逐句成稿结构，**不编造平台质量分/效率分**；
 正式质量对照由平台固定案例与白板给出。
 
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`comparison.md`（原稿/改稿对照）、`polished.md`（润色后全文）、`fixes.md`（逐条改动）、`glossary.csv`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
 ## 资源清单
 
 - `scripts/polish_engine.py`：主引擎（守门 + 完成器）。
+- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
 - `scripts/compare_engine.py`：公平对照证据引擎。
 - `examples/`：selftest、benchmark、最小示例、冒烟输入输出。
 - `references/`：输出契约、守护规则、语域指南、术语格式、失败模式、创新边界、核验清单、词表。

@@ -562,6 +562,33 @@ def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
                     work["main_tex"] = content
                     break
 
+    # source_files：["main.tex", "refs.bib"] 或 [{name,path/content}] —— 平台常见形态
+    sf = work.get("source_files")
+    if isinstance(sf, list) and sf:
+        resolved2 = dict(work.get("files") or {})
+        for item in sf:
+            if isinstance(item, str):
+                path = item if _os.path.isabs(item) else _os.path.join(case_dir, item)
+                if _os.path.exists(path):
+                    try:
+                        resolved2[_os.path.basename(path)] = open(path, encoding="utf-8").read()
+                        log.append("源文件:%s" % _os.path.basename(path))
+                    except Exception:
+                        log.append("读取失败:%s" % _os.path.basename(item))
+            elif isinstance(item, dict):
+                name = str(item.get("name") or item.get("path") or "")
+                content = item.get("content") or item.get("text")
+                if name and isinstance(content, str):
+                    resolved2[_os.path.basename(name)] = content
+                    log.append("内联源文件:%s" % _os.path.basename(name))
+        if resolved2:
+            work["files"] = resolved2
+            if not work.get("main_tex"):
+                for name, content in resolved2.items():
+                    if name.lower().endswith(".tex") and "\\documentclass" in content:
+                        work["main_tex"] = content
+                        break
+
     sub = work.get("sub_files") or {}
     if isinstance(sub, dict):
         resolved_sub = {}
@@ -670,7 +697,7 @@ def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
     import os as _os
     payload = dict(result)
     if "case_id" not in payload:
@@ -738,6 +765,20 @@ def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
         "needs_review": draft.get("needs_author_confirmation", []),
         "uncertainty": draft.get("uncertainty", []),
     }
+    # 交付真实可编辑源码（评审可直接编译）：main.tex + 依赖的 .bib/.tex 子文件
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        out_files = dict(work.get("files") or {})
+        if work.get("main_tex"):
+            out_files.setdefault("main.tex", work["main_tex"])
+        for name, content in out_files.items():
+            if isinstance(content, str) and str(name).lower().endswith(
+                    (".tex", ".bib", ".cls", ".sty", ".md", ".txt")):
+                with open(_os.path.join(out_dir, _os.path.basename(str(name))), "w",
+                          encoding="utf-8") as fh:
+                    fh.write(content)
+    except Exception:
+        pass
     result["delivery"] = _write_solution(result, out_dir, cid)
     return result
 
@@ -808,6 +849,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 
+def _write_solution(result, out_dir, case_id):
+    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
+    core = _write_solution_core(result, out_dir, case_id)
+    try:
+        from artifacts import write_artifacts
+        core["artifacts"] = write_artifacts(result, out_dir, "latex-build-guard")
+    except Exception as e:  # 渲染失败不影响 result.json 已落盘
+        core["artifacts_error"] = type(e).__name__
+    return core
 
 if __name__ == "__main__":
     sys.exit(main())

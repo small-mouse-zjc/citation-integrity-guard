@@ -1114,7 +1114,7 @@ def solve(case_path: str, out_dir: str, explicit_pdf: str = "") -> Dict[str, Any
     return result
 
 
-def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
     """把 solve 结果装配写入 out_dir/result.json（保留 case_id 与全部契约字段）。
 
     返回装配回执（written / path / error），不静默吞错——避免"看起来强、实跑没落盘"。
@@ -1211,6 +1211,15 @@ def main(argv=None):
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
     return 0
 
+def _write_solution(result, out_dir, case_id):
+    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
+    core = _write_solution_core(result, out_dir, case_id)
+    try:
+        from artifacts import write_artifacts
+        core["artifacts"] = write_artifacts(result, out_dir, "pdf-layout-parse")
+    except Exception as e:  # 渲染失败不影响 result.json 已落盘
+        core["artifacts_error"] = type(e).__name__
+    return core
 
 if __name__ == "__main__":
     raise SystemExit(main())

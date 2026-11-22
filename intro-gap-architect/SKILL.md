@@ -150,3 +150,7 @@ python scripts/intro_engine.py compare  input.json > comparison.json     # 公�
 - `examples/`：最小调用示例与 45 项自验收（含成稿/solve 端到端）（`python examples/selftest.py`）。
 
 本技能与 `citation-integrity`（引用一致性守门人）互补：本技能管引言结构与证据绑定，`citation-integrity` 管引用编号/去重/格式，可串联使用。
+
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`draft.md`（成稿）、`deliverable.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。

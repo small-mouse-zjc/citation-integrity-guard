@@ -108,9 +108,14 @@ python scripts/translation_guard.py pipeline input.json --with-draft > result.js
 - 先存诚实部分结果（已译段落 + 术语表）再增量完善。
 - 三案例复用同一术语表约定与段号规则，避免重复口径摸索。
 
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`bilingual.md`（段落级双语对照成稿）、`glossary.csv`（锁定术语表）、`bilingual_draft.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+
 ## 资源清单
 
 - `scripts/translation_guard.py`：确定性翻译完成器+守门引擎（12 子命令，含 solve/render-draft，纯标准库）
+- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
 - `references/output_contract.md`：输入输出字段契约
 - `references/glossary_format.md`：术语表格式与锁定规则
 - `references/protection_rules.md`：占位符保护与回填规则

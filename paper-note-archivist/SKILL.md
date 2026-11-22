@@ -138,6 +138,7 @@ python scripts/notes_engine.py pipeline input.json > result.json             # �
 本 Skill 针对四问（对得上 / 留得住 / 找得回 / 用得上）配置了确定性检查机制，并提供可复现的公平对照证据：
 
 - `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
+- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
   ```bash
   python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
   python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
@@ -148,3 +149,7 @@ python scripts/notes_engine.py pipeline input.json > result.json             # �
 - `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
 
 创新边界摘要：`notes_engine.py` 把 "对得上 / 留得住 / 找得回 / 用得上" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
+
+## 交付文件（solve 自动生成，评审可直接打开）
+
+`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`notes.md`（结构化笔记/阅读卡）、`draft.md`（综述稿），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
