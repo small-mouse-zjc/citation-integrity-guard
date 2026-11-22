@@ -65,3 +65,28 @@
   "uncertainty": {"auto_grouped": 1, "needs_review": [], "note": "转述忠实度须核对原文"}
 }
 ```
+
+
+## 成稿与端到端交付（完成器）
+
+`render-draft` / `compose` / `solve` 在结构化检查之上产出可编辑成稿：
+
+```json
+{
+  "case_id": "...",
+  "status": "draft | partial | needs_attention",
+  "draft_text": "四部件连贯草稿全文",
+  "paragraphs": [
+    {"part":"研究背景","text":"...","source_refs":["background:line1"],"status":"ok"},
+    {"part":"相关工作","text":"...","source_refs":["a","b"],"status":"ok"}
+  ],
+  "source_refs": ["a","b","fig1","background:line1"],
+  "delivery": {"written":true,"path":"/app/output/result.json","bytes":3481}
+}
+```
+
+- `draft_text` / `paragraphs`：四部件（研究背景/相关工作/研究空白/贡献表述）连贯草稿，仅用输入真实字段拼接；材料不足处以 `〔待核实〕` 标注，不生成材料外事实。
+- `paragraphs[].status`：`ok` 表示该段由真实字段支撑；`needs_attention` 表示缺支撑或已被门禁下调。
+- `source_refs`：成稿用到的 work id / claim evidence_refs / 背景行号，逐条可回溯。
+- `solve`：读 case.json（若含 `format`+`text` 先 `ingest` BibTeX/RIS）→ 结构化检查 → 成稿 → 装配 `/app/output/result.json`；`delivery` 为落盘回执，`written=true` 且 `bytes>0` 才算交付成功，失败在 `error` 字段说明。
+- `compare.draft_comparison`：同一输入下"基线朴素标题平铺稿 vs Skill 四部件成稿"的可复现结构/篇幅对照，不编造质量分。

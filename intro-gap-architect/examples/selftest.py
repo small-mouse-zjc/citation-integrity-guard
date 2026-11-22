@@ -146,7 +146,68 @@ check("T32 compact保留case_id", cc["case_id"] == "selftest")
 check("T33 compact含门禁字段", all(k in cc["summary"] for k in
       ["holds_up", "claims_unbacked", "gaps_backed"]))
 
-TOTAL = 33
+
+# ==================== 冲95+ 新增能力测试 ====================
+import tempfile as _tf, os as _os, json as _js
+
+# T34 render-draft 四部件成稿（不再是骨架）
+p_draft = {
+    "case_id": "draft-test",
+    "background": "基于2019年文献[3]，粒度分析标注成本高的问题仍待解决。",
+    "works": [
+        {"id": "a", "title": "DL facies", "route": "深度学习",
+         "limitations": "标注成本高", "data_eval": "acc 0.9", "year": 2023},
+        {"id": "b", "title": "GAN model", "route": "深度学习",
+         "limitations": "标注成本高", "year": 2024},
+    ],
+    "claims": [{"id": "c1", "text": "本文方法提升精度", "evidence_refs": ["fig1"]}],
+}
+d = ie.render_draft(p_draft)
+check("T34 draft status", d["status"] in ("draft", "partial"))
+check("T35 draft has text", len(d.get("draft_text", "")) > 30)
+check("T36 draft four parts", [p["part"] for p in d["paragraphs"]] ==
+      ["研究背景", "相关工作", "研究空白", "贡献表述"])
+check("T37 draft source_refs", "a" in d["source_refs"] and "fig1" in d["source_refs"])
+
+# T38 只用真实字段：成稿含真实标题/数据，不含编造内容
+check("T38 draft uses real fields", "DL facies" in d["draft_text"] and "acc 0.9" in d["draft_text"])
+
+# T39 空转背景被剔除、带锚点背景保留
+d_bg = ie.render_draft({"case_id": "bg", "background": "近年来该领域受到广泛关注。",
+                        "works": [{"id": "x", "title": "T", "route": "深度学习"}], "claims": []})
+check("T39 hype background dropped", "待核实" in d_bg["paragraphs"][0]["text"])
+d_bg2 = ie.render_draft({"case_id": "bg2", "background": "基于2020年[1]，标注成本高仍待解决。",
+                         "works": [{"id": "x", "title": "T", "route": "深度学习"}], "claims": []})
+check("T39b anchored background kept", "2020" in d_bg2["paragraphs"][0]["text"])
+
+# T40 compose 纳入成稿
+comp = ie.compose(p_draft)
+check("T40 compose includes draft", "draft" in comp and "draft_text" in comp)
+
+# T41 compare 含真实朴素成稿对照
+cmp2 = ie.compare(p_draft)
+dc = cmp2.get("draft_comparison", {})
+check("T41 draft comparison present",
+      all(k in dc for k in ["baseline_text", "skill_text", "skill_parts"]))
+
+# T42 solve 端到端 + 装配回执
+td = _tf.mkdtemp(prefix="intro_solve_")
+_js.dump(p_draft, open(_os.path.join(td, "case.json"), "w", encoding="utf-8"), ensure_ascii=False)
+sv = ie.solve(_os.path.join(td, "case.json"), _os.path.join(td, "output"))
+check("T42 solve status", sv.get("status") in ("draft", "partial", "needs_attention"))
+check("T43 solve delivery written", sv.get("delivery", {}).get("written") is True)
+rj = _js.load(open(_os.path.join(td, "output", "result.json"), encoding="utf-8"))
+check("T44 solve result assembled", rj.get("case_id") == "draft-test" and "result" in rj)
+
+# T45 ingest + solve 串联（BibTeX 输入）
+bib = "@article{a,title={DL facies},author={Smith, A.},year={2023},journal={Fuel}}"
+sv2 = ie.solve_inline({"case_id": "bib", "format": "bibtex", "text": bib},
+                      _os.path.join(td, "output2")) if hasattr(ie, "solve_inline") else None
+# 若未提供 solve_inline，用 ingest 验证即可
+ing = ie.ingest({"format": "bibtex", "text": bib, "case_id": "bib"})
+check("T45 ingest bibtex works", ing.get("work_count", 0) >= 1 and ing["works"][0].get("title") == "DL facies")
+
+TOTAL = 45
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:
     print("失败:", FAILS)

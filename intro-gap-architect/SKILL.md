@@ -54,15 +54,19 @@ python scripts/intro_engine.py --help
 | `align-claims` | 对得上：贡献与证据锚点对齐 | `aligned`、`unbacked`、`inflated` |
 | `coverage` | 引用覆盖与元数据完整 | `recent_count`、`missing_metadata`、`has_recent` |
 | `ingest` | 把 BibTeX/RIS/行式文本解析为 works | `works`、`work_count`、`missing_metadata` |
-| `compose` | 装配四部件可编辑成稿骨架 + 来源映射 + 待确认项 | `sections`、`source_map`、`pending_confirmation` |
+| `render-draft` | 可核验成稿草稿：仅用真实字段渲染四部件连贯成稿 | `draft_text`、`paragraphs`、`source_refs` |
+| `compose` | 成稿草稿 + 结构骨架 + 来源映射 + 待确认项 | `draft`、`draft_text`、`sections`、`source_map` |
+| `solve` | 端到端完成器：case.json →(ingest)→ 成稿 → result.json | `result.draft_text`、`delivery` |
 | `compare` | 公平对照：基线四类失败 vs Skill 检出/拦截 | `gain`、`dimensions`、`verifiable` |
 | `pipeline` | 串联五步 + 空白-贡献桥接 | 完整结构化结果；`--compact` 只回摘要+待确认项省 token |
 
-输入为 UTF-8 JSON。推荐一次跑完（先 full 检查，再按需取骨架/对照）：
+输入为 UTF-8 JSON。推荐 solve 一步到位；或先 full 检查，再按需取成稿/骨架/对照：
 ```bash
 python scripts/intro_engine.py pipeline input.json > result.json          # 全量四问检查
 python scripts/intro_engine.py pipeline input.json --compact > brief.json # 省 token 摘要
-python scripts/intro_engine.py compose  input.json > draft.json          # 成稿骨架
+python scripts/intro_engine.py solve case.json --out /app/output          # 端到端成稿+装配
+python scripts/intro_engine.py render-draft input.json > draft.json       # 可核验成稿草稿
+python scripts/intro_engine.py compose  input.json > draft.json           # 成稿+骨架+来源映射
 python scripts/intro_engine.py compare  input.json > comparison.json     # 公平对照证据
 # 外部文献：python scripts/intro_engine.py ingest '{"format":"bibtex","text":"..."}'
 ```
@@ -104,8 +108,8 @@ python scripts/intro_engine.py compare  input.json > comparison.json     # 公�
 3. **分得清**：运行 `group-matrix`。以返回的 `groups[].comparison` 为横向视图，确保每个分组在**同一维度**上比较各工作取舍，而非逐篇摘要。`needs_review` 中的工作须人工指定分组后再跑。
 4. **说得实**：运行 `derive-gap`。每条空白必须带 `supporting_works`（真实文献 id）与 `reasoning`。核对空白是否真由这些文献的共同限制/未覆盖/冲突推出；证据不足的空白删除或移入 `needs_review`，不得凭空断言。若提供 `contribution_links`，用 `gap_to_contribution` 检查每条空白是否被本文贡献填补。
 5. **对得上**：运行 `align-claims` + `coverage`。`unbacked`（悬空/锚点不存在）与 `inflated`（夸大断言）必须逐条修正——补正文对应处证据，或删除/下调断言。`missing_metadata` 补齐字段；元数据真实性须逐条核验。
-6. **成稿骨架**：运行 `compose` 得到四部件的 `sections`（每部件附动作约束、支撑文献、证据定位）与 `source_map`。相关工作用分组矩阵展开，空白段用 `derive-gap` 的 `supporting_works`+`reasoning`，贡献段逐条对应 `align-claims`；`downgrade_required` 的贡献须下调或补证。
-7. **撰写成稿**：依 `source_map` 与 `sections[].action` 填写连贯文字，逐条核对事实与来源一致，不新增材料外事实。价值判断（转述忠实、空白成立、元数据真实）须回原文确认，结论写入 `pending_confirmation` 的回应。
+6. **成稿（完成器）**：`solve` 一步到位——读 case.json，若输入为 BibTeX/RIS 先 `ingest`，跑四问结构化检查，再由 `render-draft` 用真实字段把四部件写成连贯草稿，装配 result.json（`delivery` 记录落盘回执）。相关工作段落点名真实工作并附同维比较；空白段由 `supporting_works`+`reasoning` 推出；贡献段只用有证据的 claim，悬空/夸大者不写成事实。
+7. **核对定稿**：成稿中每条论断附 `source_refs`，材料不足处用〔待核实〕标注，不新增材料外事实。价值判断（转述忠实、空白成立、元数据真实）须回原文确认；`compose` 的 `sections`/`source_map`/`pending_confirmation` 供逐条核对。
 8. **验证增益**：运行 `compare` 得到该案例的公平对照证据（`gain` 确定性计数），确认四类门禁都拦截了基线会犯的错。
 9. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与全部要求字段；可编辑稿件另存为文件。每条改动附"类型 → 理由 → 证据定位"。
 
@@ -114,7 +118,7 @@ python scripts/intro_engine.py compare  input.json > comparison.json     # 公�
 `result.json` 至少包含：
 - `case_id`：输入案例标识；
 - `status`：`ok` / `needs_attention` / `partial`；
-- `result`：四部件成稿 + 结构化检查结果（`background_check` / `related_work_matrix` / `research_gap` / `contribution_alignment` / `citation_coverage` / `gap_to_contribution`）；
+- `result`：四部件成稿草稿（`draft_text`/`paragraphs`）+ 结构化检查结果（`background_check` / `related_work_matrix` / `research_gap` / `contribution_alignment` / `citation_coverage` / `gap_to_contribution`）；
 - `evidence`：每条论断/空白/贡献的来源定位，以及四原则的落实说明；
 - `uncertainty`：`needs_review` 清单 + 价值判断说明（哪些结论须 Agent 结合原文复核）；
 - 可编辑稿件作为独立文件交付，路径记录在结果中。
@@ -143,6 +147,6 @@ python scripts/intro_engine.py compare  input.json > comparison.json     # 公�
 - `references/comparison_protocol.md`：公平对照协议（增益如何度量、哪些结论须由平台给出）；
 - `references/failure_patterns.md`：12 类失败模式、降级优先级与复用者自查；
 - `examples/benchmark.json`：3 个跨学科公平对照案例（增益可复现）；
-- `examples/`：最小调用示例与 33 项自验收（`python examples/selftest.py`）。
+- `examples/`：最小调用示例与 45 项自验收（含成稿/solve 端到端）（`python examples/selftest.py`）。
 
 本技能与 `citation-integrity`（引用一致性守门人）互补：本技能管引言结构与证据绑定，`citation-integrity` 管引用编号/去重/格式，可串联使用。

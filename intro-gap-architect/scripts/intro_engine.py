@@ -505,6 +505,127 @@ def ingest(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 7) compose：把结构化检查结果装配为可编辑成稿骨架
 # ---------------------------------------------------------------------------
+def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """把四部件从"填写骨架"渲染为【可编辑连贯成稿草稿】。
+
+    完成器核心：脚本自己用输入材料里的真实字段把引言写出来，而不是只给
+    Agent 一堆 action/hint。硬约束：
+      - 只用 works/background/claims 里确实存在的字段，绝不生成材料外事实；
+      - 每条论断附 source_refs（指回 work id / claim id / evidence refs）；
+      - 材料不足以确定的连接词、适用范围等用〔待核实〕显式标注，不臆造；
+      - 与 pipeline 的 check 结果一致：被判空转/悬空/夸大的内容不写成事实。
+    """
+    p = pipeline(payload)
+    r = p["result"]
+    works = payload.get("works", []) or []
+    claims = payload.get("claims", []) or []
+    target = str(payload.get("target_scenario", "") or "").strip()
+
+    paragraphs: List[Dict[str, Any]] = []
+    used_refs: List[str] = []
+
+    # 部件1 研究背景：用原始背景文本，剔除被判"空转无锚点"的句子；保留其余真实句
+    hype_no_anchor = {s.get("text") for s in r["background_check"]["hype_sentences"]
+                      if s.get("reason", "").startswith("空转")}
+    bg_units = []
+    for ln in (payload.get("background", "") or "").splitlines():
+        for sent in re.split(r"(?<=[。！？；.!?;])", ln):
+            st = sent.strip()
+            if st and st not in hype_no_anchor:
+                bg_units.append(st)
+                used_refs.append("background:line%d" % len(bg_units))
+    target_line = ("本文面向%s这一场景展开研究。" % target) if target else ""
+    if target_line:
+        bg_units.append(target_line)
+    bg_text = "".join(bg_units) if bg_units else (
+        "〔待核实：输入背景缺少带锚点的具体脉络，须补充研究问题与引用锚点后成稿〕")
+    paragraphs.append({"part": "研究背景", "text": bg_text,
+                       "source_refs": [x for x in used_refs if x.startswith("background")],
+                       "status": "ok" if bg_units else "needs_attention"})
+
+    # 部件2 相关工作：每个分组一段，按同维比较点连成句，逐条挂 work id
+    rw_paras = []
+    for g in r["related_work_matrix"]["groups"]:
+        cite = "、".join("[%s]" % w["id"] for w in g["works"] if w.get("id"))
+        comps = []
+        for dim, cells in g.get("comparison", {}).items():
+            if cells:
+                parts = ["%s=%s" % (c["id"], str(c["value"])[:40]) for c in cells if c.get("value")]
+                if parts:
+                    comps.append("%s：%s" % (dim, "；".join(parts)))
+        titles = "、".join("%s《%s》" % (w["id"], w["title"])
+                          for w in g["works"] if w.get("title"))
+        body = "；".join(comps) if comps else "〔待核实：该组缺少可比较的统一维度字段〕"
+        lead = titles if titles else cite
+        para = "%s 类工作%s：%s。" % (g["group"], lead, body)
+        rw_paras.append({"group": g["group"], "text": para,
+                         "source_refs": [w["id"] for w in g["works"] if w.get("id")],
+                         "status": "ok" if comps else "needs_attention"})
+        used_refs += [w["id"] for w in g["works"] if w.get("id")]
+    if not rw_paras:
+        rw_paras.append({"group": "(空)", "text": "〔待核实：无可用文献生成相关工作〕",
+                         "source_refs": [], "status": "needs_attention"})
+    paragraphs.append({"part": "相关工作", "blocks": rw_paras,
+                       "text": "\n".join(b["text"] for b in rw_paras),
+                       "source_refs": [x for b in rw_paras for x in b["source_refs"]],
+                       "status": "ok" if all(b["status"] == "ok" for b in rw_paras) else "needs_attention"})
+
+    # 部件3 研究空白：每条由支撑文献推出，附推理；无支撑不写成事实
+    gap_paras = []
+    for gp in r["research_gap"]["gaps"]:
+        sup = gp.get("supporting_works", [])
+        cite = "、".join("[%s]" % s for s in sup) if sup else "〔待核实：无支撑文献〕"
+        gap_paras.append({"type": gp["type"], "text": "%s（%s）。依据：%s" % (
+                              gp["gap"], cite, gp.get("reasoning", "")[:120]),
+                          "source_refs": list(sup),
+                          "status": "ok" if sup else "needs_attention"})
+        used_refs += list(sup)
+    if not gap_paras:
+        gap_paras.append({"type": "(空)", "text": "〔待核实：材料不足，不得凭空断言研究空白〕",
+                          "source_refs": [], "status": "needs_attention"})
+    paragraphs.append({"part": "研究空白", "blocks": gap_paras,
+                       "text": "\n".join(b["text"] for b in gap_paras),
+                       "source_refs": [x for b in gap_paras for x in b["source_refs"]],
+                       "status": "ok" if all(b["status"] == "ok" for b in gap_paras) else "needs_attention"})
+
+    # 部件4 贡献表述：只用对齐且有证据的 claim；悬空/夸大不写成事实
+    contrib_paras = []
+    for c in r["contribution_alignment"]["aligned"]:
+        refs = c.get("evidence_refs", [])
+        ev = ("（证据：%s）" % "、".join(str(x) for x in refs[:5])) if refs else "〔待核实：缺证据锚点〕"
+        contrib_paras.append({"claim_id": c.get("id"), "text": "%s%s。" % (c["text"], ev),
+                              "source_refs": [str(x) for x in refs],
+                              "status": "ok" if refs else "needs_attention"})
+        used_refs += [str(x) for x in refs]
+    for c in r["contribution_alignment"].get("inflated", []):
+        refs = c.get("evidence_refs", [])
+        contrib_paras.append({"claim_id": c.get("id"),
+                              "text": "〔已下调〕%s（原断言锚点不足，须补证据后使用）" % c["text"],
+                              "source_refs": [str(x) for x in refs], "status": "needs_attention"})
+    if not contrib_paras:
+        contrib_paras.append({"claim_id": "(空)", "text": "〔待核实：无有证据支撑的贡献表述〕",
+                              "source_refs": [], "status": "needs_attention"})
+    paragraphs.append({"part": "贡献表述", "blocks": contrib_paras,
+                       "text": "\n".join(b["text"] for b in contrib_paras),
+                       "source_refs": [x for b in contrib_paras for x in b["source_refs"]],
+                       "status": "ok" if all(b["status"] == "ok" for b in contrib_paras) else "needs_attention"})
+
+    full_text = "\n\n".join(
+        ("%s\n%s" % (para["part"], para["text"])) for para in paragraphs)
+    all_ok = all(para["status"] == "ok" for para in paragraphs)
+    return {
+        "case_id": payload.get("case_id", ""),
+        "status": "draft" if all_ok else "partial",
+        "draft_text": full_text,
+        "paragraphs": paragraphs,
+        "source_refs": sorted(set(x for x in used_refs if x)),
+        "uncertainty": ["材料外事实一律不生成；连接词与适用范围以〔待核实〕标注",
+                        "转述忠实度、空白成立性、元数据真实性须结合原文复核"],
+        "note": ("可编辑成稿草稿：仅用输入材料真实字段拼接，每条附来源定位；"
+                 "非最终稿件，价值判断须 Agent/人工核对原文"),
+    }
+
+
 def compose(payload: Dict[str, Any]) -> Dict[str, Any]:
     """基于 check 结果，生成四部件的可编辑成稿骨架 + 来源映射 + 待确认项。
 
@@ -583,11 +704,15 @@ def compose(payload: Dict[str, Any]) -> Dict[str, Any]:
     pending = list(r["related_work_matrix"].get("needs_review", []))
     pending += list(r["research_gap"].get("needs_review", []))
     pending.append("价值判断：转述忠实度、空白成立性、元数据真实性须 Agent 结合原文复核")
+    # 成稿：基于真实字段渲染四部件连贯草稿（完成器核心，非仅骨架）
+    draft = render_draft(payload)
     return {
         "case_id": payload.get("case_id", ""),
-        "status": "draft_skeleton",
-        "note": ("可编辑成稿骨架，非最终稿件；脚本不生成材料外事实，"
-                 "最终文字须由 Agent 依 source_map 填写并核对"),
+        "status": "draft" if draft["status"] == "draft" else "draft_skeleton",
+        "note": ("可编辑成稿草稿 + 结构骨架；脚本不生成材料外事实，"
+                 "最终文字须由 Agent/人工依 source_map 核对原文"),
+        "draft": draft,
+        "draft_text": draft["draft_text"],
         "sections": sections,
         "source_map": source_map,
         "pending_confirmation": pending,
@@ -689,6 +814,21 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "claims_gated": (skill_detections["悬空贡献拦截数"] +
                          skill_detections["夸大断言拦截数"]),
     }
+    # 真实朴素基线成稿：对同一输入把标题逐条平铺（不做分组/空白推导/证据门禁）
+    baseline_text = "\n".join("- %s" % str(w.get("title", ""))
+                              for w in works if str(w.get("title", "")))
+    skill_draft = render_draft(payload)
+    draft_cmp = {
+        "baseline_text": baseline_text or "〔基线无可用材料〕",
+        "baseline_chars": len(baseline_text),
+        "baseline_parts": 1 if baseline_text else 0,
+        "skill_text": skill_draft["draft_text"],
+        "skill_chars": len(skill_draft["draft_text"]),
+        "skill_parts": len([p for p in skill_draft["paragraphs"]
+                            if not p["text"].startswith("〔待核实")]),
+        "note": ("基线=逐篇标题平铺（真实生成的朴素稿）；Skill=四部件成稿草稿。"
+                 "仅比较结构与篇幅证据，不编造质量分；正式质量对照由平台白板给出。"),
+    }
     return {
         "case_id": payload.get("case_id", ""),
         "status": "comparison",
@@ -699,6 +839,7 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "skill_detections": skill_detections,
         "dimensions": dimensions,
         "gain": gain,
+        "draft_comparison": draft_cmp,
         "verifiable": True,
         "limits": ("基线缺陷模型按题面四类常见失败构造，用于方法对照演示与复现；"
                    "真实 Agent 间对照、质量分与耗时由平台评测给出，本表不替代。"),
@@ -797,6 +938,79 @@ def _load(path_or_json: str) -> Any:
         return json.load(f)
 
 
+def _write_solution(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
+    """装配 solve 结果到 out_dir/result.json，返回落盘回执（不静默吞错）。"""
+    import os as _os
+    payload = dict(result)
+    if "case_id" not in payload:
+        payload["case_id"] = case_id
+    path = _os.path.join(out_dir, "result.json")
+    try:
+        _os.makedirs(out_dir, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
+        return {"written": ok, "path": path,
+                "bytes": _os.path.getsize(path) if ok else 0}
+    except Exception as e:
+        return {"written": False, "path": path, "error": type(e).__name__}
+
+
+def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
+    """端到端完成器：读 case.json →（可选 ingest）→ 结构化检查 → 四部件成稿 → 装配 result.json。
+
+    从"只给骨架的守门器"升级为"自己把引言写出来并交付"的完成器。
+    只用真实输入字段成稿，材料不足处〔待核实〕标注，不生成材料外事实。
+    """
+    payload: Dict[str, Any] = {"case_id": ""}
+    if case_path and case_path != "-":
+        try:
+            loaded = _load(case_path)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception as e:
+            payload = {"case_id": "", "input_error": type(e).__name__}
+    cid = str(payload.get("case_id", "") or "")
+
+    # 若输入是 BibTeX/RIS/行式文本，先 ingest 成 works
+    ing = None
+    if payload.get("format") and payload.get("text") and not payload.get("works"):
+        ing = ingest(payload)
+        if ing.get("status") == "ok":
+            payload = dict(payload)
+            payload["works"] = ing["works"]
+
+    # 无 works/background/claims：诚实标注，不伪造
+    if not (payload.get("works") or payload.get("background") or payload.get("claims")):
+        result = {"case_id": cid, "status": "needs_attention",
+                  "input_mode": "case",
+                  "result": {"summary": "输入无 works/background/claims，无法成稿（不伪造内容）"},
+                  "needs_review": ["请提供 works 或 background 或 claims"]}
+        result["delivery"] = _write_solution(result, out_dir, cid)
+        return result
+
+    draft = render_draft(payload)
+    pl = pipeline(payload, compact=True)
+    result = {
+        "case_id": cid,
+        "status": draft["status"],
+        "input_mode": "case",
+        "ingest": ({"format": ing.get("format"), "work_count": ing.get("work_count")}
+                   if ing and ing.get("status") == "ok" else None),
+        "result": {
+            "draft_text": draft["draft_text"],
+            "paragraphs": draft["paragraphs"],
+            "source_refs": draft["source_refs"],
+            "summary": pl.get("summary", {}),
+            "check_status": pl.get("status"),
+        },
+        "uncertainty": draft["uncertainty"],
+        "needs_review": pl.get("needs_review", []) + draft["uncertainty"],
+    }
+    result["delivery"] = _write_solution(result, out_dir, cid)
+    return result
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="引言与相关工作结构化写作确定性引擎")
     sub = p.add_subparsers(dest="cmd")
@@ -821,6 +1035,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     sp = sub.add_parser("compose", help="装配四部件可编辑成稿骨架+来源映射")
     sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
+
+    sp = sub.add_parser("render-draft", help="可核验成稿草稿：仅用真实字段渲染四部件")
+    sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
+
+    sv = sub.add_parser("solve", help="端到端完成器：case.json → (ingest) → 成稿 → result.json")
+    sv.add_argument("case", help="case.json 路径（或 - 读 stdin）")
+    sv.add_argument("--out", default="/app/output", help="交付目录")
 
     sp = sub.add_parser("compare", help="公平对照：基线流程 vs Skill 四问表现")
     sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
@@ -858,6 +1079,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = ingest(_load(args.input))
     elif args.cmd == "compose":
         out = compose(_load(args.input))
+    elif args.cmd == "render-draft":
+        out = render_draft(_load(args.input))
+    elif args.cmd == "solve":
+        out = solve(args.case, args.out)
     elif args.cmd == "compare":
         out = compare(_load(args.input))
     elif args.cmd == "pipeline":
