@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 ENGINE = __import__("pdf_layout_engine")
 
-PROFILE = {'title': '阅读01 文献文档解析', 'cid': 'product-arena-08-3027d350', 'four': ['提得全', '排得对', '拆得清', '核得回'], 'dimensions': [('提得全', '漏行/页眉页脚混入正文', 'verification.problems+verification.coverage*', '字符覆盖率自检+乱码标注'), ('排得对', '双栏串栏/错行/段落拼接', 'structure*', 'x0聚类双栏检测+按y交错阅读序'), ('拆得清', '表格行列/公式上下标希腊字母丢失', 'tables*+formulas*+sections*', '表格众数筛行+真实Unicode希腊字母保真'), ('核得回', '文字无法指回原文页码区块', 'evidence_index*', '逐行bbox证据索引')]}
+PROFILE = {'title': '阅读01 文献文档解析', 'cid': 'product-arena-08-3027d350', 'four': ['提得全', '排得对', '拆得清', '核得回'], 'dimensions': [('提得全', '漏行/页眉页脚混入正文', 'verification.problems*+verification.coverage*', '字符覆盖率自检+乱码标注'), ('排得对', '双栏串栏/错行/段落拼接', 'order.column_reports*+order.order_violations', 'x0聚类双栏检测+跨栏锚点分区后逐栏整段读取'), ('拆得清', '表格行列/公式上下标希腊字母丢失', 'tables*+formulas*+sections*', '表格众数筛行+合并单元格标注+真实Unicode希腊字母保真'), ('核得回', '文字无法指回原文页码区块', 'evidence_index*', '逐行bbox证据索引')]}
 
 STAR_NOTE = "该值为正面证据/覆盖度，越高越好；此处如实呈现，不作为缺陷数"
 

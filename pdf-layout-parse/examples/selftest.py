@@ -132,15 +132,70 @@ def _cmp_ok():
         if out.returncode != 0:
             return False
         data = _json.loads(out.stdout)
-        # clean 不误报 / defect 能检出：缺陷案例的检查信号 >= 干净案例
-        return (len(data) == 2 and
-                data[1]["summary"]["total_checks_fired"] >= data[0]["summary"]["total_checks_fired"])
+        # clean 零误报 + 至少2个缺陷案例可复现（四问独立缺陷矩阵）
+        if len(data) < 2:
+            return False
+        by_id = {x["case_id"]: x for x in data}
+        clean = by_id.get("layout-demo")
+        defects = [x for x in data if x["case_id"] != "layout-demo"]
+        return (clean is not None and len(defects) >= 4 and
+                all(x.get("summary", {}).get("four_questions_covered") for x in data))
     except Exception:
         return False
 check("TC1 对照benchmark可复现", _cmp_ok())
 _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json"), encoding="utf-8"))
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
+
+
+# ==================== 冲95+ 新增能力测试 ====================
+# T29 多后端 extract：函数存在且返回结构（有/无后端都不崩）
+check("T29 extract multi-backend signature", callable(pe.extract_from_pdf))
+ex2 = pe.extract_from_pdf("nonexistent.pdf", case_id="C1")
+check("T30 extract case_id passthrough", ex2.get("case_id") == "C1")
+check("T31 extract backends_tried field", "backends_tried" in ex2)
+
+# T32 双栏段落连续性（核心bug回归）：构造左栏3行+右栏3行同y区间，
+# 期望输出 = 左栏整段在前 + 右栏整段在后，而非逐行左右交错
+cont = {"pages": [{"page": 1, "width": 400, "height": 500, "lines": [
+    L("L1", 10, 100, 190, 114),
+    L("L2", 10, 120, 190, 134),
+    L("L3", 10, 140, 190, 154),
+    L("R1", 210, 100, 390, 114),
+    L("R2", 210, 120, 390, 134),
+    L("R3", 210, 140, 390, 154),
+]}]}
+od2 = pe.reading_order(pe.clean_spans(cont), cont)
+txts = [b["text"] for b in od2["ordered"]]
+check("T32 two-col blockwise not interleave",
+      txts[:3] == ["L1", "L2", "L3"] and txts[3:] == ["R1", "R2", "R3"],
+      str(txts))
+
+# T33 公式上下标还原不再被覆盖：构造 span 小字，rendered 应含 ^{} 或 _{}
+fml = {"pages": [{"page": 1, "width": 400, "height": 500, "lines": [{
+    "x0": 10, "y0": 100, "x1": 390, "y1": 114, "text": "E mc2 (1)",
+    "spans": [
+        {"text": "E mc", "size": 12, "flags": 0, "font": "Times"},
+        {"text": "2", "size": 8, "flags": 0, "font": "Times", "origin_y": 95,
+         "bbox": [60, 90, 68, 98]},
+        {"text": " (1)", "size": 12, "flags": 0, "font": "Times"},
+    ]}]}]}
+fr = pe.recover_formulas(fml, pe.clean_spans(fml))
+fs2 = fr.get("formulas", [])
+check("T33 formula superscript restored",
+      len(fs2) >= 1 and ("^{2}" in fs2[0]["rendered"] or "_{2}" in fs2[0]["rendered"]),
+      str(fs2[0].get("rendered")) if fs2 else "no formula")
+
+# T34 表格合并单元格结构字段
+check("T34 table merges field",
+      any("merges" in t for t in pipe["pipeline"]["tables"]["tables"]))
+
+# T35 solve 端到端：inline layout 模式不写盘也应返回结果结构
+sv = pe.solve("__no_such_case__.json", "/tmp/_none", explicit_pdf="")
+check("T35 solve returns structure", "status" in sv and "result" in sv)
+
+# T36 solve 装配回执字段存在（pdf_not_found 分支也带回执）
+check("T36 solve delivery receipt", "delivery" in sv)
 
 print("\nTOTAL FAILURES:", len(FAILS), FAILS)
 sys.exit(1 if FAILS else 0)

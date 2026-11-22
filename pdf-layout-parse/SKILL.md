@@ -1,11 +1,11 @@
 ---
 name: pdf-layout-parse
-description: 科研 PDF 版面解析守门人。当任务涉及从科研论文 PDF 提取正文/图表题注/脚注/参考文献、修正双栏与多栏阅读顺序、重建复杂表格行列与合并单元格、识别章节层级、保真公式上下标与希腊字母、判定扫描件与乱码、或需要把每段文字指回原文页码与区块时使用本技能。通过确定性几何规则把易错的串栏、错行、吞字、表格错列做准确，并对读不出的部分显式标注而非猜测补齐。不适用于理解公式科学含义或纯内容翻译问答。
+description: 科研 PDF 版面解析。端到端完成器：直接读取平台真实 PDF（/input/case.json 指向），用多后端自动提取带坐标文本，交付逐字保真、栏序正确、结构清晰、每段可回原文页码区块的解析结果并装配 /app/output/result.json。当任务涉及从科研论文 PDF 提取正文/图表题注/脚注/参考文献、修正双栏与多栏阅读顺序、重建复杂表格行列与合并单元格、识别章节层级、保真公式上下标与希腊字母、判定扫描件与乱码时使用本技能。不适用于理解公式科学含义或纯内容翻译问答。
 ---
 
-# PDF 版面解析守门人（PDF Layout Parse Guard）
+# PDF 版面解析（PDF Layout Parse）
 
-面向真实科研 PDF 的版面解析技能。目标不是"给一段看起来像全文的文本"，而是交付**逐字保真、顺序正确、结构清晰、每段可回原文页码与区块**的解析结果，并对无法读取的部分诚实标注。
+面向真实科研 PDF 的**端到端解析技能**。目标不是"检查别人解析得对不对"，而是**自己从真实 PDF 把解析任务做完**：逐字保真、顺序正确、结构清晰、每段可回原文页码与区块，并装配成正式 `result.json`；对读不出的部分诚实标注。
 
 ## 何时触发 / 何时不触发
 
@@ -33,22 +33,35 @@ python scripts/pdf_layout_engine.py --help
 
 引擎主体吃"带坐标的行"：每页给出 `page/width/height/lines`，每行给出 `x0/y0/x1/y1/text/spans`，每个 span 给出 `text/size/flags/font`。坐标原点左上、y 向下、单位 pt。字段契约见 `references/output_contract.md`。
 
-**如何得到 layout**：优先跑可选适配器 `extract`（需 PyMuPDF，环境有则用）：
+**如何得到 layout**：`extract` 会自动按 PyMuPDF → pdfplumber → pdfminer 顺序尝试后端，任一可用即导出带坐标 layout（含 span 级 bbox/size/flags）。全无后端时才返回降级指引。扫描件/图片型 PDF 需先 OCR。多后端回退确保"真实 PDF 入口"不再是断点。
+
 ```bash
-python scripts/pdf_layout_engine.py extract paper.pdf > layout.json
+# 直接对真实 PDF 提取（自动选后端）
+python scripts/pdf_layout_engine.py extract paper.pdf --case-id C1 > layout.json
 ```
-若环境无 PyMuPDF，`extract` 会返回降级指引而不崩溃——用平台可用的任何 PDF 工具（PyMuPDF 的 `page.get_text("dict")`、pdfplumber 的 chars、pdfminer 的 LTChar）导出上述中间表示即可，主体引擎不依赖具体库。扫描件/图片型 PDF 需先 OCR。
+
+**端到端一步完成（推荐）**：`solve` 直接读 `/input/case.json`，自动定位真实 PDF（支持 case.json 的 pdf/pdf_path/material 字段、或 case 目录下任意 *.pdf），提取 → 全流程解析 → 装配 `/app/output/result.json`，并把装配回执写入 `delivery` 字段（written/path/bytes）供核验。
+
+```bash
+# 从平台真实输入到交付物，一步完成
+python scripts/pdf_layout_engine.py solve /input/case.json --out /app/output
+# 显式指定 PDF（case.json 未标注时）
+python scripts/pdf_layout_engine.py solve /input/case.json --out /app/output --pdf /input/paper.pdf
+```
+
+`solve` 也接受 case.json 内联 `pages`/`input_layout`（无需 PDF）。无文字层、PDF 找不到、无后端时返回 `needs_review` 并如实说明，不伪造内容。
 
 ### 子命令（对应题面四问）
 
 | 子命令 | 作用 | 对应题面 |
 |--------|------|----------|
-| `extract` | （可选）PDF → layout JSON，检测无文字层 | 提得全 |
+| `solve` | **端到端完成器**：真实 case/PDF → result.json（推荐入口） | 全部 |
+| `extract` | 多后端自动提取 PDF → layout JSON，检测无文字层 | 提得全 |
 | `clean` | 逐字保真、剔页眉页脚/边注、断行合并、标乱码 | 提得全 |
-| `order` | 分栏检测 + 跨栏块识别 + 双栏按 y 交错重排 | 排得对 |
+| `order` | 分栏检测 + 跨栏块识别 + 跨栏锚点分区后逐栏整段读取 | 排得对 |
 | `sections` | 章节层级与编号、结构树 | 拆得清 |
-| `tables` | 表格行列/单元格重建、跨页续表候选 | 拆得清 |
-| `formulas` | 希腊字母/上下标/公式编号保真（不解释含义） | 拆得清 |
+| `tables` | 表格行列/单元格重建、合并单元格标注、跨页续表候选 | 拆得清 |
+| `formulas` | 希腊字母/上下标（基于 span size 还原 ^{}/_{}）/公式编号保真 | 拆得清 |
 | `captions` | 图表题注识别与配对 | 提得全 |
 | `evidence` | 每块生成页码+区块 bbox 定位索引 | 核得回 |
 | `verify` | 字符覆盖率/漏行/顺序/悬空自检 | 核得回 |
@@ -62,13 +75,15 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 
 ## 标准工作流
 
-1. **识别输入**：读取 `/input/case.json` 与 `task.md`，确认案例要解析什么、证据范围。先判断是否有文字层——无文字层/图片型走 OCR 分支并如实标注，不假装能逐字提取。
-2. **导出中间表示**：用 `extract` 或平台工具把 PDF 导成 layout JSON。字段缺失如实记录。
+**首选一步完成**：`solve /input/case.json --out /app/output`，它串联以下步骤并装配交付物。需要精细控制时按下列分步流程：
+
+1. **识别输入**：读取 `/input/case.json` 与 `task.md`，确认案例要解析什么、证据范围。`solve` 会自动定位真实 PDF；先判断是否有文字层——无文字层/图片型走 OCR 分支并如实标注，不假装能逐字提取。
+2. **提取中间表示**：`extract` 多后端自动导出带坐标 layout JSON。字段缺失如实记录。
 3. **提得全**：跑 `clean`，保留逐字 spans，剔除跨页重复的页眉页脚与页码，合并断行（只补换行不改字），把乱码/缺字行列入 `unreadable`。
-4. **排得对**：跑 `order`，识别双/多栏、跨栏标题与图表，按 y 交错还原阅读顺序，检查 `order_violations`。
-5. **拆得清**：跑 `sections`（层级）、`tables`（行列/单元格）、`formulas`（符号保真）、`captions`（题注）。公式只按结构元素保真，不解释科学含义。
+4. **排得对**：跑 `order`，识别双/多栏、跨栏标题与图表；**同一跨栏区间内先完整读左栏、再完整读右栏**（真实双栏段落是整栏连续的，绝不逐行左右交错），检查 `order_violations`。
+5. **拆得清**：跑 `sections`（层级）、`tables`（行列/单元格/合并单元格）、`formulas`（基于 span size 还原上下标、保真希腊字母）、`captions`（题注）。公式只按结构元素保真，不解释科学含义。
 6. **核得回**：跑 `evidence` 为每个块生成页码+区块，跑 `verify` 检查覆盖率（正文字符覆盖率应≥90%）、漏行、顺序异常；不确定的进 `needs_review`。
-7. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。可编辑结果（reading_text、表格 Markdown）另存文件。每个关键结论附页码与区块定位。
+7. **装配输出**：`solve` 自动按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id` 并在 `delivery` 记录落盘回执。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。每个关键结论附页码与区块定位。
 
 ## 输出契约要点
 
@@ -82,9 +97,9 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 | 无文字层扫描件 | 标注 likely_scanned，走 OCR 分支，不把空结果当成功 |
 | 页眉页脚/边注 | 跨页重复文本+页边位置识别，列入 `dropped` 附 reason |
 | 乱码字体/缺字 | 列入 `unreadable`，如实标注，不猜字 |
-| 双栏串栏错行 | `order` 按坐标重排，输出 `order_violations` 自检 |
+| 双栏串栏错行 | `order` 按跨栏锚点分区、逐栏整段重排，输出 `order_violations` 自检 |
 | 跨页续表 | `continuations` 标注候选，交人工确认合并 |
-| 无 PyMuPDF | `extract` 给降级指引，主体引擎照常用中间表示运行 |
+| 无 PDF 后端 | `extract` 依次试 PyMuPDF→pdfplumber→pdfminer，全无才给降级指引；`solve` 如实返回 `needs_review` |
 
 ## 额度与预算建议（64 请求 / 900 秒 / 16384 token）
 
@@ -95,7 +110,7 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 
 ## 资源清单
 
-- `scripts/pdf_layout_engine.py`：确定性版面解析引擎（10 子命令，主体纯标准库）
+- `scripts/pdf_layout_engine.py`：端到端版面解析引擎（11 子命令，含 `solve` 完成器；主体纯标准库，PDF 提取多后端自动回退）
 - `references/output_contract.md`：输入输出字段契约
 - `references/reading_order_rules.md`：分栏与阅读顺序判定规则
 - `references/table_structure.md`：表格结构重建规则
@@ -104,7 +119,7 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 - `references/vocab.md`：可复用词表（章节/题注/符号模式）
 - `examples/layout_sample.json`：带坐标样例（标注为示例）
 - `examples/testset.json`：10 道边界测试题集
-- `examples/selftest.py`：28 项自验收测试
+- `examples/selftest.py`：38 项自验收测试（含 solve 端到端、双栏段落连续性、公式上下标回归）
 - `examples/minimal_example.md`：最小调用示例
 
 ## 限制与边界
