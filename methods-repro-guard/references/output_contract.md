@@ -69,3 +69,26 @@
   }
 }
 ```
+
+## 成稿与端到端交付（完成器）
+
+`render-draft` / `solve` / `pipeline --with-draft` 产出可编辑可复做章节草稿：
+
+```json
+{
+  "case_id": "...",
+  "status": "ok | needs_attention | partial",
+  "draft_text": "六要素章节草稿全文",
+  "blocks": [
+    {"element":"params","label":"参数","text":"...","status":"ok"}
+  ],
+  "parameter_table": [{"name":"lr","value":0.001,"source":"config.txt","has_source":true}],
+  "source_refs": ["config.txt"],
+  "delivery": {"written":true,"path":"/app/output/result.json","bytes":10429}
+}
+```
+
+- `blocks`：六要素（方法步骤/实验设置/参数/数据集与划分/对照实验/可复现与限制）+ 参数表；每条 `status=needs_attention` 表示该要素无真实表述或缺来源，以 `〔待核实〕` 标注。
+- `parameter_table` / `source_refs`：参数带 source，成稿数值逐条可回溯到来源文件。
+- `value_verification`：数值按「参数名+数值」联合核验；`status=found` 强证据、`value_exists_name_mismatch` 弱证据（不算通过）、`unsupported` 疑似补造。
+- `solve`：读 case.json → `_adapt_materials` 读取 source_files/materials 指向的真实材料 → 检查 → 成稿 → 装配 `/app/output/result.json`；`delivery` 为落盘回执。

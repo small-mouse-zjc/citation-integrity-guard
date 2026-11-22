@@ -125,6 +125,48 @@ _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
 
+
+# ==================== 冲95+ 新增能力测试 ====================
+import tempfile as _tf, os as _os, json as _js
+
+# 参数名语义对齐：数值存在但参数名不符 → 弱证据，不算 supported
+v = me.verify_values("批量大小为32。准确率为0.95。",
+                     {"config.txt": "lr=0.001 batch=32 acc=0.95"})
+check("V1 name aligned found", any(c["status"] == "found" and c["parameter"] == "批量大小"
+                                   for c in v["claims"]))
+check("V2 weak not counted supported", v["all_supported"] is False or v["weak_count"] == 0)
+# 同值错配：正文"学习率为0.95"，来源只有 acc=0.95 → 不能因同值就通过
+v2 = me.verify_values("学习率为0.95。", {"config.txt": "acc=0.95"})
+c2 = v2["claims"][0] if v2["claims"] else {}
+check("V3 same-value wrong-name not found", c2.get("status") != "found",
+      str(c2.get("status")))
+
+# render-draft 六要素成稿
+draft_payload = _js.load(open(os.path.join(os.path.dirname(__file__), "smoke_input.json"), encoding="utf-8"))
+dr = me.render_draft(draft_payload)
+check("D1 draft status", dr["status"] in ("draft", "partial"))
+check("D2 draft text", len(dr.get("draft_text", "")) > 50)
+check("D3 six blocks", len([b for b in dr["blocks"] if b["element"] in
+      ["steps","setup","params","data","baseline","repro_limit"]]) == 6)
+check("D4 source refs", "config.txt" in dr["source_refs"])
+
+# clean 案例真正全绿
+check("D5 clean case ok", me.pipeline(draft_payload)["status"] == "ok")
+
+# solve 端到端 + 材料适配器
+td = _tf.mkdtemp(prefix="methods_solve_")
+open(_os.path.join(td, "config.txt"), "w", encoding="utf-8").write("lr=0.001 seed=42 batch=32 epochs=100")
+case = dict(draft_payload)
+case["sources"] = {}
+case["source_files"] = ["config.txt"]
+_js.dump(case, open(_os.path.join(td, "case.json"), "w", encoding="utf-8"), ensure_ascii=False)
+sv = me.solve(_os.path.join(td, "case.json"), _os.path.join(td, "out"))
+check("D6 solve status", sv["status"] in ("ok", "needs_attention", "partial"))
+check("D7 solve delivery written", sv.get("delivery", {}).get("written") is True)
+rj = _js.load(open(_os.path.join(td, "out", "result.json"), encoding="utf-8"))
+check("D8 solve result assembled", rj.get("case_id") == "smoke" and "result" in rj)
+check("D9 solve adapted materials", sv.get("source_count", 0) >= 1)
+
 print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:
     print("失败:", FAILS)

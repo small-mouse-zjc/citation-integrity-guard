@@ -1,64 +1,64 @@
 {
- "schema": "intro-style-benchmark/v1",
- "purpose": "写作09 方法与实验章节写作 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
- "work": "methods-repro-guard",
- "four_questions": [
-  "写得全",
-  "写得准",
-  "做得着",
-  "说得住"
- ],
- "cases": [
-  {
-   "case_id": "smoke",
-   "type": "clean",
-   "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
-   "input": {
-    "case_id": "smoke",
-    "section_text": "方法步骤：首先预处理，然后训练。实验设置：GPU环境Python 3.10。参数：学习率为0.001。数据集划分比例8:2。与基线对比。复现代码见github，随机种子42，命令python train.py。限制：仍有不足。",
-    "sources": {
-     "config.txt": "lr=0.001 seed=42 batch=32"
+  "schema": "intro-style-benchmark/v1",
+  "purpose": "写作09 方法与实验章节写作 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
+  "work": "methods-repro-guard",
+  "four_questions": [
+    "写得全",
+    "写得准",
+    "做得着",
+    "说得住"
+  ],
+  "cases": [
+    {
+      "case_id": "smoke",
+      "type": "clean",
+      "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
+      "input": {
+        "case_id": "smoke",
+        "section_text": "方法步骤：首先预处理，然后训练。实验设置：GPU环境Python 3.10。参数：学习率为0.001。数据集划分比例8:2。与基线对比。复现代码见github，随机种子42，命令python train.py。限制：仍有不足。数据来自公开数据集，下载链接见项目README。",
+        "sources": {
+          "config.txt": "lr=0.001 seed=42 batch=32 epochs=100"
+        },
+        "params": [
+          {
+            "name": "lr",
+            "value": 0.001,
+            "source": "config.txt"
+          },
+          {
+            "name": "epochs",
+            "value": 100,
+            "source": "config.txt"
+          }
+        ],
+        "gaps": [],
+        "limitations": [
+          "在小样本(<100条)场景准确率下降约15%"
+        ]
+      }
     },
-    "params": [
-     {
-      "name": "lr",
-      "value": 0.001,
-      "source": "config.txt"
-     },
-     {
-      "name": "epochs",
-      "value": 100,
-      "source": ""
-     }
-    ],
-    "gaps": [],
-    "limitations": [
-     "还有一些不足，有待进一步研究"
-    ]
-   }
-  },
-  {
-   "case_id": "smoke-DEFECT",
-   "type": "defect",
-   "desc": "按四问注入典型缺陷，Skill 应检出并标注",
-   "input": {
-    "case_id": "smoke-DEFECT",
-    "section_text": "We set lr=0.003 randomly.",
-    "sources": {
-     "config.txt": "lr=0.001 seed=42 batch=32"
-    },
-    "params": [
-     {
-      "name": "lr",
-      "value": "0.001",
-      "source": ""
-     }
-    ],
-    "gaps": [],
-    "limitations": [
-     "还有一些不足，有待进一步研究"
-    ]
-   }
-  }
- ]
+    {
+      "case_id": "smoke-DEFECT",
+      "type": "defect",
+      "desc": "按四问注入典型缺陷，Skill 应检出并标注",
+      "input": {
+        "case_id": "smoke-DEFECT",
+        "section_text": "We set lr=0.003 randomly.",
+        "sources": {
+          "config.txt": "lr=0.001 seed=42 batch=32"
+        },
+        "params": [
+          {
+            "name": "lr",
+            "value": "0.001",
+            "source": ""
+          }
+        ],
+        "gaps": [],
+        "limitations": [
+          "还有一些不足，有待进一步研究"
+        ]
+      }
+    }
+  ]
 }

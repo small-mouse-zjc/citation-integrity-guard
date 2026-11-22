@@ -29,7 +29,7 @@ description: 方法与实验章节写作守门人。当任务涉及撰写或改�
 ## 核心原则（贯穿所有动作）
 
 1. **六件成套**：方法与实验＝方法步骤 + 实验设置 + 参数 + 数据集与划分 + 对照实验 + 可复现与限制。六类须齐全，缺一即不完整。
-2. **来源优先**：每个数值、参数、条件都要能回到配置文件、实验日志、代码或作者确认。脚本核对数值集合，Agent 核对语义，结论必须给定位。
+2. **来源优先**：每个数值、参数、条件都要能回到配置文件、实验日志、代码或作者确认。脚本按「参数名+数值」联合核验（含中文别名映射），数值存在但参数名不符记为弱证据，不当作通过；Agent 核对语义，结论必须给定位。
 3. **绝不补造**：数值在来源中找不到时，标为"补造嫌疑"交作者确认，**不要为了段落顺畅填一个看起来合理的数**。材料缺口同理。
 4. **写作与核验分离**：先用脚本做要素抽取与交叉核验，再由 Agent 做价值判断（数值是否同一条件、限制是否真成立），最后合并。
 5. **诚实标注**：材料缺失、配置冲突、参数无来源、数据集版本不明、权限不足——一律写入 `uncertainty` / `needs_author_confirmation`，不臆造数值或实验条件。
@@ -54,11 +54,16 @@ python scripts/methods_engine.py --help
 | `check-reproducibility` | 做得着：复现清单 | `items`、`missing`、`reproducible` |
 | `probe-gaps` | 说得住：缺口追问 + 限制具体化 | `open_questions`、`generic_limitations` |
 | `build-param-table` | 参数表：名称/取值/单位/作用对象/来源 | `rows`、`missing_source` |
-| `pipeline` | 串联五步 + 汇总缺口 | 完整结构化结果 |
+| `render-draft` | 用真实字段渲染六要素可复做章节成稿草稿 | `draft_text`、`blocks`、`source_refs` |
+| `solve` | 端到端完成器：case.json →(适配材料)→ 成稿 → result.json | `result.draft_text`、`delivery` |
+| `pipeline` | 串联五步 + 汇总缺口（`--with-draft` 脚本成稿） | 完整结构化结果 |
 
 输入为 UTF-8 JSON。推荐一次跑完：
 ```bash
-python scripts/methods_engine.py pipeline input.json > result.json
+python scripts/methods_engine.py solve case.json --out /app/output            # 端到端成稿+装配
+python scripts/methods_engine.py render-draft input.json > draft.json          # 六要素成稿草稿
+python scripts/methods_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
+python scripts/methods_engine.py pipeline input.json > result.json             # 仅结构化检查
 ```
 
 `input.json` 结构：
@@ -98,7 +103,7 @@ python scripts/methods_engine.py pipeline input.json > result.json
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`（`ok`/`needs_attention`/`partial`）、`result`（五项结构化检查 + `method_experiment_draft`）、`evidence`（四原则落实 + 补造数值/无来源参数/来源定位）、`uncertainty`（追问清单 + 待作者确认 + 缺口数 + 价值判断说明）。完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`、`result`（五项结构化检查 + `method_experiment_draft` + `draft_detail`）、`evidence`、`uncertainty`。`solve` 额外含 `result.draft_text`/`blocks`/`source_refs` 与 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 
