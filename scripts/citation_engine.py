@@ -1127,7 +1127,20 @@ def _entry_type(e: Dict[str, Any]) -> str:
     raw = str(e.get("type") or e.get("genre") or "").strip()
     if raw.upper() in TYPE_RULES:
         return raw.upper()
-    return TYPE_ALIAS.get(raw.lower(), "?")
+    low = raw.lower()
+    if low in TYPE_ALIAS:
+        return TYPE_ALIAS[low]
+    # BibTeX/Crossref 常见复合类型与中文类型名
+    for key, val in (("journal", "J"), ("article", "J"), ("期刊", "J"),
+                     ("book", "M"), ("专著", "M"), ("图书", "M"),
+                     ("conference", "C"), ("proceedings", "C"), ("会议", "C"),
+                     ("thesis", "D"), ("dissertation", "D"), ("学位", "D"),
+                     ("patent", "P"), ("专利", "P"),
+                     ("standard", "S"), ("标准", "S"),
+                     ("web", "EB"), ("online", "EB"), ("网络", "EB")):
+        if key in low:
+            return val
+    return "?"
 
 
 def audit_references(entries: List[Dict[str, Any]],
