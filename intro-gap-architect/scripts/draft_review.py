@@ -230,12 +230,22 @@ def main(argv=None) -> int:
     ap.add_argument("--draft", required=True)
     ap.add_argument("--case", required=True, help="case.json（含 works/references）")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--outdir", default=None,
+                    help="把 Agent 写好的引言与核验结果落盘，并写入 artifacts")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     case = json.loads(Path(args.case).read_text(encoding="utf-8"))
     draft = Path(args.draft).read_text(encoding="utf-8", errors="replace")
     works = norm_works(case)
     r = review(draft, works, str(case.get("case_id") or case.get("id") or ""))
+    if args.outdir:
+        outdir = Path(args.outdir).resolve()
+        outdir.mkdir(parents=True, exist_ok=True)
+        draft_path = outdir / "introduction_draft.md"
+        draft_path.write_text(draft, encoding="utf-8")
+        review_path = outdir / "draft_review.json"
+        review_path.write_text(json.dumps(r, ensure_ascii=False, indent=2), encoding="utf-8")
+        r["artifacts"] = {"draft": str(draft_path), "review": str(review_path), "outdir": str(outdir)}
     text = json.dumps(r, ensure_ascii=False, indent=None if args.json else 2)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")

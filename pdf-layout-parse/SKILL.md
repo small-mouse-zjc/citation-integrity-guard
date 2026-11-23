@@ -56,8 +56,8 @@ python scripts/pdf_layout_engine.py extract paper.pdf > layout.json
 
 推荐一次完成：
 ```bash
-python scripts/pdf_layout_engine.py pipeline layout.json > result.json
-python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.json
+python scripts/pdf_layout_engine.py pipeline layout.json --outdir /app/output > result.json
+python scripts/pdf_layout_engine.py pipeline layout.json --compact --outdir /app/output > summary.json
 ```
 
 ## 标准工作流
@@ -68,7 +68,7 @@ python scripts/pdf_layout_engine.py pipeline layout.json --compact > summary.jso
 4. **排得对**：跑 `order`，识别双/多栏、跨栏标题与图表，按 y 交错还原阅读顺序，检查 `order_violations`。
 5. **拆得清**：跑 `sections`（层级）、`tables`（行列/单元格）、`formulas`（符号保真）、`captions`（题注）。公式只按结构元素保真，不解释科学含义。
 6. **核得回**：跑 `evidence` 为每个块生成页码+区块，跑 `verify` 检查覆盖率（正文字符覆盖率应≥90%）、漏行、顺序异常；不确定的进 `needs_review`。
-7. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。可编辑结果（reading_text、表格 Markdown）另存文件。每个关键结论附页码与区块定位。
+7. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`pipeline --outdir /app/output` 会真实写出 `reading_text.md`、`sections.json`、`tables.md`，并在 `result.artifacts` 记录路径。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。每个关键结论附页码与区块定位。
 
 ## 输出契约要点
 

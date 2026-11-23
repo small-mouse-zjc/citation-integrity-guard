@@ -39,7 +39,7 @@ description: 文献知识图谱构建守门人。当任务要求从科研论文�
 
 ```bash
 python scripts/kg_engine.py --help
-python scripts/kg_engine.py pipeline input.json > result.json
+python scripts/kg_engine.py pipeline input.json --outdir /app/output > result.json
 ```
 
 ### 子命令
@@ -89,7 +89,7 @@ python scripts/kg_engine.py pipeline input.json > result.json
 2. 抽取实体并逐条 `check_entity`：表面形式落地、类型合法、位置 JATS、短引命中、自述/转述分明。
 3. 抽取关系并逐条 `check_relation`：受控类型+方向+条件+直接证据；跨篇关系必须 `cross_paper:true` 且有直接证据。
 4. `align_entities` 处理别名与同名：同篇别名给依据合并，跨篇相同表面保留冲突节点。
-5. `bind-source` 逐节点/边核验来源绑定；`query-graph` 执行**至少 3 个真实查询**并核对每个结果可回查；`pipeline.result.coverage_check` 的 `query_total>=3`、`query_traceable=query_total`、`graph_thin=false` 必须满足，否则补查询/补图谱，不带病导出。
+5. `bind-source` 逐节点/边核验来源绑定；`query-graph` 执行**至少 3 个真实查询**并核对每个结果可回查；`pipeline.result.coverage_check` 的 `query_total>=3`、`query_traceable=query_total`、`graph_thin=false` 必须满足，否则补查询/补图谱，不带病导出。`pipeline --outdir /app/output` 会真实写出 `graph.json`、`query_answers.json`、`coverage_check.json`。
 6. 如增量加入新论文，用 `incremental-update` 保留既有编号并记录新增/合并/冲突。
 7. `check-export` 确认导出可读，`pipeline` 汇总。任何 `needs_attention` 项都要回到原文复核，不臆造补齐。
 

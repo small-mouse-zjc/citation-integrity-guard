@@ -339,7 +339,7 @@ def check_quality(nanopubs: List[Dict[str, Any]]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], outdir: Optional[str] = None) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     paragraph = payload.get("paragraph", "")
     assertions = payload.get("assertions", []) or []   # [{text, subject, relation, object, evidence, evidence_type, anchor, confidence}]
@@ -380,7 +380,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     all_bound = all(e["bound"] for e in e_reports)
     overall = (all_bound and r_prov["complete"] and r_export["machine_readable"]
                and not r_quality["duplicate_assertions"] and r_cov["ok"])
-    return {
+    out = {
         "case_id": case_id,
         "status": "ok" if overall else "needs_attention",
         "result": {
@@ -409,6 +409,23 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
 
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        np_path = os.path.join(out_dir, "nanopublications.json")
+        with open(np_path, "w", encoding="utf-8") as f:
+            json.dump(nanopubs, f, ensure_ascii=False, indent=2)
+        artifacts["nanopublications_json"] = np_path
+        map_path = os.path.join(out_dir, "assertion_evidence_map.json")
+        with open(map_path, "w", encoding="utf-8") as f:
+            json.dump({"assertions": a_reports, "evidence": e_reports,
+                       "coverage": r_cov}, f, ensure_ascii=False, indent=2)
+        artifacts["assertion_evidence_map_json"] = map_path
+        out["result"]["artifacts"] = artifacts
+    return out
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -436,7 +453,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("check-export", help="读得懂"); sp.add_argument("input")
     sp = sub.add_parser("check-quality", help="质量检查"); sp.add_argument("input")
     sp = sub.add_parser("plan-assertions", help="候选断言槽与建议密度"); sp.add_argument("input")
-    sub.add_parser("pipeline", help="端到端").add_argument("input")
+    sp = sub.add_parser("pipeline", help="端到端")
+    sp.add_argument("input")
+    sp.add_argument("--outdir", default=None,
+                    help="把 nanopublications.json 与断言-证据映射落盘，并写入 result.artifacts")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -457,7 +477,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         d = _load(args.input)
         out = plan_assertions(d.get("paragraph", d.get("text", "")))
     elif args.cmd == "pipeline":
-        out = pipeline(_load(args.input))
+        out = pipeline(_load(args.input), outdir=args.outdir)
     else:
         p.print_help(); return 1
     print(json.dumps(out, ensure_ascii=False, indent=2))

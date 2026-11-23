@@ -26,7 +26,7 @@ description: LaTeX 写作与编译守门人。当任务要求编写或修复 LaT
 
 1. **先编译，再修**：不许只看代码猜错。先跑 `compile_latex.py` 拿到真实日志与 PDF，再按 `file:line` 修。
 2. **修源码，不是写报告**：必须实际编辑 `.tex/.bib/.cls` 文件；只输出"建议"不算完成。
-3. **编译通过才算交付**：`compile_ok=true` 且 PDF 页数 > 0 才能把状态写成 success；否则 partial 并说明卡在哪。
+3. **编译通过才算交付**：`compile_ok=true`、PDF 页数 > 0、且 `pdf_text_check.ok` 不为 `false`（`null` 表示环境无文本抽取后端，需在 `uncertainty` 说明）才能把状态写成 success；否则 partial 并说明卡在哪。
 4. **不伪造产物**：编译器缺失、缺宏包、模板类文件缺失、权限不足，一律如实写进 `uncertainty`，不虚构 PDF、页数或"已编译"。
 5. **改动可回溯**：每条修改记录"原源码 → 改后 → 类型 → 理由 → 文件:行号"。
 6. **不交预制答案**：处理平台给定工程，不拿预写源码或样例产物冒充。
@@ -38,7 +38,7 @@ python scripts/compile_latex.py <工程目录> [--main main.tex] [--engine auto|
   --outdir /app/output --json-out /app/output/compile_report.json
 ```
 
-它会：识别主文件与引擎（magic comment / ctex / xeCJK）→ 复制到临时目录 → 用 `latexmk` 或 `pdflatex/xelatex/lualatex/tectonic` 多轮编译 → 解析 `.log`（`file:line: error`、`! ...`、`l.N`、级联）→ 复制 PDF 与可编辑源码到输出目录 → 返回 JSON：`compile_ok`、`pdf`、`pages`、`errors[]`、`cascading`、`missing_files[]`、`log_tail`。
+它会：识别主文件与引擎（magic comment / ctex / xeCJK）→ 复制到临时目录 → 用 `latexmk` 或 `pdflatex/xelatex/lualatex/tectonic` 多轮编译 → 解析 `.log`（`file:line: error`、`! ...`、`l.N`、级联）→ 抽取 PDF 文本确认不是空壳 → 复制 PDF 与可编辑源码到输出目录 → 返回 JSON：`compile_ok`、`pdf`、`pages`、`pdf_text_check`、`errors[]`、`cascading`、`missing_files[]`、`log_tail`。
 
 **返回 `no_latex_compiler`**：说明镜像没有 TeX。此时改用静态检查链路，交付 partial，并在 `uncertainty` 写明"无法真实编译"，不得声称编译成功。
 
@@ -88,6 +88,7 @@ python scripts/latex_engine.py pipeline input.json > result.json
 8. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id` 与全部契约字段；`result` 必须含：
    - `latex_source`（主文件与子文件路径、关键改动）；
    - `compiled_pdf`（路径、页数、字节数、`compile_ok`）；
+- `pdf_text_check`（`ok`、`backend`、`chars`、前 300 字符样例；无后端时给 `reason`）；
    - `compile`（引擎、轮次、错误/警告、缺失文件）；
    - `changes`（原→改→类型→理由→file:line）；
    - `summary`（一行结论）。
@@ -96,7 +97,7 @@ python scripts/latex_engine.py pipeline input.json > result.json
 ## 输出契约要点
 
 顶层：`case_id`、`status`（`success`/`partial`/`needs_review`）、`result`、`evidence`、`uncertainty`。
-`result` 至少含 `latex_source`、`compiled_pdf`、`compile`、`changes`、`verification`（五项检查）、`summary`。
+`result` 至少含 `latex_source`、`compiled_pdf`、`pdf_text_check`、`compile`、`changes`、`verification`（五项检查）、`summary`。
 `evidence` 至少含 `error_locations`、`dangling_refs`、`template_checks`、`pdf_evidence`。
 `uncertainty` 至少含 `needs_compile_verify`（仅静态检查时 true）、`missing_files`、`note`。
 完整字段见 `references/output_contract.md`。

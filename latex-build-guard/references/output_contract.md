@@ -18,6 +18,7 @@
 |------|------|---------|
 | `latex_source` | 交付 | 主文件/子文件路径、关键改动、是否可独立编译 |
 | `compiled_pdf` | `compile_latex.py` | `path`、`pages`、`bytes`、`compile_ok` |
+| `pdf_text_check` | `compile_latex.py` | `ok`（true/false/null）、`backend`（pdftotext/pymupdf）、`chars`、`sample`；`null` 表示环境无文本抽取后端，需在 `uncertainty` 说明 |
 | `compile` | `compile_latex.py` | `engine`、`rounds`、`errors`、`warnings`、`missing_files`、`log_tail` |
 | `changes` | Agent | 原源码 → 改后 → 类型 → 理由 → `file:line` |
 | `source_check` | check-source | `structure_ok`、`issues` |

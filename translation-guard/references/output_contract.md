@@ -22,6 +22,7 @@
 - `glossary[].target` 非空表示"已锁定译名"；空则为候选待确认。
 - `translations`：段号→译文；翻译类子命令不需要，核验类需要。
 - **交付必须带 `result.translations`**：每段含源文与真实译文；只交核验表或保护文本视为 partial。
+- `result.artifacts`：`pipeline --outdir` 实际写出的 `translations_json` / `translations_md` 路径；附 `outdir`。路径必须存在。
 
 ## 输出：pipeline result.json
 

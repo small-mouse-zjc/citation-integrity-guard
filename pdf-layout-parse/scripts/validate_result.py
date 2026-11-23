@@ -112,6 +112,14 @@ def validate(result_path: str, outdir: str | None = None, case_path: str | None 
         v = result.get(key)
         if isinstance(v, list):
             declared.extend(v)
+        elif isinstance(v, dict):
+            for k, vv in v.items():
+                if k == "outdir" or not isinstance(vv, str) or not vv.strip():
+                    continue
+                # 只把看起来像产物路径的值纳入存在性检查
+                if (k.endswith(("_path", "_md", "_json", "_pdf", "_txt", "_docx", "_csv"))
+                        or k in ("manuscript", "bibliography", "draft", "review")):
+                    declared.append(vv)
     for d in declared:
         if not isinstance(d, str):
             continue

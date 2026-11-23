@@ -58,7 +58,7 @@ python scripts/translation_guard.py --help
 | `restore` | 翻译后：回填占位符，核对丢失/篡改 | 关系准 |
 | `verify` | 数字/否定/限定/引用/化学式保真自检 | 关系准/可核验 |
 | `evidence` | 每段译文的原文定位 + 译法依据 | 可核验 |
-| `pipeline` | 全流程串联，`--compact` 省 token | 全部 |
+| `pipeline` | 全流程串联，`--compact` 省 token；`--outdir` 把真实译文/双语对照落盘 | 全部 |
 
 ## 标准工作流（翻译前 → 翻译后）
 
@@ -70,7 +70,7 @@ python scripts/translation_guard.py --help
 6. **回填核对**：`restore` 回填占位符，核对有无丢失/篡改（数字被改、引用被删会告警）。
 7. **段落对齐**：`align` 检查段号一一对应，漏段/重复/错位显式列出。
 8. **译文核验**：`check_terms`（译名一致）+ `verify`（数字/否定/限定/引用/公式保真）+ `evidence`（每段回原文与依据）。译不准的进 `needs_review`。
-9. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。双语对照另存文件。
+9. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。跑 `pipeline --outdir /app/output` 会把 `translations.json` 与 `translations.md`（原文/译文对照）真实落盘，并在 `result.artifacts` 记录路径。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。
 
 ## 输出契约要点
 

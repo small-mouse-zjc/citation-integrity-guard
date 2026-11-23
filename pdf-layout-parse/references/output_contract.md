@@ -56,6 +56,7 @@
 字段说明：
 
 - `reading_text`：按 `order` 的 `ordered` 序列拼接，跨页换行；不改写措辞。
+- `artifacts`：`pipeline --outdir` 实际写出的 `reading_text.md` / `sections.json` / `tables.md` / `outdir` 路径；路径必须存在。
 - `structure` / `sections`：章节层级树与扁平列表，`level` 由编号深度或 `kind` 决定。
 - `tables[].markdown`：Markdown 表格；`continuations` 给跨页续表候选（在 `pipeline.tables`）。
 - `formulas[].rendered`：保真符号文本（保留真实 Unicode 希腊字母，不把 ASCII 改为希腊字母）。

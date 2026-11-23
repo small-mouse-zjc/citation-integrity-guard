@@ -503,7 +503,8 @@ def evidence(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 5) 全流程
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False,
+             outdir: Optional[str] = None) -> Dict[str, Any]:
     p = _as_payload(payload)
     seg = segment(p)
     gloss = build_glossary(p)
@@ -583,6 +584,28 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
                            "protect": prot, "restore": rest, "align": align_res,
                            "check_terms": term_res, "verify": ver, "evidence": ev}
     out["result"] = result
+
+    # 真实译文/双语对照落盘，避免只交核验表
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        trans = result.get("translations") or []
+        if trans:
+            json_path = os.path.join(out_dir, "translations.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(trans, f, ensure_ascii=False, indent=2)
+            artifacts["translations_json"] = json_path
+            md_path = os.path.join(out_dir, "translations.md")
+            with open(md_path, "w", encoding="utf-8") as f:
+                f.write("# 译文对照\n\n")
+                for item in trans:
+                    f.write("## %s\n\n" % item.get("id", ""))
+                    f.write("**原文**：%s\n\n" % item.get("source", ""))
+                    f.write("**译文**：%s\n\n" % (item.get("target") or "[未译]"))
+            artifacts["translations_md"] = md_path
+        result["artifacts"] = artifacts
     return out
 
 
@@ -606,6 +629,8 @@ def main(argv=None):
             sp.add_argument("--min-freq", type=int, default=2)
         if c == "pipeline":
             sp.add_argument("--compact", action="store_true")
+            sp.add_argument("--outdir", default=None,
+                            help="把真实译文与双语对照写到该目录，并在 result.artifacts 记录路径")
     args = ap.parse_args(argv)
     data = _load(args.input)
     p = _as_payload(data)
@@ -626,7 +651,7 @@ def main(argv=None):
     elif args.cmd == "evidence":
         out = evidence(p)
     elif args.cmd == "pipeline":
-        out = pipeline(p, compact=args.compact)
+        out = pipeline(p, compact=args.compact, outdir=args.outdir)
     else:
         ap.error("未知命令"); return 2
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")

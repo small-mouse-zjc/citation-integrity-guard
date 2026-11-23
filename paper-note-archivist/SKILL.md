@@ -58,7 +58,7 @@ python scripts/notes_engine.py --help
 
 输入为 UTF-8 JSON。推荐一次跑完：
 ```bash
-python scripts/notes_engine.py pipeline input.json > result.json
+python scripts/notes_engine.py pipeline input.json --outdir /app/output > result.json
 ```
 
 `input.json` 结构：
@@ -99,7 +99,7 @@ python scripts/notes_engine.py pipeline input.json > result.json
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`（`ok`/`needs_attention`/`partial`）、`result`（五项结构化检查 + `structured_notes` + `notes_metrics`）、`evidence`（四原则落实 + 缺锚点/坏锚点/知识点合并）、`uncertainty`（未报告字段 + 待确认归一 + 价值判断说明）。阅读/解析结果须覆盖任务要求且能回到材料定位。**`structured_notes` 是主产物，必须由 Agent 逐节读完原文后写成完整、可回链的笔记（正文合计不少于 200 字符）；只交检查表或空 notes，`status` 直接是 `partial`。** 完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`（`ok`/`needs_attention`/`partial`）、`result`（五项结构化检查 + `structured_notes` + `notes_metrics` + 可选 `artifacts`）、`evidence`（四原则落实 + 缺锚点/坏锚点/知识点合并）、`uncertainty`（未报告字段 + 待确认归一 + 价值判断说明）。阅读/解析结果须覆盖任务要求且能回到材料定位。**`structured_notes` 是主产物，必须由 Agent 逐节读完原文后写成完整、可回链的笔记（正文合计不少于 200 字符）；只交检查表或空 notes，`status` 直接是 `partial`。** `pipeline --outdir /app/output` 会真实写出 `structured_notes.md` 与 `reading_card.json`。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 

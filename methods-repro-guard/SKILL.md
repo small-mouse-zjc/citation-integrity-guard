@@ -100,7 +100,7 @@ python scripts/case_io.py /input/case.json --out /app/work/case_texts.json
 
 ```bash
 python scripts/methods_engine.py pipeline /app/work/pipeline_input.json \
-  --draft-file /app/work/method_experiment_draft.md > /app/work/checks.json
+  --draft-file /app/work/method_experiment_draft.md --outdir /app/output > /app/work/checks.json
 ```
 
 `pipeline_input.json` 至少：

@@ -1036,13 +1036,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("compose", help="装配四部件可编辑成稿骨架+来源映射")
     sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
 
-    sp = sub.add_parser("render-draft", help="可核验成稿草稿：仅用真实字段渲染四部件")
-    sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
-
-    sv = sub.add_parser("solve", help="端到端完成器：case.json → (ingest) → 成稿 → result.json")
-    sv.add_argument("case", help="case.json 路径（或 - 读 stdin）")
-    sv.add_argument("--out", default="/app/output", help="交付目录")
-
     sp = sub.add_parser("compare", help="公平对照：基线流程 vs Skill 四问表现")
     sp.add_argument("input", help="JSON 全量输入（同 pipeline）")
 
@@ -1079,10 +1072,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = ingest(_load(args.input))
     elif args.cmd == "compose":
         out = compose(_load(args.input))
-    elif args.cmd == "render-draft":
-        out = render_draft(_load(args.input))
-    elif args.cmd == "solve":
-        out = solve(args.case, args.out)
     elif args.cmd == "compare":
         out = compare(_load(args.input))
     elif args.cmd == "pipeline":

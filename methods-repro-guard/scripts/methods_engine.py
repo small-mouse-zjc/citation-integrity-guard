@@ -258,7 +258,7 @@ def build_param_table(params: List[Dict[str, Any]]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], outdir: Optional[str] = None) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     section = payload.get("section_text", "")
     sources = payload.get("sources", {}) or {}
@@ -281,7 +281,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     draft = str(payload.get("draft", "") or "")
     draft_present = len(draft.strip()) >= 200
     status = "ok" if (overall and draft_present) else ("partial" if not draft_present else "needs_attention")
-    return {
+    out = {
         "case_id": case_id,
         "status": status,
         "result": {
@@ -311,6 +311,23 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
                      "脚本只做数值集合比对，不做语义等价判定"),
         },
     }
+
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        if draft.strip():
+            draft_path = os.path.join(out_dir, "method_experiment_draft.md")
+            with open(draft_path, "w", encoding="utf-8") as f:
+                f.write(draft.rstrip() + "\n")
+            artifacts["draft_md"] = draft_path
+        params_path = os.path.join(out_dir, "parameter_table.json")
+        with open(params_path, "w", encoding="utf-8") as f:
+            json.dump(r_param, f, ensure_ascii=False, indent=2)
+        artifacts["parameter_table_json"] = params_path
+        out["result"]["artifacts"] = artifacts
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +369,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("pipeline", help="端到端")
     sp.add_argument("input", help="JSON 全量输入")
     sp.add_argument("--draft-file", default=None, help="Agent 写好的方法章节全文；优先级高于 input JSON 的 draft")
+    sp.add_argument("--outdir", default=None,
+                    help="把方法章节与参数表落盘，并在 result.artifacts 记录路径")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -374,7 +393,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.draft_file:
             with open(args.draft_file, encoding="utf-8", errors="replace") as f:
                 d["draft"] = f.read()
-        out = pipeline(d)
+        out = pipeline(d, outdir=args.outdir)
     else:
         p.print_help(); return 1
 

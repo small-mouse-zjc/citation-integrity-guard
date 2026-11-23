@@ -16,6 +16,7 @@
 |---|---|---|
 | `method_experiment_draft` | 是 | 完整方法与实验章节（>=200 字符；通常 1500–5000 字） |
 | `draft_metrics` | 是 | `chars`、`present`、`required_min_chars` |
+| `artifacts` | 是（有 `--outdir` 时） | `method_experiment_draft.md` / `parameter_table.json` / `outdir` 的真实路径；只写已有内容 |
 | `completeness` | 是 | 六类要素 `elements/missing/complete` |
 | `value_verification` | 是 | `claims/unsupported/all_supported` |
 | `reproducibility` | 是 | `items/missing/reproducible` |

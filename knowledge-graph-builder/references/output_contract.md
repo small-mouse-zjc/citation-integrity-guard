@@ -34,7 +34,8 @@
       "query_total": int, "query_answered": int, "query_traceable": int
     },
     "incremental_update": {...} | null,
-    "graph": {"nodes": [...], "edges": [...]}
+    "graph": {"nodes": [...], "edges": [...]},
+    "artifacts": {"graph_json": "...", "query_answers_json": "...", "coverage_json": "...", "outdir": "..."}
   },
   "evidence": {
     "principles": {"抽得准","连得对","对得齐","查得到回得去"},

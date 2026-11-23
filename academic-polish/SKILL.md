@@ -87,7 +87,8 @@ python scripts/polish_audit.py ledger --input /app/work/source.txt \
 ```bash
 python scripts/polish_audit.py check \
   --source /app/work/source.txt --revised /app/work/polished.md \
-  --termbase /app/work/termbase.csv --out /app/work/audit.json
+  --termbase /app/work/termbase.csv --out /app/work/audit.json \
+  --outdir /app/output
 ```
 
 看 `gate`：
@@ -116,7 +117,8 @@ python scripts/polish_audit.py check \
     ],
     "termbase": [{"source": "...", "target": "...", "forbidden": "..."}],
     "audit": {"gate": "pass", "counts": {...}, "violations": [...]},
-    "summary": "一段话：改了哪几类、保住了哪些硬事实、还剩哪些需作者确认"
+    "summary": "一段话：改了哪几类、保住了哪些硬事实、还剩哪些需作者确认",
+    "artifacts": {"polished_md": "/app/output/polished.md", "audit_json": "/app/output/polish_audit.json"}
   },
   "evidence": {
     "principles": {"改得对": "...", "说得像": "...", "没改坏": "...", "讲得清": "..."},

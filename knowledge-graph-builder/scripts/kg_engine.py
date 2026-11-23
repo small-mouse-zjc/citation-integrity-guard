@@ -646,7 +646,7 @@ def coverage_check(graph: Dict[str, Any], query_result: Dict[str, Any]) -> Dict[
     }
 
 
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], outdir: Optional[str] = None) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     source_index = payload.get("source_index") or {}
     known_papers = list(source_index.keys()) or payload.get("known_papers") or None
@@ -687,7 +687,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     overall = (r_ent["rejected"] == 0 and r_rel["rejected"] == 0
                and r_query["all_traceable"] and r_export["machine_readable"]
                and r_cov["ok"] and all(b["bound"] for b in r_bind))
-    return {
+    out = {
         "case_id": case_id,
         "status": "ok" if overall else "needs_attention",
         "result": {
@@ -722,6 +722,26 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
 
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        graph_path = os.path.join(out_dir, "graph.json")
+        with open(graph_path, "w", encoding="utf-8") as f:
+            json.dump(graph, f, ensure_ascii=False, indent=2)
+        artifacts["graph_json"] = graph_path
+        query_path = os.path.join(out_dir, "query_answers.json")
+        with open(query_path, "w", encoding="utf-8") as f:
+            json.dump(r_query, f, ensure_ascii=False, indent=2)
+        artifacts["query_answers_json"] = query_path
+        coverage_path = os.path.join(out_dir, "coverage_check.json")
+        with open(coverage_path, "w", encoding="utf-8") as f:
+            json.dump(r_cov, f, ensure_ascii=False, indent=2)
+        artifacts["coverage_json"] = coverage_path
+        out["result"]["artifacts"] = artifacts
+    return out
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -741,7 +761,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub.add_parser("query-graph", help="查得到回得去").add_argument("input")
     sub.add_parser("incremental-update", help="增量更新").add_argument("input")
     sub.add_parser("check-export", help="导出检查").add_argument("input")
-    sub.add_parser("pipeline", help="端到端").add_argument("input")
+    sp = sub.add_parser("pipeline", help="端到端")
+    sp.add_argument("input")
+    sp.add_argument("--outdir", default=None,
+                    help="把 graph.json / query_answers.json / coverage_check.json 落盘，并写入 result.artifacts")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -762,7 +785,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif args.cmd == "check-export":
         out = check_export(d.get("graph", {}), d.get("format", "json"))
     elif args.cmd == "pipeline":
-        out = pipeline(d)
+        out = pipeline(d, outdir=args.outdir)
     else:
         p.print_help(); return 1
     print(json.dumps(out, ensure_ascii=False, indent=2))

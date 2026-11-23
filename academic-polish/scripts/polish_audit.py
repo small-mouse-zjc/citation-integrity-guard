@@ -421,6 +421,8 @@ def main(argv=None) -> int:
     c.add_argument("--revised", required=True, help="改文文件，或 - 从 stdin 读")
     c.add_argument("--termbase", default=None)
     c.add_argument("--out", default=None)
+    c.add_argument("--outdir", default=None,
+                   help="把润色后的正文与核验结果落盘，并写入 artifacts")
     c.add_argument("--json", action="store_true", help="输出紧凑 JSON")
     args = ap.parse_args(argv)
 
@@ -433,7 +435,19 @@ def main(argv=None) -> int:
     if args.cmd == "ledger":
         res = ledger(read(args.input), tb)
     else:
-        res = audit(read(args.source), read(args.revised), tb)
+        source_text = read(args.source)
+        revised_text = read(args.revised)
+        res = audit(source_text, revised_text, tb)
+        if args.outdir:
+            outdir = Path(args.outdir).resolve()
+            outdir.mkdir(parents=True, exist_ok=True)
+            polished = outdir / "polished.md"
+            polished.write_text(revised_text, encoding="utf-8")
+            audit_json = outdir / "polish_audit.json"
+            audit_json.write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
+            res["artifacts"] = {"polished_md": str(polished),
+                                "audit_json": str(audit_json),
+                                "outdir": str(outdir)}
     text = json.dumps(res, ensure_ascii=False, indent=None if args.json else 2)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")

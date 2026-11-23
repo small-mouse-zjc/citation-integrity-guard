@@ -270,7 +270,7 @@ def build_reading_card(fields: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], outdir: Optional[str] = None) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     paper_sections = payload.get("paper_sections", []) or []
     note_sections = payload.get("note_sections", []) or []
@@ -291,7 +291,7 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
                            for n in notes if isinstance(n, dict))
     notes_present = len(notes_text.strip()) >= 200 and len(notes) >= 1
     status = "ok" if (overall and notes_present) else ("partial" if not notes_present else "needs_attention")
-    return {
+    out = {
         "case_id": case_id,
         "status": status,
         "result": {
@@ -321,6 +321,29 @@ def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
 
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        if notes_text.strip():
+            notes_path = os.path.join(out_dir, "structured_notes.md")
+            with open(notes_path, "w", encoding="utf-8") as f:
+                f.write("# 结构化笔记\n\n")
+                for n in notes:
+                    if not isinstance(n, dict):
+                        continue
+                    f.write("## %s\n\n" % n.get("id", ""))
+                    f.write("**锚点**：%s\n\n" % n.get("anchor", ""))
+                    f.write("**笔记**：%s\n\n" % (n.get("text") or n.get("summary") or n.get("note") or ""))
+            artifacts["notes_md"] = notes_path
+        card_path = os.path.join(out_dir, "reading_card.json")
+        with open(card_path, "w", encoding="utf-8") as f:
+            json.dump(r_readcard, f, ensure_ascii=False, indent=2)
+        artifacts["reading_card_json"] = card_path
+        out["result"]["artifacts"] = artifacts
+    return out
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -343,7 +366,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     ]:
         sp = sub.add_parser(name, help=helptext); sp.add_argument("input", help="JSON 输入")
 
-    sub.add_parser("pipeline", help="端到端").add_argument("input", help="JSON 全量输入")
+    sp = sub.add_parser("pipeline", help="端到端")
+    sp.add_argument("input", help="JSON 全量输入")
+    sp.add_argument("--outdir", default=None,
+                    help="把 structured_notes.md 与 reading_card.json 落盘，并写入 result.artifacts")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -360,7 +386,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif args.cmd == "build-reading-card":
         d = _load(args.input); out = build_reading_card(d.get("fields", {}))
     elif args.cmd == "pipeline":
-        out = pipeline(_load(args.input))
+        out = pipeline(_load(args.input), outdir=args.outdir)
     else:
         p.print_help(); return 1
 

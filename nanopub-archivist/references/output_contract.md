@@ -24,6 +24,7 @@
 | `quality_check` | check-quality | `duplicate_assertions`、`ambiguous_subjects`、`subject_count` |
 | `assertion_coverage` | coverage_check | `ok`、`assertion_count`、`recommended_min_assertions`、`uncovered_sentences`、`issues` |
 | `nanopublications` | pipeline 组装 | 每条含 assertion/subject/relation/object/evidence/evidence_location/evidence_type/paper/authors/year/version/identifier/confidence |
+| `artifacts` | pipeline（有 `--outdir` 时） | `nanopublications.json` / `assertion_evidence_map.json` / `outdir` 的真实路径 |
 
 ## nanopublication 字段字典
 

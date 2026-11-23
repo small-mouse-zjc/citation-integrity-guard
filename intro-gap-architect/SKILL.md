@@ -99,7 +99,8 @@ python scripts/intro_engine.py ingest '{"format":"bibtex","text":"..."}' > /app/
 
 ```bash
 python scripts/draft_review.py --draft /app/work/introduction_draft.md \
-  --case /input/case.json --out /app/work/draft_review.json
+  --case /input/case.json --out /app/work/draft_review.json \
+  --outdir /app/output
 ```
 
 - `gate=fail`：先修 critical（缺部件、引用无法映射、空白支撑不足）。

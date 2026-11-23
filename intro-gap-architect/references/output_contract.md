@@ -20,6 +20,7 @@
 | `claims` | 是 | `[{id, text, evidence_refs}]`，每条贡献对应 |
 | `checks` | 是 | `draft_review` 的 gate/counts/violations；可选 `pipeline` 摘要 |
 | `delivery` | 是 | `{draft_md, draft_review_json, source_map_json}` 路径 |
+| `artifacts` | 否 | `draft_review --outdir` 实际写出的 `introduction_draft.md` / `draft_review.json` / `outdir`；路径必须存在 |
 | `summary` | 是 | 一行结论：四部件、引用数、空白支撑数、贡献锚点数 |
 
 ## evidence

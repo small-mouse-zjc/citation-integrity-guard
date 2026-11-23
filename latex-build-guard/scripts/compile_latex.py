@@ -239,6 +239,34 @@ def pdf_pages(pdf: Path) -> Optional[int]:
         return None
 
 
+def pdf_text_check(pdf: Path) -> Dict[str, Any]:
+    """确认 PDF 不是空壳：抽前两页文字，统计非空白字符。"""
+    if not pdf or not pdf.exists():
+        return {"ok": False, "backend": None, "chars": 0, "reason": "pdf_missing"}
+    if _which("pdftotext"):
+        try:
+            out = subprocess.run(["pdftotext", "-layout", "-f", "1", "-l", "2",
+                                  str(pdf), "-"], capture_output=True, text=True,
+                                 errors="replace", timeout=30)
+            txt = out.stdout or ""
+            chars = len(re.sub(r"\s", "", txt))
+            return {"ok": chars >= 20, "backend": "pdftotext", "chars": chars,
+                    "sample": txt[:300]}
+        except Exception as e:
+            pass
+    try:
+        import fitz  # type: ignore
+        doc = fitz.open(str(pdf))
+        txt = "\n".join(doc[i].get_text() for i in range(min(2, doc.page_count)))
+        chars = len(re.sub(r"\s", "", txt))
+        return {"ok": chars >= 20, "backend": "pymupdf", "chars": chars,
+                "sample": txt[:300]}
+    except Exception:
+        pass
+    return {"ok": None, "backend": None, "chars": 0,
+            "reason": "no_pdf_text_backend", "hint": "安装 poppler(pdftotext) 或 PyMuPDF 后可复核"}
+
+
 def compile_project(project: str, main_tex: Optional[str] = None, engine: str = "auto",
                     outdir: Optional[str] = None, timeout: int = 240,
                     rounds: int = 3, keep_workdir: bool = False) -> Dict[str, Any]:
@@ -308,6 +336,8 @@ def compile_project(project: str, main_tex: Optional[str] = None, engine: str = 
 
     compile_ok = pdf_work is not None and parsed["error_count"] == 0
     pages = pdf_pages(pdf_work) if pdf_work else None
+    pdf_text = pdf_text_check(pdf_work) if pdf_work else {
+        "ok": False, "backend": None, "chars": 0, "reason": "pdf_missing"}
 
     delivered_pdf = None
     delivered_src = None
@@ -340,6 +370,7 @@ def compile_project(project: str, main_tex: Optional[str] = None, engine: str = 
         "pdf": str(delivered_pdf) if delivered_pdf else None,
         "pdf_bytes": delivered_pdf.stat().st_size if delivered_pdf else 0,
         "pages": pages,
+        "pdf_text_check": pdf_text,
         "source_dir": str(delivered_src) if delivered_src else None,
         "errors": parsed["errors"],
         "error_count": parsed["error_count"],

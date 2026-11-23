@@ -810,7 +810,8 @@ def verify(cleaned: Dict[str, Any], order: Dict[str, Any],
 # ---------------------------------------------------------------------------
 # 8) 全流程
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False,
+             outdir: Optional[str] = None) -> Dict[str, Any]:
     """
     payload:
       case_id, pages:[{page,width,height,lines:[{x0,y0,x1,y1,text,spans[]}]}]
@@ -867,6 +868,29 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             "evidence": evidence, "verify": ver,
         }
     out["result"] = result
+
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        if full_text.strip():
+            text_path = os.path.join(out_dir, "reading_text.md")
+            with open(text_path, "w", encoding="utf-8") as f:
+                f.write(full_text.rstrip() + "\n")
+            artifacts["reading_text_md"] = text_path
+        sections_path = os.path.join(out_dir, "sections.json")
+        with open(sections_path, "w", encoding="utf-8") as f:
+            json.dump({"structure": sections["tree"], "sections": sections["sections"]},
+                      f, ensure_ascii=False, indent=2)
+        artifacts["sections_json"] = sections_path
+        tables_path = os.path.join(out_dir, "tables.md")
+        with open(tables_path, "w", encoding="utf-8") as f:
+            f.write("# 表格\n\n")
+            for i, t in enumerate(result.get("tables", []), 1):
+                f.write("## 表 %d\n\n%s\n\n" % (i, t.get("markdown", "")))
+        artifacts["tables_md"] = tables_path
+        result["artifacts"] = artifacts
     return out
 
 
@@ -902,6 +926,8 @@ def main(argv=None):
     vf = sub.add_parser("verify"); vf.add_argument("input")
     pl = sub.add_parser("pipeline"); pl.add_argument("input")
     pl.add_argument("--compact", action="store_true")
+    pl.add_argument("--outdir", default=None,
+                    help="把 reading_text.md / sections.json / tables.md 落盘，并写入 result.artifacts")
 
     args = p.parse_args(argv)
     if args.cmd == "extract":
@@ -931,7 +957,7 @@ def main(argv=None):
             ev = build_evidence(cl, od, detect_sections(od), rebuild_table(cl, layout))
             out = verify(cl, od, ev, layout)
         elif args.cmd == "pipeline":
-            out = pipeline(data, compact=args.compact)
+            out = pipeline(data, compact=args.compact, outdir=args.outdir)
         else:
             p.error("未知命令"); return 2
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")

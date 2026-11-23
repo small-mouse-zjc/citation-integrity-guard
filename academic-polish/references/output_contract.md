@@ -20,6 +20,7 @@
 | `termbase` | 否 | 本次执行的术语表 |
 | `audit` | 是 | `polish_audit.py check` 的 gate/counts/violations |
 | `delivery` | 否 | `{polished_md, polished_docx, changes_json, audit_json}` 路径 |
+| `artifacts` | 否 | `polish_audit check --outdir` 实际写出的 `polished.md` / `polish_audit.json` / `outdir`；路径必须存在 |
 | `summary` | 是 | 一行结论：改动类型、守恒结果、剩余待确认 |
 
 ## evidence.principles

@@ -60,7 +60,7 @@ python scripts/nanopub_engine.py --help
 
 每个子命令既可 `python scripts/nanopub_engine.py <cmd> input.json` 单独调用，也可由 Agent 在流程中按字段调用其 Python 函数。输入为 UTF-8 JSON。推荐一次跑完：
 ```bash
-python scripts/nanopub_engine.py pipeline input.json > result.json
+python scripts/nanopub_engine.py pipeline input.json --outdir /app/output > result.json
 ```
 
 `input.json` 结构：
@@ -99,7 +99,7 @@ python scripts/nanopub_engine.py pipeline input.json > result.json
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`（ok/needs_attention）、`result`（六项结构化检查 + nanopublications）、`evidence`（四原则落实 + unbound_assertions + missing_provenance）、`uncertainty`（needs_review + 说明脚本只做结构校验的价值判断边界）。`status=ok` 要求所有证据绑定成功 + 来源完整 + 导出合规 + 无重复断言。完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`（ok/needs_attention）、`result`（六项结构化检查 + nanopublications + 可选 artifacts）、`evidence`（四原则落实 + unbound_assertions + missing_provenance）、`uncertainty`（needs_review + 说明脚本只做结构校验的价值判断边界）。`status=ok` 要求所有证据绑定成功 + 来源完整 + 导出合规 + 无重复断言 + 断言覆盖达标。`pipeline --outdir /app/output` 会真实写出 `nanopublications.json` 与 `assertion_evidence_map.json`。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 

@@ -23,6 +23,7 @@
 | `reading_card` | build-reading-card | 统一字段卡片（含 not_reported） |
 | `structured_notes` | Agent 主写 | 按论文章节组织、带锚点的完整笔记；正文合计 ≥200 字符，只交检查表判 `partial` |
 | `notes_metrics` | 引擎 | `count` / `chars` / `present` / `required_min_chars` |
+| `artifacts` | 引擎（有 `--outdir` 时） | `structured_notes.md` / `reading_card.json` / `outdir` 的真实路径 |
 
 ## evidence 子字段
 

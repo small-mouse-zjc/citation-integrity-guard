@@ -39,7 +39,7 @@ intro-gap-architect/
 
 ## 九个引擎子命令
 
-`detect-hype`（立得住，按句切分）、`group-matrix`（分得清）、`derive-gap`（说得实）、`align-claims`（对得上）、`coverage`（引用覆盖）、`ingest`（BibTeX/RIS 解析）、`render-draft`（真实字段成稿草稿）、`compose`（成稿+骨架+来源映射）、`solve`（端到端完成器：case→成稿→result.json）、`compare`（公平对照证据，含真实朴素基线稿对照）、`pipeline`（端到端，`--compact` 省 token）。
+`detect-hype`（立得住，按句切分）、`group-matrix`（分得清）、`derive-gap`（说得实）、`align-claims`（对得上）、`coverage`（引用覆盖）、`ingest`（BibTeX/RIS 解析）、`compose`（成稿骨架+来源映射，仅供内部测试）、`compare`（公平对照证据，含真实朴素基线稿对照）、`pipeline`（只做结构检查，`--compact` 省 token）。**成稿由 Agent 主写；CLI 不提供 `solve` / `render-draft` 生成器。**
 
 ## 运行环境
 
@@ -82,7 +82,7 @@ python examples/selftest.py
 
 | 评分维度 | 本 Skill 的对应机制 |
 |---|---|
-| 实际效果 40 | 四问全覆盖 + 门禁；`render-draft`/`solve` 用真实字段写成四部件连贯草稿并装配交付，每条附来源定位 |
+| 实际效果 40 | 四问全覆盖 + 门禁；四部件由 Agent 用真实字段写成连贯成稿，每条附来源定位；脚本只做核验与落盘 |
 | 使用增益 25 | `compare` 提供公平对照的确定性缺陷检出/拦截证据；`--compact` 省额度 |
 | 创新增益 15 | `references/innovation_boundary.md` 论证相对通用模型/文献工具的边界；按句切分修复是真实方法改进 |
 | 可靠体验 10 | 中英双语规则、跨学科可配维度、12 类失败模式降级处置 |
