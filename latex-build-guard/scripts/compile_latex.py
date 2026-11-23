@@ -274,7 +274,7 @@ def compile_project(project: str, main_tex: Optional[str] = None, engine: str = 
         flag = {"pdflatex": "-pdf", "xelatex": "-xelatex", "lualatex": "-lualatex",
                 "tectonic": "-pdf"}.get(eng, "-pdf")
         cmd = ["latexmk", flag, "-interaction=nonstopmode", "-file-line-error",
-               "-halt-on-error", "-synctex=0", main_rel.name]
+               "-halt-on-error", "-synctex=0", str(main_rel)]
         runs.append(_run(cmd, work, timeout))
         chosen = "latexmk"
     else:
@@ -285,7 +285,7 @@ def compile_project(project: str, main_tex: Optional[str] = None, engine: str = 
         if exe:
             for r in range(1, rounds + 1):
                 cmd = [exe, "-interaction=nonstopmode", "-file-line-error",
-                       "-halt-on-error", main_rel.name]
+                       "-halt-on-error", str(main_rel)]
                 runs.append(_run(cmd, work, timeout))
                 chosen = Path(exe).name
                 # 只要已产出 PDF 且上一轮没有 undefined refs，就不再多跑
