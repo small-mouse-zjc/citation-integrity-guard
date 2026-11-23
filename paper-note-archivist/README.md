@@ -1,6 +1,6 @@
 # paper-note-archivist · 论文结构化笔记档案员
 
-一个面向真实论文阅读的可调用 Skill。既是从真实 case/材料端到端产出逐章结构化笔记并装配 result.json 的**完成器**，也是把章节对齐、字段化整理、锚点回链、知识点归一四件事做成可运行、可复核、可回溯确定性流程的**核验器**。缺内容标〔待补〕，绝不臆造。
+一个面向真实论文阅读的可调用 Skill。把章节对齐、字段化整理、锚点回链、知识点归一四件事，从模型的自由发挥变成可运行、可复核、可回溯的确定性流程。
 
 ## 解决什么问题
 
@@ -20,7 +20,7 @@ paper-note-archivist/
 ├── README.md                      # 本文件
 ├── GITHUB_URL.txt                 # 公开仓库链接（本题 +5 分）
 ├── scripts/
-│   └── notes_engine.py            # 纯标准库确定性引擎（8 子命令，含 solve/render-draft）
+│   └── notes_engine.py            # 纯标准库确定性引擎（6 子命令）
 ├── references/
 │   ├── field_dictionary.md        # 字段字典与结论前提
 │   ├── anchor_format.md           # 锚点格式规范
@@ -28,7 +28,7 @@ paper-note-archivist/
 │   └── output_contract.md         # 输出字段定义
 └── examples/
     ├── minimal_example.md         # 最小调用示例
-    ├── selftest.py                # 51 项自验收（含成稿/适配/solve）
+    ├── selftest.py                # 23 项自验收
     ├── smoke_input.json           # 冒烟输入
     └── smoke_output.json          # 冒烟输出
 ```
@@ -43,9 +43,7 @@ paper-note-archivist/
 ```bash
 python scripts/notes_engine.py --help
 python scripts/notes_engine.py check-section-alignment '{"paper_sections":["摘要","方法"],"note_sections":["摘要","方法"]}'
-python scripts/notes_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
-python scripts/notes_engine.py render-draft examples/smoke_input.json > draft.json
-python scripts/notes_engine.py pipeline examples/smoke_input.json --with-draft > result.json
+python scripts/notes_engine.py pipeline examples/smoke_input.json > result.json
 python examples/selftest.py
 ```
 
@@ -76,11 +74,3 @@ python examples/selftest.py
 ## 许可与复用
 
 规则文档、字段模板、测试题集均可复用；引用请标注来源仓库（见 GITHUB_URL.txt）。
-
-
-## 冲分证据（可复现）
-
-- 四问：对得上 / 留得住 / 找得回 / 用得上
-- 公平对照：`python scripts/compare_engine.py examples/benchmark.json`（clean 验证不误报，defect 验证能检出，可复现）。
-- 只度量 Skill 检查机制的可运行证据，不编造平台质量分；真实对照由平台给出。
-- 自验收：`python examples/selftest.py`（含对照可复现验证）。

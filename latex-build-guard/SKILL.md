@@ -1,166 +1,140 @@
 ---
 name: latex-build-guard
-description: LaTeX 写作与编译守门人。当任务涉及 LaTeX 源码编写与修改、公式表格引用处理、宏包与模板适配、编译错误定位修复、交付可编译源码或保证构建可复现时使用本技能。通过确定性脚本做源码结构检查、编译日志错误分类定位、公式表格引用一致性校验、交付物与复现记录检查，把报错定位到文件行号根因、把交付物落成可编辑 .tex 源码，不臆造编译成功或产物。不适用于非 LaTeX 的排版或纯文字写作。
+description: LaTeX 写作与编译守门人。当任务要求编写或修复 LaTeX 工程、在指定模板下真实编译、定位报错到文件行号、处理公式表格引用与模板必填项、交付可继续编辑的 .tex 源码与编译通过的 PDF 时使用。先真实编译得到基线，按日志修复源码并反复编译直到通过，再核对产物页数与内容；编译器缺失或无法通过时如实交付 partial，不伪造 PDF 或编译成功。不适用于非 LaTeX 排版或纯文字写作。
 ---
 
 # LaTeX 编译守门人（LaTeX Build Guard）
 
-面向真实 LaTeX 工程的写作与编译技能。目标不是"给一段能看的源码"，而是让**源码编译得通、改动符合原文与模板、交付的是可编辑 .tex、他人按记录能复现同一产物**。
+面向真实 LaTeX 工程的写作与编译技能。核心不是"给一段能看的源码"，而是**真的把工程编译通过、修对内容、交付可编辑源码与真实 PDF、留下可复现记录**。
 
-围绕题面四个核心问题组织能力：
+四问与工具：
 
-| 核心问题 | 含义 | 对应工具 |
-|---------|------|---------|
-| 编译得通 | 报错定位到文件/行号/根因，不停在第一条 | `classify-errors` |
-| 改得对 | 公式编号、表格列宽、交叉引用、模板必填项合规 | `check-content` |
-| 交得可用 | 交付可编译可编辑的 .tex，不是 PDF/截图/片段 | `check-deliverable` |
-| 复现得了 | 模板/宏包/字体版本与编译命令轮次记录齐全 | `check-reproducibility` |
+| 题面问题 | 你要做的事 | 工具 |
+|---|---|---|
+| 编译得通 | 真实编译得到基线，逐条修错，复编译至无 error | `compile_latex.py` + `classify-errors` |
+| 改得对 | 公式/编号/表格/交叉引用/模板必填项与原文一致 | `check-content` + `check-source` |
+| 交得可用 | 交付 `.tex` 工程 + 真实 PDF，不是截图/片段 | `check-deliverable` + 编译产物 |
+| 复现得了 | 记录发行版、引擎、宏包、命令与轮次 | `check-reproducibility` + 编译记录 |
 
-另有 `check-source` 检查源码结构与宏包加载顺序。
+## 何时触发 / 不触发
 
-## 何时触发 / 何时不触发
+**触发**：写/改 LaTeX 源码、修编译错误、模板迁移、公式表格引用处理、要求交付可编译源码或 PDF。
 
-**触发**：任务中出现以下任一信号——
-- 让写/改 LaTeX 源码、处理公式表格引用、迁入期刊/学位论文模板；
-- 编译报错要定位修复、"加一个宏包坏另一处"的连锁问题；
-- 要求交付可编译源码、要求记录编译环境与轮次保证复现；
-- 抱怨"编译不过/引用显示问号/表格溢出/宏包冲突"。
+**不触发**：非 LaTeX 排版、纯文字写作。误触发时说明并保持原文不变。
 
-**不触发**：非 LaTeX 排版、纯文字写作。被误触发时说明并保持原文不变。
+## 铁律
 
-## 核心原则（贯穿所有动作）
+1. **先编译，再修**：不许只看代码猜错。先跑 `compile_latex.py` 拿到真实日志与 PDF，再按 `file:line` 修。
+2. **修源码，不是写报告**：必须实际编辑 `.tex/.bib/.cls` 文件；只输出"建议"不算完成。
+3. **编译通过才算交付**：`compile_ok=true` 且 PDF 页数 > 0 才能把状态写成 success；否则 partial 并说明卡在哪。
+4. **不伪造产物**：编译器缺失、缺宏包、模板类文件缺失、权限不足，一律如实写进 `uncertainty`，不虚构 PDF、页数或"已编译"。
+5. **改动可回溯**：每条修改记录"原源码 → 改后 → 类型 → 理由 → 文件:行号"。
+6. **不交预制答案**：处理平台给定工程，不拿预写源码或样例产物冒充。
 
-1. **错误看全**：编译日志要解析出所有 error 并逐条分类定位，不能停在第一条报错。级联错误（多条同源）要先修根因。
-2. **定位到点**：每条报错给出 category、可能的文件与行号、根因说明与修复方向，让 Agent 有的放矢。
-3. **交付源码**：结果必须是结构清楚、可编辑、可独立编译的 `.tex` 工程（含必要 .bib/子文件），**不把 PDF、截图或片段当结果**。
-4. **复现记录**：说明 TeX 发行版、模板版本、宏包与字体依赖、编译命令与轮次，他人据此可重建。
-5. **诚实标注**：缺宏包、缺字体、模板类文件缺失、权限不足、无法真编译一律显式标注，**绝不臆造"编译成功"或虚构产物**。引擎只做静态检查与日志解析，真正编译由 Agent 在平台环境执行。
-6. **不交预制答案**：处理平台给定案例，不用预写源码/产物替代实际运行。
-7. **确定性动作交给脚本**：结构检查、错误分类、引用一致性、交付物与复现检查必须用 `scripts/latex_engine.py` 实际运行。
+## 工具一：compile_latex.py（真实编译）
 
-## 工具：latex_engine.py
-
-位置：技能目录下 `scripts/latex_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求、不调用 TeX 编译器（8 子命令，含 solve/render-draft）。
-
-先确认可运行：
 ```bash
-python scripts/latex_engine.py --help
+python scripts/compile_latex.py <工程目录> [--main main.tex] [--engine auto|pdflatex|xelatex|lualatex] \
+  --outdir /app/output --json-out /app/output/compile_report.json
 ```
 
-### 子命令
+它会：识别主文件与引擎（magic comment / ctex / xeCJK）→ 复制到临时目录 → 用 `latexmk` 或 `pdflatex/xelatex/lualatex/tectonic` 多轮编译 → 解析 `.log`（`file:line: error`、`! ...`、`l.N`、级联）→ 复制 PDF 与可编辑源码到输出目录 → 返回 JSON：`compile_ok`、`pdf`、`pages`、`errors[]`、`cascading`、`missing_files[]`、`log_tail`。
 
-| 子命令 | 作用 | 关键输出 |
-|--------|------|---------|
-| `check-source` | 源码结构与宏包 | `structure_ok`、`issues`（缺 document/宏包顺序/缺子文件） |
-| `classify-errors` | 编译得通：错误分类定位 | `error_count`、`categories`、`errors`（含 file/tex_line/cause） |
-| `check-content` | 改得对：公式表格引用 | `content_ok`、`issues`（悬空引用/cite无bib/必填项缺失） |
-| `check-deliverable` | 交得可用：交付物 | `usable`、`tex_files`、`issues` |
-| `check-reproducibility` | 复现得了：构建记录 | `reproducible`、`missing` |
-| `render-draft` | 用真实字段渲染可编辑 LaTeX 交付包草稿（不臆造编译成功） | `draft_text`、`source_files`、`fixes` |
-| `solve` | 端到端完成器：case.json →(适配源码/日志)→ 成稿 → result.json | `result.draft_text`、`delivery` |
-| `pipeline` | 串联五步（`--with-draft` 出草稿） | 完整结构化结果 |
+**返回 `no_latex_compiler`**：说明镜像没有 TeX。此时改用静态检查链路，交付 partial，并在 `uncertainty` 写明"无法真实编译"，不得声称编译成功。
 
-输入为 UTF-8 JSON。端到端交付首选 `solve`，一次运行即从真实源码/日志走到可编辑交付包草稿与可复核交付：
+## 工具二：latex_engine.py（静态检查与日志分类）
+
 ```bash
-python scripts/latex_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
-python scripts/latex_engine.py render-draft input.json > draft.json        # 仅渲染交付包草稿
-python scripts/latex_engine.py pipeline input.json --with-draft > result.json  # 带草稿的全流程
-python scripts/latex_engine.py pipeline input.json > result.json             # 仅结构化检查
+python scripts/latex_engine.py check-source input.json
+python scripts/latex_engine.py classify-errors input.json
+python scripts/latex_engine.py check-content input.json
+python scripts/latex_engine.py check-deliverable input.json
+python scripts/latex_engine.py check-reproducibility input.json
+python scripts/latex_engine.py pipeline input.json > result.json
 ```
 
-`solve` 适配的真实输入字段：`main_tex`/`main_tex_file`（.tex 路径）、`files`（{名:路径或内联}）、`bib`/`bib_file`、`sub_files`、`compile_log`/`compile_log_file`、`build_record`/`build_record_file`。读不到不臆造，记入 `adapter_notes`；无编译日志时编译状态标〔待编译验证〕，绝不声称编译成功。
-长文或多案例为省 token，用 `--compact` 只回状态、五项摘要与待修问题清单：
-```bash
-python scripts/latex_engine.py pipeline input.json --compact > summary.json
-```
+`input.json` 常用字段：
 
-`check-content` 的表格检查会正确解析 `l/c/r/p{..}/m{..}/b{..}/X` 列格式（忽略 `|`、`@{..}`、`>{..}` 等修饰），并逐行核对单元格数与列数是否一致，含 `multicolumn` 合并单元格。宏包加载顺序按整段字符位置判定，兼容多个 `\usepackage` 写在同一行：`amsmath/xcolor` 应在 `hyperref` 前，`cleveref/cite/natbib/biblatex` 应在其后。
-
-`input.json` 结构：
 ```json
 {
   "case_id": "案例标识",
-  "main_tex": "\\documentclass{article} ... 主文件全文",
+  "main_tex": "主文件全文",
   "sub_files": {"chapter1.tex": "子文件内容"},
-  "compile_log": "pdflatex 的编译日志全文（含 ! 报错与 l.行号）",
+  "compile_log": "编译日志全文",
   "bib": "@article{key2020, ...}",
   "files": {"main.tex": "主文件内容", "refs.bib": "bib内容"},
-  "build_record": "TeX Live 2023. 模板版本 v1.2 (.cls). 宏包... 字体... 命令 pdflatex. 编译2轮.",
+  "build_record": "TeX Live 2023 / 模板 v1.2 / 宏包 / 字体 / 命令 / 轮次",
   "template_required_fields": ["AuthorEmail", "Abstract"],
   "required_repro": ["tex_dist","template_version","packages","fonts","compile_cmd","rounds"]
 }
 ```
 
-字段说明见 `references/output_contract.md`。真实案例若给的是 .tex/.bib/日志文件，须**读取真实文件内容**，不要从文件名臆测。
+`classify-errors` 会给出 `error_count/categories/errors`（含 `file/tex_line/cause`）；`check-content` 检查悬空 `\ref/\eqref`、`\cite` 无 bib、表格列数、模板必填项；`check-deliverable` 检查是否交付 `.tex`；`check-reproducibility` 检查构建记录。
 
-## 标准工作流
+## 标准工作流（必须按顺序执行）
 
-接到任务后按此顺序执行，每步保留证据：
-
-1. **读输入**：读取 `/input/case.json` 与 `task.md`，确认 `case_id`、工程文件、模板与任务口径。**如实读真实文件。**
-2. **辨工程**：运行 `check-source`。确认主/子文件划分、导言区、宏包加载顺序；先修结构错误（缺 document、宏包顺序、缺子文件）。
-3. **编译得通**：在平台环境用目标模板与发行版实际编译，把日志交给 `classify-errors`。按返回的 `errors` 逐条定位修复——缺包安装/替换、命令拼写、花括号闭合、引用多编译几轮。级联错误先修根因。修后重编译，直到无 error。
-4. **改得对**：运行 `check-content`。修悬空 `\ref/\eqref`（补 label）、`\cite` 与 .bib 对应、表格列数匹配、模板必填项齐全。数值与公式含义回到原文核对，不臆造。
-5. **交得可用**：运行 `check-deliverable`。确认交付的是可编辑 .tex 工程（含必要 .bib/子文件/图片），不是 PDF 或片段。
-6. **复现得了**：运行 `check-reproducibility`。补齐构建记录（发行版、模板版本、宏包/字体版本、编译命令与轮次），并按记录在平台环境复编译验证一致性。
-7. **装配输出**：直接 `python scripts/latex_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配源码/日志、渲染交付包草稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。每条改动附"原源码 → 改后 → 类型 → 理由 → 定位"。编译是否通过须 Agent 在平台实测，脚本不臆造。
+1. **读输入**：读 `/input/case.json` 与 `task.md`，确认 `case_id`、工程目录、主文件、目标模板、要改的章节/公式/表格/引用、输出契约字段。**逐个打开真实文件**，不从文件名猜内容。
+2. **落盘副本**：把工程复制到 `/app/work/latex`，在副本上改，原始输入不动；同时先保存一份诚实基线（`git diff` 或文件副本）。
+3. **基线编译**：跑 `compile_latex.py`。记下 `compile_ok`、`errors`、`missing_files`、`pages`。这是后续对照的基线。
+4. **修错**：用 `classify-errors` 对日志分类，按 `file:line` 逐条修：
+   - 缺宏包/类文件：确认镜像是否已装；不可安装则改用等价宏包或移除依赖，并在记录中说明；
+   - 未定义命令/花括号/环境未闭合：修源码；
+   - 引用/交叉引用：补 `\label`、修 `\ref`、确保 `.bib` 条目存在；
+   - 级联错误先修根因，不逐条打补丁。
+   每修一轮**立即重新编译**，直到 `compile_ok=true` 或确认环境不可能通过。
+5. **改内容**：跑 `check-content`，修悬空引用、`\cite` 无条目、表格列数、模板必填项；公式符号、编号、表格数值与原文核对，不擅自改原意。
+6. **产物验收**：用 `check-deliverable` 确认 `.tex/.bib/子文件`齐全；核对 `compile_latex.py` 返回的 PDF 存在、`pages>0`、`pdf_bytes>0`；用 PDF 文本工具抽取首页/关键页文字，确认不是空壳或旧 PDF。
+7. **复现记录**：跑 `check-reproducibility`，补齐 `tex_dist/template_version/packages/fonts/compile_cmd/rounds`；记录最终引擎与轮次。
+8. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id` 与全部契约字段；`result` 必须含：
+   - `latex_source`（主文件与子文件路径、关键改动）；
+   - `compiled_pdf`（路径、页数、字节数、`compile_ok`）；
+   - `compile`（引擎、轮次、错误/警告、缺失文件）；
+   - `changes`（原→改→类型→理由→file:line）；
+   - `summary`（一行结论）。
+   同时把可编辑源码与 PDF 复制到 `/app/output/` 下的稳定路径。
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`、`result`（五项检查；`solve` 额外含 `draft_text`/`source_files`/`fixes`/`compile_status`）、`evidence`（四原则落实 + error_locations + dangling_refs）、`uncertainty`（`needs_compile_verify=true` + 不臆造说明）。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。目标产物须是可继续编辑维护的 .tex 源码。完整字段见 `references/output_contract.md`。
+顶层：`case_id`、`status`（`success`/`partial`/`needs_review`）、`result`、`evidence`、`uncertainty`。
+`result` 至少含 `latex_source`、`compiled_pdf`、`compile`、`changes`、`verification`（五项检查）、`summary`。
+`evidence` 至少含 `error_locations`、`dangling_refs`、`template_checks`、`pdf_evidence`。
+`uncertainty` 至少含 `needs_compile_verify`（仅静态检查时 true）、`missing_files`、`note`。
+完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 
 | 情形 | 处置 |
-|------|------|
-| 缺宏包/缺字体/类文件缺失 | 错误分类中标出，给出安装或替代建议，不臆造已安装 |
-| 报错级联 | `cascading=true` 时先修根因，不逐条打补丁 |
-| 权限不足写文件 | 标注目录权限问题，交人工处理 |
-| 模板版本不明 | 构建记录标 not_reported，追问或按通用类尝试并标注 |
-| 无法实际编译 | uncertainty 声明，产出 partial，不虚构编译成功或 PDF 产物 |
-| 中文/英文模板 | 检查规则通用；ctex/fontspec 相关按实际情况核对 |
+|---|---|
+| 无 TeX 编译器 | 返回 `no_latex_compiler`，改用静态检查，status=partial，写清无法真实编译 |
+| 缺宏包/类文件 | `missing_files` 列出；能替代则替代，不能则标注并交付 partial |
+| 报错级联 | `cascading=true` 先修根因；集中修同一文件相邻错误 |
+| 模板版本不明 | 构建记录标 `not_reported`，按通用类尝试并标注 |
+| 中文模板 | ctex/xeCJK 自动切 xelatex；字体缺失时记录并尝试 fallback |
+| 编译超时 | 减少轮次或单轮 timeout；保留日志与已生成 PDF，status=partial |
+| 权限不足 | 标注目录权限问题，交人工；不伪造成完成 |
 
-## 复用与扩展
+## 资源
 
-- `references/error_patterns.md`：错误分类表与修复策略；
-- `references/source_rules.md`：源码结构、宏包顺序、常见命令误用；
-- `references/content_checks.md`：公式/表格/引用一致性检查要点；
-- `references/output_contract.md`：输出字段定义与示例；
-- `examples/`：最小调用示例、33 项自验收（`python examples/selftest.py`）、12 道边界回归题（`testset.json`）；
-- `references/vocab.md`：状态、严重度、错误 category、issue type 与复现项的统一判定口径，供复用省 token。
+- `scripts/compile_latex.py`：真实编译闭环（latexmk/pdflatex/xelatex/lualatex/tectonic，日志定位，PDF/页数）
+- `scripts/latex_engine.py`：结构/错误/内容/交付/复现五项静态检查
+- `references/error_patterns.md`：错误分类与修复策略
+- `references/source_rules.md`：源码结构与宏包顺序
+- `references/content_checks.md`：公式/表格/引用一致性
+- `references/output_contract.md`：字段契约
+- `examples/minimal_example.md`、`examples/selftest.py`、`examples/testset.json`：示例与自测
 
-本技能与 `intro-gap-architect`、`methods-repro-guard`、`paper-note-archivist`、`citation-integrity` 互补：分别管引言、方法实验、阅读笔记、引用、LaTeX 编译，串联覆盖论文"读→写→排版编译"全流程。
+## 限制与边界
+
+- `compile_latex.py` 不安装宏包、不改系统 TeX；缺依赖时如实报错。
+- 静态检查不能替代真实编译；只有 `compile_ok=true` 且 PDF 可读才可声称编译通过。
+- 不联网、不伪造 PDF/页数/日志；所有结论可回到文件与行号。
 
 
-## 可复现证据与冲分材料
+## 交付前自检（必须）
 
-本 Skill 针对四问（编译得通 / 改得对 / 交得可用 / 复现得了）配置了确定性检查机制，并提供可复现的公平对照证据：
+```bash
+python scripts/validate_result.py --result /app/output/result.json --outdir /app/output --case /input/case.json --main-field latex_source
+```
 
-- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
-  ```bash
-  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
-  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
-  ```
-- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
-- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
-- `references/comparison_protocol.md`：公平对照协议与度量边界。
-- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
+`valid=false` 时按 errors 修；`result.latex_source` 为空、顶层缺 `case_id/status/result/evidence/uncertainty`、或声明的产物路径不存在，都不得声称完成。
 
-创新边界摘要：`latex_engine.py` 把 "编译得通 / 改得对 / 交得可用 / 复现得了" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
-
-## 交付文件（solve 自动生成，评审可直接打开）
-
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`main.tex` 与依赖的 `.bib`/子 `.tex`（可直接编译的可编辑源码）、`fixes.md`（待修清单）、`draft.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
-
-## 真实编译能力（compile）
-
-新增 `compile_dir()` 与 CLI `compile`：
-
-- 优先 `latexmk -pdf`，缺失时退回 `pdflatex + bibtex` 多轮（150s 超时）；
-- 有 TeX 环境则产出真实 PDF 并复制进交付目录，`compile_attempt.available=true`；
-- 无 TeX 环境则诚实返回 `status:"unavailable"`，不伪造“编译通过”；
-- `solve` 自动尝试编译；源码结构可用但编译未验证时状态为 `partial`（不是失败）；
-- 支持 `source_files` 为路径列表或内联文件字典两种形态，`main.tex` 与依赖 `.bib/.tex` 一并落盘。
-
-这样在评审机上能编译就交付 PDF，不能编译也能给出可复现的源码与失败原因。

@@ -16,7 +16,7 @@ description: 文献知识图谱构建守门人。当任务要求从科研论文�
 | 对得齐 | 别名/缩写/大小写/同名冲突正确处理，既不重复节点也不跨篇错误合并 | `align-entities` |
 | 查得到、回得去 | 图谱能回答真实查询，每个节点与边都能回到论文段落位置与原文片段 | `query-graph` |
 
-另有 `bind-source`（逐节点/边核验来源绑定）、`incremental-update`（增量加入新论文保留编号）、`check-export`（导出合规），`pipeline` 一次跑完全流程。
+另有 `bind-source`（逐节点/边核验来源绑定）、`incremental-update`（增量加入新论文保留编号）、`check-export`（导出合规），`pipeline` 一次跑完全流程；`pipeline.result.coverage_check` 检查图谱完整度与至少 3 个可答查询。
 
 ## 何时触发 / 何时不触发
 
@@ -35,17 +35,12 @@ description: 文献知识图谱构建守门人。当任务要求从科研论文�
 
 ## 工具：kg_engine.py
 
-位置：`scripts/kg_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络、不调用外部服务（10 子命令，含 solve/render-draft）。
+位置：`scripts/kg_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络、不调用外部服务。
 
 ```bash
 python scripts/kg_engine.py --help
-python scripts/kg_engine.py solve /input/case.json --out /app/output   # 端到端建图+装配
-python scripts/kg_engine.py render-draft input.json > draft.json        # 仅渲染图谱交付稿
-python scripts/kg_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
-python scripts/kg_engine.py pipeline input.json > result.json             # 仅结构化检查
+python scripts/kg_engine.py pipeline input.json > result.json
 ```
-
-`solve` 无需预填 entities 也能从真实 `source_index`（或 source_files 指向的论文材料）正文驱动抽取候选实体（受控词表正则，带 JATS 段落 ID 与原文短引），再经 check_entity 校验；不臆造实体/关系/证据。读不到不臆造，记入 `adapter_notes`。
 
 ### 子命令
 
@@ -58,9 +53,7 @@ python scripts/kg_engine.py pipeline input.json > result.json             # 仅�
 | `query-graph` | `answers[].subgraph/evidence/traceable/unresolved_edges`、`all_traceable` |
 | `incremental-update` | `existing_node_ids_preserved`、`changes`（added/merged/kept_conflicts/skipped）、`graph` |
 | `check-export` | `machine_readable/serializable`、`missing_*_fields`、`duplicate_node_ids` |
-| `render-draft` | 用真实字段渲染可编辑知识图谱交付稿（无实体标〔待补〕） | `draft_text`、`nodes`、`edges` |
-| `solve` | 端到端完成器：case.json →(适配/正文抽取)→ 建图 → result.json | `result.draft_text`、`delivery` |
-| `pipeline` | `status`、`result`、`evidence`、`uncertainty`（`--with-draft` 出交付稿） |
+| `pipeline` | `status`、`result`、`evidence`、`uncertainty` |
 
 ### 输入结构（pipeline）
 
@@ -96,9 +89,9 @@ python scripts/kg_engine.py pipeline input.json > result.json             # 仅�
 2. 抽取实体并逐条 `check_entity`：表面形式落地、类型合法、位置 JATS、短引命中、自述/转述分明。
 3. 抽取关系并逐条 `check_relation`：受控类型+方向+条件+直接证据；跨篇关系必须 `cross_paper:true` 且有直接证据。
 4. `align_entities` 处理别名与同名：同篇别名给依据合并，跨篇相同表面保留冲突节点。
-5. `bind-source` 逐节点/边核验来源绑定；`query-graph` 执行至少 3 个真实查询并核对每个结果可回查。
+5. `bind-source` 逐节点/边核验来源绑定；`query-graph` 执行**至少 3 个真实查询**并核对每个结果可回查；`pipeline.result.coverage_check` 的 `query_total>=3`、`query_traceable=query_total`、`graph_thin=false` 必须满足，否则补查询/补图谱，不带病导出。
 6. 如增量加入新论文，用 `incremental-update` 保留既有编号并记录新增/合并/冲突。
-7. 端到端交付直接 `python scripts/kg_engine.py solve /input/case.json --out /app/output`（自动适配材料、正文抽取、建图成稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。任何 `needs_attention` 项都要回到原文复核，不臆造补齐。
+7. `check-export` 确认导出可读，`pipeline` 汇总。任何 `needs_attention` 项都要回到原文复核，不臆造补齐。
 
 ## 异常处理
 
@@ -108,35 +101,11 @@ python scripts/kg_engine.py pipeline input.json > result.json             # 仅�
 - 查询无结果：`has_answer=false` 如实返回，不拿共现凑答案。
 
 
-## 可复现证据与冲分材料
+## 交付前自检（必须）
 
-本 Skill 针对四问（抽得准 / 连得对 / 对得齐 / 查得到回得去）配置了确定性检查机制，并提供可复现的公平对照证据：
+```bash
+python scripts/validate_result.py --result /app/output/result.json --outdir /app/output --case /input/case.json --main-field graph
+```
 
-- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
-  ```bash
-  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
-  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
-  ```
-- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
-- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
-- `references/comparison_protocol.md`：公平对照协议与度量边界。
-- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
+`valid=false` 时按 errors 修；`result.graph` 为空、顶层缺 `case_id/status/result/evidence/uncertainty`、或声明的产物路径不存在，都不得声称完成。
 
-创新边界摘要：`kg_engine.py` 把 "抽得准 / 连得对 / 对得齐 / 查得到回得去" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
-
-## 交付文件（solve 自动生成，评审可直接打开）
-
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`graph.json`（节点/边）、`graph.md`（图谱说明）、`queries.md`（查询示例），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
-
-## 图级结构体检（graph_audit）
-
-单条实体/关系合规不等于图可用。新增 `audit_graph()`，写入 `result.graph_audit`：
-
-- `duplicate_node_id`、`dangling_edge`（端点不存在）、`self_loop`、`duplicate_edge`（同一 source-type-target 重复）；
-- `components` / `largest_component` / `isolated_nodes`：连通性与孤立实体；
-- `degree_avg` / `top_degree`：度分布与枢纽节点；
-- `relation_types`：关系类型分布；
-- 可选 `relation_schema`（如 `{"applied_to":{"from":["method"],"to":["dataset"]}}`）做域值校验，违规逐条列出。
-
-孤立点过多或存在悬空边时，查询与导出都会失真；审计先行，再交付图谱。

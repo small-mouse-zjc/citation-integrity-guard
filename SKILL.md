@@ -28,7 +28,7 @@ description: 参考文献与引用一致性守门人。当任务涉及引用插�
 
 ## 工具：citation_engine.py
 
-位置：技能目录下的 `scripts/citation_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求（11 子命令，含 solve/render-draft）。
+位置：技能目录下的 `scripts/citation_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求。
 
 先确认可运行：
 ```bash
@@ -47,19 +47,13 @@ python scripts/citation_engine.py --help
 | `place` | 引用落点定位：识别需来源支撑的论断句与建议位置 | `sentences`、`stats.citation_gaps`、`advice`、真实文献 `candidates` | 挂得对 |
 | `claims` | 论断核验预筛：元数据异常/编造线索/主题错配 | `metadata_anomalies`、`suspicious_claims`、`claim_results` | 对得上 |
 | `compare` | 修复前后对照，逐项验证增益 | `diffs`、`summary.improved_metrics` | 增益可验证 |
-| `render-draft` | 用真实字段渲染可编辑引用定稿稿件（未引条目显式标注） | `draft_text`、`edited_manuscript`、`bibliography`、`uncited_entries` |
-| `solve` | 端到端完成器：case.json →(适配稿件/文献库)→ 定稿 → result.json | `result.draft_text`、`delivery` |
-| `pipeline` | 全流程串联（`--with-draft` 出定稿草稿；`--compact` 省 token） | `result.*`、`summary`、`pipeline.<step>` 兼容旧结构 | 全部 |
+| `pipeline` | 全流程串联，产出结构化结果 + 紧凑摘要 | `result.*`、`summary`、`(--compact)` 省 token、`pipeline.<step>` 兼容旧结构 | 全部 |
 
-输入为 UTF-8 JSON。端到端交付首选 `solve`，一次运行即从真实稿件/文献库走到可编辑定稿与可复核交付：
+输入为 UTF-8 JSON。推荐使用 `pipeline` 一次完成：
 ```bash
-python scripts/citation_engine.py solve /input/case.json --out /app/output   # 端到端定稿+装配
-python scripts/citation_engine.py render-draft input.json > draft.json        # 仅渲染定稿草稿
-python scripts/citation_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
+python scripts/citation_engine.py pipeline input.json > result.json
 python scripts/citation_engine.py pipeline input.json --compact > summary.json   # 额度紧张时用
 ```
-
-`solve` 适配的真实输入字段：`manuscript`/`manuscript_file`（.md/.txt/.tex 稿件）、`entries`/`entries_file`（JSON 条目）、`bib_file`/`bibliography_file`（BibTeX/RIS/CNKI，复用 `ingest` 解析）、`checks`。读不到不臆造，记入 `adapter_notes`。
 
 `input.json` 结构：
 ```json
@@ -89,7 +83,7 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
    - 先跑 `place`：机械标出需要来源支撑却无引用的论断句（"挂得对"），候选文献只取真实条目，供定位不供最终判断。
    - 再跑 `claims`：确定性预筛元数据异常/编造线索/主题错配（"对得上"），**只对返回的 `suspicious_claims` 交模型或人工复核**，把逐句 O(n) 判断降到 O(可疑)。证据不足的句子显式标记，不擅自改论断。
 7. **一致性核验**：运行 `verify`，确认无悬空引用、无未引用条目、编号连续无重复、首次出现顺序正确（`order_violations`）。需要证明增益时用 `compare` 对修复前后逐项对照。
-8. **装配输出**：直接 `python scripts/citation_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配稿件/文献库、定稿成稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。预算紧张时用 `pipeline --compact`。每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。**未在正文引用的条目显式标〔未引〕，不伪装成正文引用。**
+8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有 output_contract 字段；`result.summary` 是一行紧凑结论。预算紧张时用 `pipeline --compact` 只输出摘要+文后表+核验结论。可编辑稿件/文献表另存为文件，每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
 
 ## 输出契约要点
 
@@ -113,14 +107,9 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 | 稿件格式不支持/文件损坏 | 说明无法处理的具体位置与原因，保存已完成的诚实部分结果 |
 | 正文论断与文献不匹配 | 逐句标记 `claim_source_mismatch`，给出主题差异说明，不擅自改论断 |
 
-## 交付文件（solve 自动生成，评审可直接打开）
-
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`manuscript.md`（改后稿件）、`draft.md`、`references.csv`（文献条目）、`references.bib`（若有 BibTeX），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
-
 ## 资源清单
 
-- `scripts/citation_engine.py`：确定性处理引擎（11 子命令，含 solve/render-draft，纯标准库，必需）
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
+- `scripts/citation_engine.py`：确定性处理引擎（9 子命令，纯标准库，必需）
 - `references/dedup_rules.md`：去重判据与置信度表
 - `references/format_gb7714.md`：GB/T 7714—2015 格式映射与字段规则
 - `references/apa_mapping.md`：APA 7th 扩展映射（证明规范可扩展）
@@ -164,15 +153,13 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
 
 创新边界摘要：`citation_engine.py` 把 "挂得对 / 编得顺 / 收得净 / 对得上" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
 
-## 参考文献元数据审计（reference_audit）
 
-在去重/编号/格式之外，逐条检查“这条文献本身是否可被审稿人接受”，写入 `result.reference_audit`：
+## 交付前自检（必须）
 
-- 文献类型识别（J/M/C/D/S/P/EB），按类型核对必备字段（如 J 需要 authors/title/journal/year/volume/pages）；
-- `implausible_year`：年份早于 1800 或晚于当前年；
-- `malformed_doi` / `duplicate_doi`：DOI 形态与重复；
-- `author_etal_mix`：作者列表混用 et al.；
-- `avg_completeness`：按必备字段覆盖 + DOI 计算的条目完整度（0–100）；
-- `type_distribution`：文献类型分布。
+```bash
+python scripts/validate_result.py --result /app/output/result.json --outdir /app/output --case /input/case.json --main-field editable_manuscript
+```
 
-输出与原有 `bibliography` 并列，便于先修元数据再排版。
+`valid=false` 时按 errors 修；`result.editable_manuscript` 为空、顶层缺 `case_id/status/result/evidence/uncertainty`、或声明的产物路径不存在，都不得声称完成。
+
+

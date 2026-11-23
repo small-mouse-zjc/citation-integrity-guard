@@ -48,26 +48,6 @@ def _resolve(result: Dict[str, Any], expr: str):
 def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
     r = ENGINE.pipeline(payload)
     result = r.get("result", {}) if isinstance(r, dict) else {}
-
-    # 真实朴素基线成稿：原始稿件裸平铺（不去重/不重编号/不补落点）
-    baseline_text = str(payload.get("manuscript", "") or "")
-    # Skill 成稿：用真实字段渲染引用定稿稿件
-    draft = ENGINE.render_draft(payload)
-    skill_text = draft.get("draft_text", "")
-    draft_cmp = {
-        "baseline_text": baseline_text or "〔基线无可用稿件〕",
-        "baseline_chars": len(baseline_text),
-        "baseline_parts": 1 if baseline_text else 0,
-        "skill_text": skill_text,
-        "skill_chars": len(skill_text),
-        "skill_parts": len(draft.get("bibliography", [])),
-        "skill_cited": len(draft.get("cited_numbers", [])),
-        "skill_uncited_flagged": len(draft.get("uncited_entries", [])),
-        "note": ("基线=原始稿件裸平铺（真实生成的朴素稿）；"
-                 "Skill=定稿稿件（改写正文+文后表+编号映射+待确认，未引条目显式标注）。"
-                 "仅比较结构与覆盖证据，不编造质量分；正式质量对照由平台白板给出。"),
-    }
-
     dims = []
     for dim, baseline, field, gate in PROFILE["dimensions"]:
         flagged, positives = _resolve(result, field)
@@ -87,7 +67,6 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "comparison",
         "four_questions": PROFILE["four"],
         "dimensions": dims,
-        "draft_comparison": draft_cmp,
         "summary": {
             "four_questions_covered": len(PROFILE["four"]) == 4 and len(dims) == 4,
             "dimensions_with_evidence": fired,

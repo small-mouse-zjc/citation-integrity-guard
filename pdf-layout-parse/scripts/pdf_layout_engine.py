@@ -48,7 +48,6 @@ pdf_layout_engine.py — 确定性科研 PDF 版面解析引擎
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import sys
@@ -146,22 +145,85 @@ def _page_stats(layout: Dict[str, Any]) -> Dict[str, float]:
 # ---------------------------------------------------------------------------
 # 0) 可选：从真实 PDF 提取 layout（需 PyMuPDF；缺失时优雅降级）
 # ---------------------------------------------------------------------------
-def _lines_to_layout(pages: List[Dict[str, Any]], backend: str,
-                     case_id: str = "") -> Dict[str, Any]:
-    """把各后端统一产出的 pages(lines) 规范为标准 layout 对象。"""
-    total = sum(len(p.get("lines", [])) for p in pages)
-    status = STATUS_UNCERTAIN if total == 0 else STATUS_OK
-    note = ("页面几乎无文字层，疑似扫描件/图片型 PDF；需 OCR 后重导。"
-            if total == 0 else "")
+def _extract_with_pdftotext(pdf_path: str) -> Dict[str, Any]:
+    """无 PyMuPDF 时的文本回退：pdftotext -layout → 合成近似 bbox 的 layout。
+
+    精度低于 PyMuPDF（无真实字号/字体/精确列坐标），但能保住文字与页序；
+    结果显式标 text_only，供后续 clean/order 以保守模式处理。
+    """
+    import shutil, subprocess
+    exe = shutil.which("pdftotext")
+    if not exe:
+        return {
+            "status": STATUS_UNCERTAIN,
+            "error": "PyMuPDF and pdftotext both unavailable",
+            "fallback": ("请安装 PyMuPDF（pip install pymupdf）或 poppler-utils（pdftotext），"
+                         "或用平台 PDF 工具导出带 bbox 的 layout JSON。"),
+        }
+    try:
+        proc = subprocess.run([exe, "-layout", "-enc", "UTF-8", pdf_path, "-"],
+                              capture_output=True, text=True, errors="replace", timeout=180)
+    except Exception as e:
+        return {"status": STATUS_UNCERTAIN, "error": f"pdftotext_failed: {e}"}
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return {"status": STATUS_UNCERTAIN,
+                "error": f"pdftotext_returncode={proc.returncode}",
+                "stderr": (proc.stderr or "")[-1000:]}
+    raw_pages = proc.stdout.split("\f")
+    pages = []
+    for pno, raw in enumerate(raw_pages, 1):
+        if not raw.strip():
+            continue
+        # 空行分块；块内保留换行，供后续断行合并
+        chunks = [c.strip("\n") for c in re.split(r"\n\s*\n", raw) if c.strip()]
+        lines = []
+        y = 40.0
+        for chunk in chunks:
+            for ln in chunk.splitlines():
+                txt = ln.rstrip()
+                if not txt.strip():
+                    continue
+                # 以缩进猜列：左缩进 > 20% 页宽视为右栏
+                indent = len(txt) - len(txt.lstrip())
+                width = 612.0
+                x0 = 0.0 if indent < 12 else width * 0.52
+                x1 = width if indent < 12 else width
+                lines.append({
+                    "x0": round(x0, 1), "y0": round(y, 1),
+                    "x1": round(x1, 1), "y1": round(y + 11, 1),
+                    "text": txt.strip(),
+                    "spans": [{"text": txt.strip(), "size": 10.0, "flags": 0, "font": "pdftotext"}],
+                })
+                y += 13.0
+        pages.append({"page": pno, "width": 612.0, "height": round(max(792.0, y + 20), 1),
+                      "lines": lines})
+    total = sum(len(p["lines"]) for p in pages)
     return {
-        "status": status, "case_id": case_id, "note": note,
-        "backend": backend, "pages": pages,
-        "stats": {"page_count": len(pages), "line_count": total},
+        "status": STATUS_OK if total else STATUS_UNCERTAIN,
+        "case_id": "", "backend": "pdftotext",
+        "note": "无 PyMuPDF，使用 pdftotext 文本回退；bbox 与字号为近似值，表格/多栏顺序需人工复核。",
+        "pages": pages,
+        "stats": {"page_count": len(pages), "line_count": total, "text_only": True},
     }
 
 
-def _extract_pymupdf(doc) -> List[Dict[str, Any]]:
-    """PyMuPDF 后端：page.get_text('dict') 拿 span 级 bbox + size + flags。"""
+def extract_from_pdf(pdf_path: str) -> Dict[str, Any]:
+    """用 PyMuPDF 把 PDF 导出为带 bbox 的中间表示；缺失时回退 pdftotext。"""
+    try:
+        import pymupdf  # type: ignore
+    except Exception:
+        try:
+            import fitz as pymupdf  # type: ignore
+        except Exception:
+            return _extract_with_pdftotext(pdf_path)
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception as e:
+        return {
+            "status": STATUS_UNCERTAIN,
+            "error": f"cannot_open_pdf: {type(e).__name__}",
+            "fallback": "PDF 无法打开（文件不存在/加密/损坏）。请检查路径；加密 PDF 需先解密。",
+        }
     pages = []
     for pno in range(doc.page_count):
         page = doc[pno]
@@ -169,200 +231,40 @@ def _extract_pymupdf(doc) -> List[Dict[str, Any]]:
         lines = []
         d = page.get_text("dict")
         for block in d.get("blocks", []):
-            if block.get("type", 0) != 0:
+            if block.get("type", 0) != 0:  # 0=text，非文本块（图）跳过正文行
                 continue
             for line in block.get("lines", []):
                 spans = []
                 for s in line.get("spans", []):
-                    sp = {
+                    spans.append({
                         "text": s.get("text", ""),
                         "size": round(float(s.get("size", 0)), 2),
                         "flags": int(s.get("flags", 0)),
                         "font": s.get("font", ""),
-                    }
-                    # 可选：span 级 bbox / origin，供上下标位置判定（上标 y 更高）
-                    sb = s.get("bbox")
-                    if sb:
-                        sp["bbox"] = [round(float(v), 1) for v in sb]
-                    org = s.get("origin")
-                    if org:
-                        sp["origin_y"] = round(float(org[1]), 1)
-                    spans.append(sp)
+                    })
                 x0, y0, x1, y1 = line.get("bbox", (0, 0, 0, 0))
                 if not _span_text({"spans": spans}).strip():
                     continue
                 lines.append({
                     "x0": round(x0, 1), "y0": round(y0, 1),
                     "x1": round(x1, 1), "y1": round(y1, 1),
-                    "text": "".join(s["text"] for s in spans), "spans": spans,
+                    "text": "".join(s["text"] for s in spans),
+                    "spans": spans,
                 })
-        pages.append({"page": pno + 1, "width": round(rect.width, 1),
-                      "height": round(rect.height, 1), "lines": lines})
-    return pages
-
-
-def _extract_pdfplumber(pdf_path: str) -> List[Dict[str, Any]]:
-    """pdfplumber 后端：按 chars 聚行，size 来自 'size'，bbox 来自 char 坐标。"""
-    import pdfplumber  # type: ignore
-    pages = []
-    with pdfplumber.open(pdf_path) as pdf:
-        for pno, page in enumerate(pdf.pages, 1):
-            chars = page.chars or []
-            # 按 (top 容差) 聚行
-            rows: List[List[Dict[str, Any]]] = []
-            for ch in sorted(chars, key=lambda c: (round(c.get("top", 0), 0),
-                                                   c.get("x0", 0))):
-                top = ch.get("top", 0)
-                placed = False
-                for row in rows:
-                    if abs(row[0].get("top", 0) - top) <= 2.5:
-                        row.append(ch); placed = True; break
-                if not placed:
-                    rows.append([ch])
-            lines = []
-            for row in rows:
-                row = sorted(row, key=lambda c: c.get("x0", 0))
-                text = "".join(c.get("text", "") for c in row)
-                if not text.strip():
-                    continue
-                spans = []
-                # 按 fontname/size 合并相邻 char 为 span
-                cur = {"text": "", "size": round(float(row[0].get("size", 0)), 2),
-                       "flags": 16 if "bold" in str(row[0].get("fontname", "")).lower() else 0,
-                       "font": row[0].get("fontname", "")}
-                for c in row:
-                    sz = round(float(c.get("size", 0)), 2)
-                    fn = c.get("fontname", "")
-                    if sz != cur["size"] or fn != cur["font"]:
-                        if cur["text"]:
-                            spans.append(dict(cur))
-                        cur = {"text": "", "size": sz,
-                               "flags": 16 if "bold" in str(fn).lower() else 0,
-                               "font": fn}
-                    cur["text"] += c.get("text", "")
-                if cur["text"]:
-                    spans.append(cur)
-                lines.append({
-                    "x0": round(min(c.get("x0", 0) for c in row), 1),
-                    "y0": round(min(c.get("top", 0) for c in row), 1),
-                    "x1": round(max(c.get("x1", 0) for c in row), 1),
-                    "y1": round(max(c.get("bottom", 0) for c in row), 1),
-                    "text": text, "spans": spans,
-                })
-            pages.append({"page": pno, "width": round(float(page.width), 1),
-                          "height": round(float(page.height), 1), "lines": lines})
-    return pages
-
-
-def _extract_pdfminer(pdf_path: str) -> List[Dict[str, Any]]:
-    """pdfminer 后端：LTChar/LTTextLine 的 bbox + size。"""
-    from pdfminer.high_level import extract_pages  # type: ignore
-    from pdfminer.layout import LTTextLineHorizontal, LTChar  # type: ignore
-    pages = []
-    for pno, page in enumerate(extract_pages(pdf_path), 1):
-        lines = []
-        for el in page:
-            if not isinstance(el, LTTextLineHorizontal):
-                continue
-            spans = []
-            for c in el:
-                if isinstance(c, LTChar):
-                    spans.append({"text": c.get_text(),
-                                  "size": round(float(c.size), 2),
-                                  "flags": 16 if "bold" in c.fontname.lower() else 0,
-                                  "font": c.fontname})
-            text = "".join(s["text"] for s in spans) or el.get_text()
-            if not text.strip():
-                continue
-            x0, y0, x1, y1 = el.bbox
-            # pdfminer y 自底向上，翻转到左上原点
-            h = float(getattr(page, "height", 0) or 0)
-            lines.append({
-                "x0": round(x0, 1), "y0": round(h - y1, 1),
-                "x1": round(x1, 1), "y1": round(h - y0, 1),
-                "text": text, "spans": spans or [{"text": text, "size": 10,
-                                                   "flags": 0, "font": ""}],
-            })
-        pages.append({"page": pno, "width": round(float(getattr(page, "width", 0) or 0), 1),
-                      "height": round(float(getattr(page, "height", 0) or 0), 1),
-                      "lines": lines})
-    return pages
-
-
-def extract_from_pdf(pdf_path: str, case_id: str = "") -> Dict[str, Any]:
-    """从真实 PDF 导出带 bbox 的中间表示。
-
-    多后端自动回退：PyMuPDF → pdfplumber → pdfminer；任一可用即产出 layout，
-    彻底解除"真实 PDF 入口"断点。全无后端时返回明确降级指引（不伪造内容）。
-    """
-    backends_tried = []
-
-    # 1) PyMuPDF
-    pymupdf = None
-    try:
-        import pymupdf  # type: ignore
-    except Exception:
-        try:
-            import fitz as pymupdf  # type: ignore
-        except Exception:
-            pymupdf = None
-    if pymupdf is not None:
-        backends_tried.append("pymupdf")
-        try:
-            doc = pymupdf.open(pdf_path)
-            pages = _extract_pymupdf(doc)
-            out = _lines_to_layout(pages, "pymupdf", case_id)
-            if out["stats"]["line_count"] > 0:
-                return out
-            # 打开成功但无文字层：多半是扫描件，其余后端也难有文本，直接如实返回
-            out["backends_tried"] = backends_tried
-            return out
-        except Exception as e:
-            backends_tried.append("pymupdf:error:%s" % type(e).__name__)
-
-    # 2) pdfplumber
-    if importlib.util.find_spec("pdfplumber"):
-        backends_tried.append("pdfplumber")
-        try:
-            pages = _extract_pdfplumber(pdf_path)
-            out = _lines_to_layout(pages, "pdfplumber", case_id)
-            if out["stats"]["line_count"] > 0:
-                out["backends_tried"] = backends_tried
-                return out
-        except Exception as e:
-            backends_tried.append("pdfplumber:error:%s" % type(e).__name__)
-
-    # 3) pdfminer
-    if importlib.util.find_spec("pdfminer"):
-        backends_tried.append("pdfminer")
-        try:
-            pages = _extract_pdfminer(pdf_path)
-            out = _lines_to_layout(pages, "pdfminer", case_id)
-            if out["stats"]["line_count"] > 0:
-                out["backends_tried"] = backends_tried
-                return out
-        except Exception as e:
-            backends_tried.append("pdfminer:error:%s" % type(e).__name__)
-
-    # 全无后端或都失败
-    if any("error" in b for b in backends_tried) or backends_tried:
-        # 有过后端但都没提出文字 → 文件问题或扫描件
-        err = "no_text_layer_or_unreadable"
-        fallback = ("已尝试后端 %s 但未能提取文字：可能是扫描件/图片型 PDF（需 OCR）、"
-                    "文件加密或损坏。请如实标注，不把空结果当成功。" % ",".join(backends_tried))
-        return {"status": STATUS_UNCERTAIN, "error": err,
-                "backends_tried": backends_tried, "fallback": fallback,
-                "case_id": case_id, "pages": []}
+        pages.append({
+            "page": pno + 1,
+            "width": round(rect.width, 1),
+            "height": round(rect.height, 1),
+            "lines": lines,
+        })
+    total_lines = sum(len(p["lines"]) for p in pages)
+    status = STATUS_UNCERTAIN if total_lines == 0 else STATUS_OK
+    note = ("页面几乎无文字层，疑似扫描件/图片型 PDF；需 OCR 后重导。"
+            if total_lines == 0 else "")
     return {
-        "status": STATUS_UNCERTAIN,
-        "error": "no_pdf_backend",
-        "backends_tried": backends_tried,
-        "fallback": (
-            "本机未安装可用的 PDF 文字层后端（PyMuPDF/pdfplumber/pdfminer）。"
-            "请用平台任一可用工具导出带 bbox 的中间表示（每页每行 x0/y0/x1/y1/text/spans），"
-            "再喂给 clean/order/pipeline；主体引擎不依赖具体库。扫描件需先 OCR。"
-        ),
-        "case_id": case_id, "pages": [],
+        "status": status, "case_id": "", "note": note, "backend": "pymupdf",
+        "pages": pages,
+        "stats": {"page_count": len(pages), "line_count": total_lines},
     }
 
 
@@ -560,24 +462,21 @@ def reading_order(cleaned: Dict[str, Any], layout: Dict[str, Any] = None) -> Dic
             left = sorted([r for r in rows if col_of(r) == 0], key=lambda r: (r["y0"], r["x0"]))
             right = sorted([r for r in rows if col_of(r) == 1], key=lambda r: (r["y0"], r["x0"]))
             cross = [r for r in rows if col_of(r) == -1]
-            # 跨栏块按 y 作为锚点切分区间。同一区间内先完整读左栏，再完整读右栏
-            # （真实双栏论文的段落是"整栏连续"的，不是逐行左右交错）。
+            # 跨栏块按 y 作为锚点切分左右栏
             anchors = sorted([(r["y0"], r) for r in cross], key=lambda t: t[0])
-            def column_segment(lo, hi):
-                left_seg = sorted([r for r in left if lo <= float(r["y0"]) < hi],
-                                  key=lambda r: (r["y0"], r["x0"]))
-                right_seg = sorted([r for r in right if lo <= float(r["y0"]) < hi],
-                                   key=lambda r: (r["y0"], r["x0"]))
-                # 左栏整段在前，右栏整段在后
-                return ([("L", r) for r in left_seg] +
-                        [("R", r) for r in right_seg])
+            def interleave(lo, hi):
+                # 区间内左右栏按 y 交错（同一 y 先左后右）——贴近真实阅读顺序
+                seg = [(float(r["y0"]), 0, r) for r in left if lo <= float(r["y0"]) < hi]
+                seg += [(float(r["y0"]), 1, r) for r in right if lo <= float(r["y0"]) < hi]
+                seg.sort(key=lambda t: (t[0], t[1]))
+                return [("L" if t[1] == 0 else "R", t[2]) for t in seg]
             seq = []
             cursor = float("-inf")
             for ay, ar in anchors:
-                seq += column_segment(cursor, ay)
+                seq += interleave(cursor, ay)
                 seq.append(("X", ar))
                 cursor = ay
-            seq += column_segment(cursor, float("inf"))
+            seq += interleave(cursor, float("inf"))
             for tag, r in seq:
                 out.append({**r, "order": len(out) + 1, "column": tag})
         else:
@@ -712,35 +611,18 @@ def rebuild_table(cleaned: Dict[str, Any], layout: Dict[str, Any] = None,
             if not col_starts or x - col_starts[-1] > 18:
                 col_starts.append(x)
         grid = []
-        for ri, row in enumerate(multi):
+        for row in multi:
             cells = [""] * len(col_starts)
-            occupied = [False] * len(col_starts)
             for c in sorted(row, key=lambda c: float(c["x0"])):
                 idx = min(range(len(col_starts)),
                           key=lambda i: abs(col_starts[i] - float(c["x0"])))
                 cells[idx] = (cells[idx] + " " + c["text"].strip()).strip()
-                occupied[idx] = True
-            # 合并单元格推断：某格为空且与上一行同列非空 → 纵向合并(rowspan)；
-            # 同行相邻多个空且被非空夹住 → 横向合并(colspan)候选。
-            for ci in range(len(cells)):
-                if cells[ci] == "" and ri > 0 and ci < len(grid[ri-1]["cells"]):
-                    if grid[ri-1]["cells"][ci] and not grid[ri-1]["cells"][ci].startswith("⟂"):
-                        cells[ci] = "⟂"  # 占位：与上方合并
-            grid.append({"cells": cells, "occupied": occupied,
-                         "y0": round(float(row[0]["y0"]), 1), "page": pno})
-        # 统计 rowspan/colspan 证据（不改写文本，只给结构标注）
-        merge_info = []
-        for ri, grow in enumerate(grid):
-            for ci, val in enumerate(grow["cells"]):
-                if val == "⟂":
-                    merge_info.append({"row": ri, "col": ci, "kind": "rowspan_cont"})
-                elif val and ci + 1 < len(grow["cells"]) and grow["cells"][ci+1] == "⟂":
-                    merge_info.append({"row": ri, "col": ci, "kind": "colspan_anchor"})
+            grid.append({"cells": cells, "y0": round(float(row[0]["y0"]), 1),
+                         "page": pno})
         md = _grid_to_markdown(grid)
         tables.append({
             "page": pno, "y0": grid[0]["y0"], "rows": len(grid),
             "cols": len(col_starts), "grid": grid, "markdown": md,
-            "merges": merge_info,
             "source_lines": sorted({c["line"] for row in multi for c in row}),
         })
     # 跨页续表候选：相邻页、列数一致、末页表格在最底部
@@ -764,8 +646,6 @@ def _grid_to_markdown(grid: List[Dict[str, Any]]) -> str:
     cols = max(len(g["cells"]) for g in grid)
     def row_md(cells):
         cells = list(cells) + [""] * (cols - len(cells))
-        # ⟂ 为合并单元格续位标记，渲染为可读符号，不写入原始文本语义
-        cells = ["↕" if c == "⟂" else c for c in cells]
         return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
     out = [row_md(grid[0]["cells"]),
            "|" + "|".join(["---"] * cols) + "|"]
@@ -799,41 +679,18 @@ def recover_formulas(layout: Dict[str, Any], cleaned: Dict[str, Any]) -> Dict[st
         is_formula = has_greek or bool(small) or (bool(fnum) and len(text) < 90)
         if not is_formula:
             continue
-        # 基于 span size 差异还原上下标：小字 span 的 text 用 ^{...}/_{...} 标注。
-        # 位置判定：若 span 有 origin_y/bbox，低于同行基线中心→下标，否则上标；
-        # 无位置信息时按 size 差异统一记为上标，并在 needs_review 提示人工确认。
         rendered = text
-        supers, subs = [], []
         for s in small:
             st = str(s.get("text", "")).strip()
-            if not st or st not in rendered:
+            if not st:
                 continue
-            org = s.get("origin_y")
-            bbox = s.get("bbox")
-            center_y = org if org is not None else (
-                (bbox[1] + bbox[3]) / 2 if bbox and len(bbox) >= 4 else None)
-            # 同行正文 span 的基线（大字）
-            base_centers = []
-            for bs in spans:
-                if not bs.get("size") or float(bs["size"]) < median_size * 0.85:
-                    continue
-                bo = bs.get("origin_y")
-                bb = bs.get("bbox")
-                bc = bo if bo is not None else (
-                    (bb[1] + bb[3]) / 2 if bb and len(bb) >= 4 else None)
-                if bc is not None:
-                    base_centers.append(bc)
-            is_sub = False
-            if center_y is not None and base_centers:
-                is_sub = center_y > (_median(base_centers) + 1.0)  # y 向下更大=下标
-            mark = "_{" + st + "}" if is_sub else "^{" + st + "}"
-            rendered = rendered.replace(st, mark, 1)
-            (subs if is_sub else supers).append(st)
+            y = s.get("_y", None)
+            rendered = rendered.replace(st, "^{" + st + "}", 1)
         # 保真原则：只认原文中真实的希腊字母 Unicode，绝不把 ASCII 字母替换成希腊字母
         # （GREEK_FIX 仅作为可选 OCR 后处理，默认不启用，避免 "is"→"ιζ" 这类失真）
+        rendered = text
         formulas.append({
             "text": text, "rendered": rendered,
-            "base": text, "superscript": supers, "subscript": subs,
             "number": fnum.group(1) if fnum else None,
             "page": r["page"], "y0": r["y0"],
             "has_greek": has_greek,
@@ -953,80 +810,6 @@ def verify(cleaned: Dict[str, Any], order: Dict[str, Any],
 # ---------------------------------------------------------------------------
 # 8) 全流程
 # ---------------------------------------------------------------------------
-def audit_parse(sections: Dict[str, Any], tables: Dict[str, Any],
-                formulas: Dict[str, Any], captions: Dict[str, Any],
-                order: Dict[str, Any]) -> Dict[str, Any]:
-    """解析产物一致性审计：表格列数、公式编号、标题层级、题注配对、页序。
-
-    这些是“看起来解析成功、实际不可用”的典型硬伤，逐项可定位。
-    """
-    issues: List[Dict[str, Any]] = []
-    # 1) 表格：每行竖线数须一致，行列数不得退化
-    for t in tables.get("tables", []) or []:
-        md = str(t.get("markdown") or "")
-        rows = [ln for ln in md.splitlines() if ln.strip().startswith("|")]
-        widths = {ln.count("|") for ln in rows}
-        if rows and len(widths) > 1:
-            issues.append({"type": "ragged_table", "page": t.get("page"),
-                           "reason": "同一表格各行竖线数不一致 %s，列错位" % sorted(widths)})
-        if (t.get("rows") or 0) < 2 or (t.get("cols") or 0) < 2:
-            issues.append({"type": "degenerate_table", "page": t.get("page"),
-                           "reason": "表格仅 %s 行 × %s 列，疑为误识别" % (t.get("rows"), t.get("cols"))})
-    # 2) 公式编号：重复或跳号
-    nums = []
-    for f in formulas.get("formulas", []) or []:
-        n = f.get("number")
-        if n:
-            m = re.search(r"\d+", str(n))
-            if m:
-                nums.append(int(m.group(0)))
-    dup = sorted({x for x in nums if nums.count(x) > 1})
-    if dup:
-        issues.append({"type": "duplicate_formula_number", "numbers": dup,
-                       "reason": "公式编号重复，交叉引用会指向错误公式"})
-    if nums:
-        mx = max(nums)
-        missing = [i for i in range(1, mx + 1) if i not in set(nums)]
-        if missing:
-            issues.append({"type": "formula_number_gap", "missing": missing[:10],
-                           "reason": "公式编号不连续，缺 %s" % missing[:10]})
-    # 3) 标题层级：一次跳两级以上
-    last = 0
-    for s in sections.get("sections", []) or []:
-        lv = int(s.get("level") or 1)
-        if last and lv > last + 1:
-            issues.append({"type": "heading_level_jump", "title": s.get("text"),
-                           "reason": "标题层级从 %d 跳到 %d，目录结构会错乱" % (last, lv)})
-        last = lv
-    # 4) 题注配对：同号重复 / 表题注数与表数不符
-    seen = {}
-    for c in captions.get("captions", []) or []:
-        key = (c.get("kind"), str(c.get("number") or c.get("label") or ""))
-        if key[1]:
-            if key in seen:
-                issues.append({"type": "duplicate_caption", "caption": key[1],
-                               "reason": "同类型题注编号重复"})
-            seen[key] = True
-    tcap = captions.get("stats", {}).get("table_captions", 0)
-    tcnt = tables.get("stats", {}).get("table_count", len(tables.get("tables", []) or []))
-    if tcap and tcnt and tcap != tcnt:
-        issues.append({"type": "caption_table_mismatch",
-                       "reason": "表题注 %d 条 vs 识别表格 %d 个，存在漏配或误配" % (tcap, tcnt)})
-    # 5) 页序：阅读顺序中页码倒退
-    pages = [int(r.get("page") or 0) for r in order.get("ordered", []) or []]
-    rev = [(pages[i - 1], pages[i]) for i in range(1, len(pages)) if pages[i] < pages[i - 1]]
-    if rev:
-        issues.append({"type": "page_order_reversal", "pairs": rev[:5],
-                       "reason": "跨页阅读顺序出现页码倒退"})
-    return {
-        "issues": issues, "issue_count": len(issues),
-        "table_count": tcnt, "formula_numbered": len(nums),
-        "caption_count": len(captions.get("captions", []) or []),
-        "advice": ("解析产物结构一致，未发现硬伤" if not issues else
-                   "发现 %d 处结构问题（%s）" % (len(issues), sorted({i["type"] for i in issues}))),
-    }
-
-
 def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     """
     payload:
@@ -1043,7 +826,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     captions = detect_captions(cleaned, order)
     evidence = build_evidence(cleaned, order, sections, tables)
     ver = verify(cleaned, order, evidence, layout)
-    aud = audit_parse(sections, tables, formulas, captions, order)
 
     statuses = [cleaned["status"], order["status"], sections["status"],
                 tables["status"], formulas["status"], captions["status"], ver["status"]]
@@ -1059,12 +841,10 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
         "structure": sections["tree"],
         "sections": sections["sections"],
         "tables": [{"page": t["page"], "markdown": t["markdown"],
-                    "rows": t["rows"], "cols": t["cols"],
-                    "merges": t.get("merges", [])} for t in tables["tables"]],
+                    "rows": t["rows"], "cols": t["cols"]} for t in tables["tables"]],
         "formulas": formulas["formulas"],
         "captions": captions["captions"],
         "evidence_index": evidence["evidence"],
-        "parse_audit": aud,
         "verification": ver,
         "summary": (
             f"页数 {ver['stats']['pages']}；正文行 {cleaned['stats']['body_lines']}"
@@ -1076,8 +856,7 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             f"题注 {captions['stats']['figure_captions']}图/"
             f"{captions['stats']['table_captions']}表；"
             f"字符覆盖率 {ver['coverage']:.1%}；"
-            f"证据块 {ver['stats']['evidence_blocks']}；"
-            f"结构问题 {aud['issue_count']}"
+            f"证据块 {ver['stats']['evidence_blocks']}"
         ),
     }
     out = {"case_id": cid, "status": overall}
@@ -1094,123 +873,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-def _find_pdf_path(case: Dict[str, Any], case_dir: str, explicit: str = "") -> str:
-    """从多处定位真实 PDF：显式参数 > case.json 字段 > case 目录内 *.pdf。"""
-    import glob as _glob
-    import os as _os
-    if explicit:
-        return explicit
-    # case.json 里可能的键
-    for k in ("pdf", "pdf_path", "pdf_file", "input_pdf", "file", "material_path"):
-        v = case.get(k)
-        if isinstance(v, str) and v:
-            cand = v if _os.path.isabs(v) else _os.path.join(case_dir, v)
-            if _os.path.exists(cand):
-                return cand
-    # material / artifacts 里的路径
-    for k in ("material", "artifacts", "inputs", "files"):
-        v = case.get(k)
-        if isinstance(v, dict):
-            for kk in ("pdf", "path", "file", "pdf_path"):
-                p = v.get(kk)
-                if isinstance(p, str) and p:
-                    cand = p if _os.path.isabs(p) else _os.path.join(case_dir, p)
-                    if _os.path.exists(cand):
-                        return cand
-        elif isinstance(v, list):
-            for it in v:
-                p = it if isinstance(it, str) else (
-                    it.get("path") or it.get("file") if isinstance(it, dict) else None)
-                if isinstance(p, str) and p.lower().endswith(".pdf"):
-                    cand = p if _os.path.isabs(p) else _os.path.join(case_dir, p)
-                    if _os.path.exists(cand):
-                        return cand
-    # 目录内任意 pdf
-    hits = _glob.glob(_os.path.join(case_dir, "*.pdf"))
-    if not hits:
-        hits = _glob.glob(_os.path.join(case_dir, "**", "*.pdf"), recursive=True)
-    return hits[0] if hits else ""
-
-
-def solve(case_path: str, out_dir: str, explicit_pdf: str = "") -> Dict[str, Any]:
-    """端到端完成器：读 case.json → 定位真实 PDF → extract → pipeline → 装配 result.json。
-
-    从"守门器"升级为"完成器"的核心：直接吃平台真实输入，自己把解析任务做完并交付。
-    先落诚实结果（哪怕 partial），再供增量完善。不伪造平台分数、不臆造内容。
-    """
-    import os as _os
-    case = {"case_id": ""}
-    case_dir = _os.path.dirname(_os.path.abspath(case_path)) or "."
-    if case_path and _os.path.exists(case_path):
-        try:
-            case = _load(case_path)
-            if not isinstance(case, dict):
-                case = {"case_id": ""}
-        except Exception as e:
-            case = {"case_id": "", "input_error": type(e).__name__}
-    cid = str(case.get("case_id", "") or "")
-
-    # 情况 A：case.json 里直接给了 layout（无需 PDF）
-    if "pages" in case or "input_layout" in case:
-        result = pipeline(case)
-        result["input_mode"] = "inline_layout"
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    # 情况 B：定位真实 PDF
-    pdf_path = _find_pdf_path(case, case_dir, explicit_pdf)
-    if not pdf_path:
-        result = {
-            "case_id": cid, "status": STATUS_UNCERTAIN, "input_mode": "pdf",
-            "error": "pdf_not_found",
-            "result": {"summary": "未定位到真实 PDF，无法解析（不伪造内容）"},
-            "needs_review": ["请提供 PDF 路径或在 case.json 标注 pdf 字段"],
-        }
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    layout = extract_from_pdf(pdf_path, case_id=cid)
-    if layout.get("stats", {}).get("line_count", 0) == 0:
-        # 无文字层/后端失败：诚实返回，不伪造
-        result = {
-            "case_id": cid, "status": STATUS_UNCERTAIN, "input_mode": "pdf",
-            "pdf_path": pdf_path, "extract": layout,
-            "result": {"summary": "PDF 无可用文字层或后端不可用，需 OCR/降级；如实标注，不臆造"},
-            "needs_review": [layout.get("fallback", "无文字层")],
-        }
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    result = pipeline(layout)
-    result["input_mode"] = "pdf"
-    result["pdf_path"] = pdf_path
-    result["extract"] = {"backend": layout.get("backend"),
-                         "stats": layout.get("stats"),
-                         "backends_tried": layout.get("backends_tried", [])}
-    result["delivery"] = _write_solution(result, out_dir, cid)
-    return result
-
-
-def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
-    """把 solve 结果装配写入 out_dir/result.json（保留 case_id 与全部契约字段）。
-
-    返回装配回执（written / path / error），不静默吞错——避免"看起来强、实跑没落盘"。
-    """
-    import os as _os
-    payload = dict(result)
-    if "case_id" not in payload:
-        payload["case_id"] = case_id
-    path = _os.path.join(out_dir, "result.json")
-    try:
-        _os.makedirs(out_dir, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
-        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
-    except Exception as e:
-        return {"written": False, "path": path, "error": type(e).__name__}
-
-
 def _load(path: str):
     if path == "-":
         return json.load(sys.stdin)
@@ -1218,18 +880,13 @@ def _load(path: str):
 
 
 def _as_layout(data: Dict[str, Any]) -> Dict[str, Any]:
-    """统一把输入规范为带 pages(list) 的 layout 对象；畸形值归一为空。"""
+    """统一把输入规范为带 pages 键的 layout 对象。"""
     if not isinstance(data, dict):
         return {"pages": []}
-    # 若给了 input_layout，先按它规范化
-    if "input_layout" in data and isinstance(data.get("input_layout"), dict):
-        data = data["input_layout"]
-    pages = data.get("pages")
-    if not isinstance(pages, list):
-        # pages 缺失 / null / 非列表：归一为空 layout，避免下游迭代崩溃
-        fixed = dict(data)
-        fixed["pages"] = []
-        return fixed
+    if "pages" in data and isinstance(data["pages"], list):
+        return data  # 已经是 layout
+    if "input_layout" in data:
+        return data["input_layout"]
     return data
 
 
@@ -1238,7 +895,6 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("extract"); sp.add_argument("pdf")
-    sp.add_argument("--case-id", default="")
     for c in ("clean", "order", "sections", "tables", "formulas", "captions"):
         sub.add_parser(c).add_argument("input")
     ev = sub.add_parser("evidence")
@@ -1246,17 +902,10 @@ def main(argv=None):
     vf = sub.add_parser("verify"); vf.add_argument("input")
     pl = sub.add_parser("pipeline"); pl.add_argument("input")
     pl.add_argument("--compact", action="store_true")
-    # 端到端完成器：读 case.json → 定位真实 PDF → extract → pipeline → 装配 result.json
-    sv = sub.add_parser("solve")
-    sv.add_argument("case")
-    sv.add_argument("--out", default="/app/output")
-    sv.add_argument("--pdf", default="", help="显式指定 PDF 路径（可选）")
 
     args = p.parse_args(argv)
     if args.cmd == "extract":
-        out = extract_from_pdf(args.pdf, case_id=getattr(args, "case_id", ""))
-    elif args.cmd == "solve":
-        out = solve(args.case, args.out, explicit_pdf=args.pdf)
+        out = extract_from_pdf(args.pdf)
     else:
         data = _load(args.input)
         layout = _as_layout(data)
@@ -1288,15 +937,6 @@ def main(argv=None):
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
     return 0
 
-def _write_solution(result, out_dir, case_id):
-    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
-    core = _write_solution_core(result, out_dir, case_id)
-    try:
-        from artifacts import write_artifacts
-        core["artifacts"] = write_artifacts(result, out_dir, "pdf-layout-parse")
-    except Exception as e:  # 渲染失败不影响 result.json 已落盘
-        core["artifacts_error"] = type(e).__name__
-    return core
 
 if __name__ == "__main__":
     raise SystemExit(main())

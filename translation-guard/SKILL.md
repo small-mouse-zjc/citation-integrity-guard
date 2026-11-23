@@ -5,7 +5,7 @@ description: 科研文献翻译守门人。当任务涉及科研论文中英互�
 
 # 文献翻译守门人（Translation Guard）
 
-面向真实科研文献的翻译技能。本技能既是从真实 case 出发、端到端交付双语对照成稿的**完成器**，也是把**术语一致性、段落完整性、事实关系保真、可核验性**做成确定性、可回溯动作的**核验器**。翻译措辞由模型完成，但脚本会读取真实输入、切段、建术语表、渲染可编辑双语草稿、核验并自动装配 `/app/output/result.json`。目标不是"译文通顺"，而是**术语统一、段落不漏、数字公式引用不丢、每段能回原文并说明依据**。
+面向真实科研文献的翻译技能。翻译措辞由模型完成；本技能负责把**术语一致性、段落完整性、事实关系保真、可核验性**做成确定性的、可回溯的动作。目标不是"译文通顺"，而是**术语统一、段落不漏、数字公式引用不丢、每段能回原文并说明依据**。
 
 ## 何时触发 / 何时不触发
 
@@ -19,8 +19,7 @@ description: 科研文献翻译守门人。当任务涉及科研论文中英互�
 2. **段落一一对应**：稳定段号贯穿切段、翻译、对齐、证据，漏段/重复/错位显式检出。
 3. **事实零失真**：数字、单位、公式、引用标记、化学式翻译前变占位符保护，翻译后回填核对；篡改即告警。
 4. **诚实标注**：否定/限定词疑似丢失、术语候选未定译名、缺译文——一律进 `needs_review`，不臆造。
-5. **确定性动作交给脚本**：真实输入适配、术语抽取、段号对齐、占位符保护回填、自检、双语成稿与 result.json 装配这些易错动作必须实际运行 `scripts/translation_guard.py`。
-6. **端到端一次交付**：优先用 `solve case.json --out /app/output`，一次运行即从真实材料走到双语成稿与可复核交付；无译文的段标〔待翻译〕，绝不臆造。
+5. **确定性动作交给脚本**：术语抽取、段号对齐、占位符保护回填、自检这些易错动作必须实际运行 `scripts/translation_guard.py`。
 
 ## 工具：translation_guard.py
 
@@ -59,9 +58,7 @@ python scripts/translation_guard.py --help
 | `restore` | 翻译后：回填占位符，核对丢失/篡改 | 关系准 |
 | `verify` | 数字/否定/限定/引用/化学式保真自检 | 关系准/可核验 |
 | `evidence` | 每段译文的原文定位 + 译法依据 | 可核验 |
-| `render-draft` | 用真实字段渲染可编辑双语对照成稿草稿（无译文标〔待翻译〕） | 全部/成稿 |
-| `solve` | 端到端完成器：case.json →(适配材料)→ 全流程 → 双语成稿 → result.json | 全部/交付 |
-| `pipeline` | 全流程串联，`--compact` 省 token；`--with-draft` 脚本成稿 | 全部 |
+| `pipeline` | 全流程串联，`--compact` 省 token | 全部 |
 
 ## 标准工作流（翻译前 → 翻译后）
 
@@ -73,21 +70,13 @@ python scripts/translation_guard.py --help
 6. **回填核对**：`restore` 回填占位符，核对有无丢失/篡改（数字被改、引用被删会告警）。
 7. **段落对齐**：`align` 检查段号一一对应，漏段/重复/错位显式列出。
 8. **译文核验**：`check_terms`（译名一致）+ `verify`（数字/否定/限定/引用/公式保真）+ `evidence`（每段回原文与依据）。译不准的进 `needs_review`。
-9. **装配输出**：直接 `python scripts/translation_guard.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配 materials、渲染双语草稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。预算紧张用 `pipeline --compact`。
-
-### 端到端完成器（首选）
-
-```bash
-python scripts/translation_guard.py solve /input/case.json --out /app/output   # 一次运行：适配→成稿→装配
-python scripts/translation_guard.py render-draft input.json > draft.json        # 仅渲染双语成稿草稿
-python scripts/translation_guard.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
-```
-
-`solve` 适配的真实输入字段：`paragraphs`（内联）、`source_text`（纯文本切段）、`source_files`（[路径] 或 {名:路径}，读 .txt/.md/.json）、`translations` 或 `translation_files`（真实译文）。读不到不臆造，记入 `adapter_notes` 与 `needs_review`；缺译文段统一标〔待翻译〕。
+9. **装配输出**：按 `references/output_contract.md` 写 `/app/output/result.json`，保留 `case_id`。`result.summary` 是一行紧凑结论；预算紧张用 `pipeline --compact`。双语对照另存文件。
 
 ## 输出契约要点
 
-每案例返回：`case_id`、`status`、`result`（含 `segment_count`/`glossary_locked`/`aligned_coverage`/`verification`/`evidence_index`/`summary`；`solve` 额外含 `bilingual_draft`/`blocks`）、`needs_review`、`uncertainty`。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。详见 `references/output_contract.md`。
+每案例返回：`case_id`、`status`（success/partial/needs_review）、`result.translations`（每段 `id/source/target/translated`，**必须包含真实译文，不能只交核验表**）、`result.bilingual`、`result.translation_metrics`（total/translated/coverage/untranslated_ids）、`segment_count`、`glossary_locked`、`protected_tokens`、`aligned_coverage`、`term_inconsistencies`、`verification`（consistent/issues/needs_review）、`evidence_index`、`lock_prompt`、`protected_for_translation`、`summary`。详见 `references/output_contract.md`。
+
+**交付判据**：`translation_metrics.translated` 必须覆盖任务要求的全部段落；只交 `protected_for_translation` 或核验报告而不交 `translations`，一律视为 partial，不能声称完成。
 
 ## 异常处理
 
@@ -108,14 +97,9 @@ python scripts/translation_guard.py pipeline input.json --with-draft > result.js
 - 先存诚实部分结果（已译段落 + 术语表）再增量完善。
 - 三案例复用同一术语表约定与段号规则，避免重复口径摸索。
 
-## 交付文件（solve 自动生成，评审可直接打开）
-
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`bilingual.md`（段落级双语对照成稿）、`glossary.csv`（锁定术语表）、`bilingual_draft.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
-
 ## 资源清单
 
-- `scripts/translation_guard.py`：确定性翻译完成器+守门引擎（12 子命令，含 solve/render-draft，纯标准库）
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
+- `scripts/translation_guard.py`：确定性翻译守门引擎（10 子命令，纯标准库）
 - `references/output_contract.md`：输入输出字段契约
 - `references/glossary_format.md`：术语表格式与锁定规则
 - `references/protection_rules.md`：占位符保护与回填规则
@@ -123,11 +107,11 @@ python scripts/translation_guard.py pipeline input.json --with-draft > result.js
 - `references/verification_checklist.md`：译文自检清单
 - `references/failure_patterns.md`：失败模式案例
 - `references/vocab.md`：可复用词表（术语/否定/限定/单位/化学式模式）
-- `examples/`：最小示例 + 带译文样例 + 10 道边界题集 + 61 项自测（含成稿/适配/solve）
+- `examples/`：最小示例 + 带译文样例 + 10 道边界题集 + 37 项自测
 
 ## 限制与边界
 
-- 本技能不替代模型翻译措辞，但会从真实输入切段、建术语表、渲染双语成稿草稿、核验并装配交付；缺译文标〔待翻译〕不臆造，译文质量由人工最终确认。
+- 本技能不替代模型翻译措辞，只保证术语锁定、段落对齐、事实保真与可核验；译文质量由人工最终确认。
 - 术语抽取是候选，译名须人工/模型确认后锁定；占位符保护覆盖数字单位/公式/引用/化学式，否定限定为"疑似"提示需人工判断。
 - 不联网、不臆造译文或术语译名；所有核验结论可回到原文段号。
 
@@ -148,15 +132,12 @@ python scripts/translation_guard.py pipeline input.json --with-draft > result.js
 
 创新边界摘要：`translation_guard.py` 把 "术语稳 / 段落全 / 关系准 / 可核验" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
 
-## 逐段译文审计（translation_audit）
 
-`solve` / `pipeline` 现在会对每一段做可计算的译文体检，结果写入 `result.translation_audit`：
+## 交付前自检（必须）
 
-- `missing_translation`：该段无译文（成稿中标〔待翻译〕）；
-- `possibly_untranslated`：目标语为中文但汉字占比 <15%，疑似原文照抄；
-- `length_outlier`：译文/原文长度比 <0.45 或 >2.4；
-- `number_drift`：源段与译段的数字集合不一致（列出缺/多）；
-- `term_conflict` / `term_collision`：同一术语多译名 / 同一译名对应多术语；
-- `glossary_coverage`：术语表中目标译名在译文中实际出现的比例。
+```bash
+python scripts/validate_result.py --result /app/output/result.json --outdir /app/output --case /input/case.json --main-field translations
+```
 
-用法：正常跑 `solve` 即可，无需额外命令；审计不通过时逐条列出段号，便于回改。
+`valid=false` 时按 errors 修；`result.translations` 为空、顶层缺 `case_id/status/result/evidence/uncertainty`、或声明的产物路径不存在，都不得声称完成。
+

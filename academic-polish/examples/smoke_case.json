@@ -1,0 +1,6 @@
+{
+  "case_id": "smoke-01",
+  "task": "润色摘要；保持数字、引用与限定强度",
+  "source_text": "# Abstract\nRecent studies suggest that the method may improve accuracy by 12.5% on the benchmark [1,2]. However, this improvement was not observed in the low-data regime, and the result cannot be generalized without further validation.",
+  "output_contract": {"polished_text": {"required": true}, "changes": {"required": true}, "audit": {"required": true}}
+}

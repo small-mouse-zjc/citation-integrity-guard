@@ -48,28 +48,6 @@ def _resolve(result: Dict[str, Any], expr: str):
 def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
     r = ENGINE.pipeline(payload)
     result = r.get("result", {}) if isinstance(r, dict) else {}
-
-    # 真实朴素基线成稿：把源码文件裸平铺（不做编译分类/内容检查/交付校验/复现清单）
-    files = payload.get("files", {}) or {}
-    main_tex = str(payload.get("main_tex", "") or "")
-    baseline_text = "\n\n".join(str(v) for v in files.values()) if files else main_tex
-    # Skill 成稿：用真实字段渲染可编辑 LaTeX 交付包草稿
-    draft = ENGINE.render_draft(payload)
-    skill_text = draft.get("draft_text", "")
-    draft_cmp = {
-        "baseline_text": baseline_text or "〔基线无可用源码〕",
-        "baseline_chars": len(baseline_text),
-        "baseline_parts": len(files) or (1 if main_tex else 0),
-        "skill_text": skill_text,
-        "skill_chars": len(skill_text),
-        "skill_parts": len(draft.get("source_files", [])),
-        "skill_fixes": len(draft.get("fixes", [])),
-        "skill_compile_status": draft.get("compile_status", ""),
-        "note": ("基线=源码文件裸平铺（真实生成的朴素稿）；"
-                 "Skill=交付包草稿（真实源码+编译状态+逐维核验+待修清单，不臆造编译成功）。"
-                 "仅比较结构与覆盖证据，不编造质量分；正式质量对照由平台白板给出。"),
-    }
-
     dims = []
     for dim, baseline, field, gate in PROFILE["dimensions"]:
         flagged, positives = _resolve(result, field)
@@ -89,7 +67,6 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "comparison",
         "four_questions": PROFILE["four"],
         "dimensions": dims,
-        "draft_comparison": draft_cmp,
         "summary": {
             "four_questions_covered": len(PROFILE["four"]) == 4 and len(dims) == 4,
             "dimensions_with_evidence": fired,

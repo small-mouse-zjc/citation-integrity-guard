@@ -29,7 +29,6 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -128,107 +127,31 @@ def _extract_numbers(text: str) -> set:
     return out
 
 
-# 来源里的 "name=value" / "name: value" 形式，用于参数名语义对齐
-SRC_KV_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]{0,30})\s*[=:]\s*(-?\d+(?:\.\d+)?(?:e-?\d+)?)\s*(%|‰)?", re.I)
-# 常见参数别名（正文中文名 ↔ 配置键名）
-PARAM_ALIAS = {
-    "学习率": {"lr", "learning_rate", "learningrate"},
-    "learning rate": {"lr", "learning_rate", "learningrate"},
-    "随机种子": {"seed", "random_seed", "randseed"},
-    "批大小": {"batch", "batch_size", "bs"},
-    "批量大小": {"batch", "batch_size", "bs"},
-    "轮数": {"epochs", "epoch", "num_epochs"},
-    "准确率": {"acc", "accuracy", "accuary"},
-    "精确率": {"precision"},
-    "召回率": {"recall", "rec"},
-    "f1": {"f1", "f1_score"},
-}
-
-
-def _canon_param(name: str) -> str:
-    n = _norm(name)
-    return n
-
-
-def _name_aligned(param_name: str, src_kv: Dict[str, set]) -> bool:
-    """正文参数名是否与来源里的键语义对齐（含别名）。"""
-    cn = _canon_param(param_name)
-    if not cn:
-        return False
-    if cn in src_kv:
-        return True
-    aliases = set()
-    for zh, ens in PARAM_ALIAS.items():
-        if zh in cn:
-            aliases |= ens
-    # 正文名本身是英文键（如 lr）
-    for key in src_kv:
-        if key in cn or cn in key:
-            return True
-    return bool(aliases & set(src_kv.keys()))
-
-
 def verify_values(manuscript: str, sources: Dict[str, str]) -> Dict[str, Any]:
-    """核验正文声称的"参数名 = 数值"能否在来源中按【参数名+数值】联合定位。
+    """核验正文声称的数值能否在来源（配置/日志/代码/数据说明）中找到。
 
-    来源形如 `lr=0.001 seed=42 batch=32`。改进点（相对旧版"数值集合比对"）：
-      - 先按来源里的 name=value 建立键值索引；
-      - 正文每条 claim 只有在"参数名对齐 且 数值一致"时才算 found；
-      - 仅数值存在但参数名对不上 → value_exists_name_mismatch（弱证据，不计入 supported）；
-      - 彻底找不到 → unsupported（疑似补造）。
-    8:2 / 7:3 这类比例由 CLAIM_NUM_RE 的 `(?!\\d)` 排除，不会被误拆。
+    sources: {来源名: 来源文本}。函数只做数值集合比对，给出 find/no-find；
+    语义核对（同一参数、同一条件）由 Agent 结合定位完成。
     """
-    src_kv: Dict[str, set] = defaultdict(set)
-    all_src = ""
-    if isinstance(sources, dict):
-        for sname, stext in sources.items():
-            all_src += "\n" + str(stext)
-            for m in SRC_KV_RE.finditer(str(stext)):
-                src_kv[m.group(1).lower()].add((m.group(2) + (m.group(3) or "")).rstrip("%‰"))
-    else:
-        all_src = str(sources)
-        for m in SRC_KV_RE.finditer(all_src):
-            src_kv[m.group(1).lower()].add((m.group(2) + (m.group(3) or "")).rstrip("%‰"))
+    all_src = "\n".join(sources.values()) if isinstance(sources, dict) else str(sources)
     src_nums = _extract_numbers(all_src)
-
     claims = []
     for m in CLAIM_NUM_RE.finditer(manuscript or ""):
         name = m.group(1).strip()
         val = m.group(2) + (m.group(3) or "")
-        val_key = val.rstrip("%‰")
-        name_ok = _name_aligned(name, src_kv)
-        value_ok = val_key in src_nums
-        # 参数名对齐且该键下确有此值 → 强证据
-        kv_ok = any(val_key in vals for key, vals in src_kv.items()
-                    if key in [_canon_param(name).lower()] or
-                    _name_aligned(name, {key: vals}))
-        if name_ok and kv_ok:
-            status = "found"
-        elif value_ok:
-            status = "value_exists_name_mismatch"
-        else:
-            status = "unsupported"
-        matched_sources = [k for k, v in (sources.items() if isinstance(sources, dict) else [])
-                           if val_key in _extract_numbers(v)] if value_ok else []
+        found = val.rstrip("%‰") in {n.rstrip("%‰") for n in src_nums}
         claims.append({"claim": m.group(0).strip(), "parameter": name, "value": val,
-                       "status": status,
-                       "found_in_sources": status == "found",
-                       "name_aligned": name_ok, "value_exists": value_ok,
-                       "sources": matched_sources if status == "found" else []})
-    weak = [c for c in claims if c["status"] == "value_exists_name_mismatch"]
-    unsupported = [c for c in claims if c["status"] == "unsupported"]
+                       "found_in_sources": found,
+                       "sources": [k for k, v in sources.items() if val.rstrip("%‰") in _extract_numbers(v)] if found else []})
+    unsupported = [c for c in claims if not c["found_in_sources"]]
     return {
         "claims": claims,
         "claim_count": len(claims),
-        "found_count": sum(1 for c in claims if c["status"] == "found"),
-        "weak_count": len(weak),
-        "weak_name_mismatch": weak,
         "unsupported_count": len(unsupported),
         "unsupported": unsupported,
-        "all_supported": not unsupported and not weak,
-        "advice": ("正文数值均按参数名对齐在来源中定位" if not unsupported and not weak
-                   else (f"{len(unsupported)} 处数值未在来源找到（疑似补造）；"
-                         f"{len(weak)} 处数值存在但参数名对不上（须核对是否同一参数）")),
+        "all_supported": not unsupported,
+        "advice": ("正文数值均可在来源中定位" if not unsupported
+                   else f"{len(unsupported)} 处数值未在来源中找到，须核对是否为补造，或补充来源"),
     }
 
 
@@ -335,139 +258,7 @@ def build_param_table(params: List[Dict[str, Any]]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 6) pipeline
 # ---------------------------------------------------------------------------
-def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """把核验结果渲染为【可编辑、可复做的六要素章节成稿草稿】。
-
-    完成器核心：脚本自己用真实材料字段把章节写出来，不再只 check 别人稿子。
-    硬约束：
-      - 只用 section_text 原句、params、sources、gaps、limitations 的真实字段；
-      - 每个数值/参数附来源（source），无来源用〔待核实〕标注，不补造；
-      - 材料缺口进"作者确认清单"，不写成既成事实。
-    """
-    p = pipeline(payload)
-    r = p["result"]
-    section = payload.get("section_text", "") or ""
-    params = payload.get("params", []) or []
-
-    blocks: List[Dict[str, Any]] = []
-    used_sources: List[str] = []
-
-    # 六要素：每条从原文里取真实句子（按要素模式命中），无则标注缺口
-    sent_units = [s.strip() for ln in section.splitlines()
-                  for s in re.split(r"(?<=[。！？；.!?;])", ln) if s.strip()]
-    def sentences_for(key):
-        pats = ELEMENTS.get(key, {}).get("patterns", [])
-        return [s for s in sent_units if _has(s, pats)]
-
-    ordered_keys = ["steps", "setup", "params", "data", "baseline", "repro_limit"]
-    for key in ordered_keys:
-        label = ELEMENTS[key]["label"]
-        sents = sentences_for(key)
-        if sents:
-            text = "".join(sents)
-            status = "ok"
-        else:
-            text = "〔待核实：材料未提供『%s』的可引用表述，须补充原文定位〕" % label
-            status = "needs_attention"
-        blocks.append({"element": key, "label": label, "text": text, "status": status})
-
-    # 参数表：用真实 params + source
-    param_lines = []
-    for row in r["parameter_table"]["rows"]:
-        src = row["source"] or "〔待核实：无来源〕"
-        val = row["value"]
-        unit = row["unit"]
-        line = "- %s = %s%s（来源：%s）" % (row["name"], val, unit, src)
-        param_lines.append(line)
-        if row["source"]:
-            used_sources.append(row["source"])
-    param_text = "\n".join(param_lines) if param_lines else "〔待核实：无参数表〕"
-    blocks.append({"element": "param_table", "label": "参数表", "text": param_text,
-                   "status": "ok" if r["parameter_table"]["all_sourced"] else "needs_attention"})
-
-    # 数值核验：按来源定位的情况写入证据，补造/名实不符单列
-    v = r["value_verification"]
-    ev_lines = ["%s（%s）" % (c["claim"], "、".join(c["sources"]) or "无来源")
-                for c in v["claims"] if c["status"] == "found"]
-    ev_text = "\n".join(ev_lines) if ev_lines else "〔无可在来源定位的数值〕"
-    problems = ([c["claim"] for c in v["unsupported"]] +
-                [c["claim"] + "（参数名不符）" for c in v.get("weak_name_mismatch", [])])
-
-    # 作者确认清单：缺口 + 套话限制
-    confirm = [q["question"] for q in r["gap_probe"]["open_questions"]]
-    confirm += [g["reason"] for g in r["gap_probe"]["generic_limitations"]]
-
-    full_text = "\n\n".join("%s\n%s" % (b["label"], b["text"]) for b in blocks)
-    all_ok = all(b["status"] == "ok" for b in blocks) and not problems and not confirm
-    return {
-        "case_id": payload.get("case_id", ""),
-        "status": "draft" if all_ok else "partial",
-        "draft_text": full_text,
-        "blocks": blocks,
-        "parameter_table": r["parameter_table"]["rows"],
-        "value_evidence": ev_text,
-        "source_refs": sorted(set(used_sources)),
-        "needs_author_confirmation": confirm,
-        "unverified_values": problems,
-        "uncertainty": ["只按真实字段成稿，无来源参数/数值用〔待核实〕标注，不补造",
-                        "数值同一条件、限制是否成立须结合配置/日志/原文复核"],
-        "note": ("可编辑可复做章节草稿：六要素 + 参数表(带来源) + 证据定位 + 作者确认清单；"
-                 "非最终稿，价值判断须人工核对"),
-    }
-
-
-STATS_CHECKS = {
-    "sample_size": {"label": "样本量", "critical": True,
-                    "patterns": [r"\bn\s*=\s*\d+", r"样本(数|量)", r"sample size", r"共\s*\d+\s*(个|例|份|条)"]},
-    "replicates": {"label": "重复次数", "critical": True,
-                   "patterns": [r"重复", r"独立(实验|重复)", r"replicat", r"triplicat", r"三次", r"±"]},
-    "dispersion": {"label": "离散度", "critical": True,
-                   "patterns": [r"标准差", r"标准误", r"±", r"\bSD\b", r"\bSEM\b", r"置信区间|confidence interval|\bCI\b"]},
-    "test_name": {"label": "统计检验名称", "critical": True,
-                  "patterns": [r"t\s*检验|t-test", r"方差分析|ANOVA", r"秩和|Mann.?Whitney",
-                               r"卡方|chi.?square", r"Kruskal", r"Wilcoxon", r"检验"]},
-    "alpha": {"label": "显著性水平", "critical": False,
-              "patterns": [r"p\s*[<>=]\s*0?\.\d+", r"α\s*=|alpha\s*=", r"显著性水平", r"置信水平"]},
-    "effect_size": {"label": "效应量", "critical": False,
-                    "patterns": [r"效应量|effect size", r"Cohen", r"η2|eta.?squared", r"\bR2\b|R\s*方"]},
-    "correction": {"label": "多重比较校正", "critical": False,
-                   "patterns": [r"Bonferroni", r"FDR", r"Holm", r"多重比较|multiple comparison"]},
-    "stats_software": {"label": "统计软件与版本", "critical": False,
-                       "patterns": [r"SPSS", r"\bR\s*(版本|version|\d)", r"GraphPad", r"Origin",
-                                    r"Python\s*\d", r"statsmodels|scipy"]},
-}
-
-
-def audit_stats(section_text: str) -> Dict[str, Any]:
-    """统计报告充分性审计：样本量/重复/离散度/检验/α/效应量/校正/软件。
-
-    审稿人最先挑方法章节的统计硬伤；这里把“写没写”变成可核验清单。
-    """
-    text = str(section_text or "")
-    present: Dict[str, bool] = {}
-    missing_critical: List[str] = []
-    missing_recommended: List[str] = []
-    for key, meta in STATS_CHECKS.items():
-        ok = _has(text, meta["patterns"])
-        present[key] = ok
-        if not ok:
-            (missing_critical if meta["critical"] else missing_recommended).append(meta["label"])
-    score = sum(1 for k, v in present.items() if v) / len(STATS_CHECKS)
-    return {
-        "elements": {k: {"label": STATS_CHECKS[k]["label"], "present": v,
-                         "critical": STATS_CHECKS[k]["critical"]} for k, v in present.items()},
-        "present_count": sum(1 for v in present.values() if v),
-        "required_count": len(STATS_CHECKS),
-        "score": round(score, 3),
-        "missing_critical": missing_critical,
-        "missing_recommended": missing_recommended,
-        "complete": not missing_critical,
-        "advice": ("统计报告关键项齐全" if not missing_critical else
-                   "缺关键统计项：%s（审稿人可直接据此要求补分析）" % "、".join(missing_critical)),
-    }
-
-
-def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     case_id = payload.get("case_id", "")
     section = payload.get("section_text", "")
     sources = payload.get("sources", {}) or {}
@@ -481,29 +272,27 @@ def pipeline(payload: Dict[str, Any], with_draft: bool = False) -> Dict[str, Any
     r_repro = check_reproducibility(section, payload.get("required_repro"))
     r_gap = probe_gaps(gaps + r_comp["missing"] + r_repro["missing"], limitations, open_q)
     r_param = build_param_table(params)
-    r_stats = audit_stats(section)
 
     # 汇总所有缺口成追问清单（去重）
     all_gaps = (r_comp["missing"] + r_repro["missing"] + r_val["unsupported"] +
                 r_param["missing_source"])
     overall = (r_comp["complete"] and r_val["all_supported"] and r_repro["reproducible"]
                and r_param["all_sourced"] and not r_gap["generic_limitations"])
-    # 成稿：with_draft=True 时由脚本用真实字段渲染，不再只透传外部 draft
-    draft_obj = render_draft(payload) if with_draft else None
-    method_draft = (draft_obj["draft_text"] if draft_obj else
-                    payload.get("draft", ""))
+    draft = str(payload.get("draft", "") or "")
+    draft_present = len(draft.strip()) >= 200
+    status = "ok" if (overall and draft_present) else ("partial" if not draft_present else "needs_attention")
     return {
         "case_id": case_id,
-        "status": "ok" if overall else "needs_attention",
+        "status": status,
         "result": {
             "completeness": r_comp,
             "value_verification": r_val,
             "reproducibility": r_repro,
             "gap_probe": r_gap,
             "parameter_table": r_param,
-            "stats_audit": r_stats,
-            "method_experiment_draft": method_draft,
-            "draft_detail": draft_obj,
+            "method_experiment_draft": draft,
+            "draft_metrics": {"chars": len(draft), "present": draft_present,
+                              "required_min_chars": 200},
         },
         "evidence": {
             "principles": {
@@ -541,95 +330,6 @@ def _load(path: str) -> Any:
         return json.load(f)
 
 
-def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
-    import os as _os
-    payload = dict(result)
-    if "case_id" not in payload:
-        payload["case_id"] = case_id
-    path = _os.path.join(out_dir, "result.json")
-    try:
-        _os.makedirs(out_dir, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
-        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
-    except Exception as e:
-        return {"written": False, "path": path, "error": type(e).__name__}
-
-
-def _adapt_materials(payload: Dict[str, Any], case_dir: str) -> Dict[str, str]:
-    """真实材料适配器：把 source_files/materials 指向的文件读成 {来源名: 文本}。
-
-    支持：payload.sources(内联) + payload.source_files([路径] 或 {名:路径})
-    + payload.materials({名:路径})。读不到不臆造，记录到 adapter_notes。
-    """
-    import os as _os
-    sources: Dict[str, str] = {}
-    for k, v in (payload.get("sources", {}) or {}).items():
-        if isinstance(v, str):
-            sources[k] = v
-    files = payload.get("source_files") or payload.get("materials") or {}
-    if isinstance(files, list):
-        files = {_os.path.basename(str(f)): str(f) for f in files}
-    for name, rel in files.items():
-        path = rel if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
-        try:
-            sources[name] = open(path, encoding="utf-8").read()
-        except Exception:
-            pass  # 读不到不臆造，交给缺口清单提示
-    return sources
-
-
-def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
-    """端到端完成器：读 case.json → 适配真实材料 → 六要素检查 → 成稿 → 装配 result.json。"""
-    import os as _os
-    payload: Dict[str, Any] = {"case_id": ""}
-    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
-    if case_path and case_path != "-":
-        try:
-            loaded = _load(case_path)
-            if isinstance(loaded, dict):
-                payload = loaded
-        except Exception as e:
-            payload = {"case_id": "", "input_error": type(e).__name__}
-    cid = str(payload.get("case_id", "") or "")
-
-    if not (payload.get("section_text") or payload.get("draft") or
-            payload.get("params") or payload.get("sources") or
-            payload.get("source_files") or payload.get("materials")):
-        result = {"case_id": cid, "status": "needs_attention", "input_mode": "case",
-                  "result": {"summary": "输入无 section_text/材料，无法成稿（不伪造内容）"},
-                  "needs_review": ["请提供 section_text 或材料文件"]}
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    work = dict(payload)
-    work["sources"] = _adapt_materials(payload, case_dir)
-    pl = pipeline(work, with_draft=True)
-    draft = pl["result"].get("draft_detail") or {}
-    result = {
-        "case_id": cid,
-        "status": pl["status"],
-        "input_mode": "case",
-        "source_count": len(work["sources"]),
-        "result": {
-            "draft_text": draft.get("draft_text", pl["result"]["method_experiment_draft"]),
-            "blocks": draft.get("blocks", []),
-            "parameter_table": draft.get("parameter_table", []),
-            "value_evidence": draft.get("value_evidence", ""),
-            "source_refs": draft.get("source_refs", []),
-            "stats_audit": pl["result"].get("stats_audit"),
-            "status_checks": pl["status"],
-            "summary": pl["result"],
-        },
-        "needs_review": draft.get("needs_author_confirmation", []) +
-                        draft.get("unverified_values", []),
-        "uncertainty": draft.get("uncertainty", []),
-    }
-    result["delivery"] = _write_solution(result, out_dir, cid)
-    return result
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="方法与实验章节写作确定性核验引擎")
     sub = p.add_subparsers(dest="cmd")
@@ -649,16 +349,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("build-param-table", help="参数表")
     sp.add_argument("input", help="JSON：params")
 
-    sp = sub.add_parser("render-draft", help="可复做章节成稿草稿：仅用真实字段渲染六要素")
+    sp = sub.add_parser("pipeline", help="端到端")
     sp.add_argument("input", help="JSON 全量输入")
-
-    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配材料)→ 成稿 → result.json")
-    sv.add_argument("case", help="case.json 路径")
-    sv.add_argument("--out", default="/app/output", help="交付目录")
-
-    pl = sub.add_parser("pipeline", help="端到端")
-    pl.add_argument("input", help="JSON 全量输入")
-    pl.add_argument("--with-draft", action="store_true", help="脚本渲染成稿草稿")
+    sp.add_argument("--draft-file", default=None, help="Agent 写好的方法章节全文；优先级高于 input JSON 的 draft")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -676,27 +369,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         out = probe_gaps(d.get("gaps", []), d.get("limitations", []), d.get("open_questions"))
     elif args.cmd == "build-param-table":
         d = _load(args.input); out = build_param_table(d.get("params", []))
-    elif args.cmd == "render-draft":
-        out = render_draft(_load(args.input))
-    elif args.cmd == "solve":
-        out = solve(args.case, args.out)
     elif args.cmd == "pipeline":
-        out = pipeline(_load(args.input), with_draft=getattr(args, "with_draft", False))
+        d = _load(args.input)
+        if args.draft_file:
+            with open(args.draft_file, encoding="utf-8", errors="replace") as f:
+                d["draft"] = f.read()
+        out = pipeline(d)
     else:
         p.print_help(); return 1
 
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 
-def _write_solution(result, out_dir, case_id):
-    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
-    core = _write_solution_core(result, out_dir, case_id)
-    try:
-        from artifacts import write_artifacts
-        core["artifacts"] = write_artifacts(result, out_dir, "methods-repro-guard")
-    except Exception as e:  # 渲染失败不影响 result.json 已落盘
-        core["artifacts_error"] = type(e).__name__
-    return core
 
 if __name__ == "__main__":
     sys.exit(main())

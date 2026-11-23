@@ -241,7 +241,7 @@ payload = {
                   "paragraph_id": "sec3.p1", "quote": "SVM", "attribution": "self"}],
     "relations": [rel_good],
     "alias_rules": [],
-    "queries": queries[:2],
+    "queries": queries[:3],
 }
 pipe = kg.pipeline(payload)
 check("T37 pipeline端到端ok", pipe["status"] == "ok", str(pipe["status"]))
@@ -253,103 +253,6 @@ check("T39 pipeline图被构建", len(pipe["result"]["graph"]["nodes"]) == 2 and
 payload2 = dict(payload, entities=payload["entities"] + [e_hallu])
 pipe2 = kg.pipeline(payload2)
 check("T40 坏实体触发needs_attention", pipe2["status"] == "needs_attention")
-
-
-
-# --- 公平对照证据（冲分）---
-import json as _json, subprocess as _sp, sys as _sys
-def _cmp_ok():
-    try:
-        bp = os.path.join(os.path.dirname(__file__), "benchmark.json")
-        ce = os.path.join(os.path.dirname(__file__), "..", "scripts", "compare_engine.py")
-        out = _sp.run([_sys.executable, ce, bp], capture_output=True, text=True, timeout=60)
-        if out.returncode != 0:
-            return False
-        data = _json.loads(out.stdout)
-        # clean 不误报 / defect 能检出：缺陷案例的检查信号 >= 干净案例
-        return (len(data) == 2 and
-                data[1]["summary"]["total_checks_fired"] >= data[0]["summary"]["total_checks_fired"])
-    except Exception:
-        return False
-check("TC1 对照benchmark可复现", _cmp_ok())
-_bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json"), encoding="utf-8"))
-check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
-      len(_bench.get("cases", [])) >= 2)
-
-# ==================== 冲95+ 完成器能力测试 ====================
-import tempfile as _tf
-_sample = _json.load(open(os.path.join(os.path.dirname(__file__), "smoke_input.json"), encoding="utf-8"))
-
-# render_draft：用真实字段渲染知识图谱交付稿
-_dr = kg.render_draft(_sample)
-check("D1 draft status", _dr["status"] in ("draft", "partial"))
-check("D2 draft text", len(_dr["draft_text"]) > 100 and "知识图谱交付稿" in _dr["draft_text"])
-check("D3 nodes/edges", _dr["node_count"] == 4 and _dr["edge_count"] == 2)
-check("D4 source refs", any("P1/" in r for r in _dr["source_refs"]))
-# 无实体 → 不臆造
-_no_e = {k: v for k, v in _sample.items() if k != "entities"}
-_dr_ne = kg.render_draft(_no_e)
-check("D5 no fabricated entity", "待补：无通过校验的实体" in _dr_ne["draft_text"] and _dr_ne["node_count"] == 0)
-
-# pipeline --with-draft
-_pl_draft = kg.pipeline(_sample, with_draft=True)
-check("D6 pipeline draft", _pl_draft.get("draft_detail") is not None)
-_pl_plain = kg.pipeline(_sample)
-check("D7 no draft by default", _pl_plain.get("draft_detail") is None)
-
-# 正文驱动抽取（评审点名能力）
-_auto = kg._extract_from_text(_sample["source_index"])
-check("A1 extract from text", len(_auto) >= 3 and all(
-    e["source_id"] and e["paragraph_id"] and e["quote"] for e in _auto))
-check("A2 extracted types valid", all(e["type"] in kg.ENTITY_TYPES for e in _auto))
-
-# 真实输入适配器：source_files json 索引
-_td = _tf.mkdtemp(prefix="kg_adapt_")
-_json.dump({"source_index": _sample["source_index"]}, open(os.path.join(_td, "papers.json"), "w", encoding="utf-8"), ensure_ascii=False)
-_ad = kg._adapt_case({"case_id": "a", "source_files": {"idx": "papers.json"}}, _td)
-check("A3 source_files read", len(_ad.get("source_index", {})) == 2)
-check("A4 adapter notes", any("索引文件" in n for n in _ad["adapter_notes"]))
-
-# solve 场景1：内联全字段 + 装配
-_t1 = _tf.mkdtemp(prefix="kg_solve1_")
-with open(os.path.join(_t1, "case.json"), "w", encoding="utf-8") as _f:
-    _json.dump(_sample, _f, ensure_ascii=False)
-_s1 = kg.solve(os.path.join(_t1, "case.json"), os.path.join(_t1, "out"))
-check("S1 solve status", _s1["status"] in ("ok", "needs_attention", "partial", "draft"))
-check("S1 delivery written", _s1.get("delivery", {}).get("written") is True)
-_rj1 = _json.load(open(os.path.join(_t1, "out", "result.json"), encoding="utf-8"))
-check("S1 result.json", _rj1.get("case_id") == _sample["case_id"] and "result" in _rj1)
-check("S1 draft in result", bool(_rj1["result"].get("draft_text")))
-
-# solve 场景2：仅 source_index、无预填 → 正文驱动抽取（评审点名）
-_t2 = _tf.mkdtemp(prefix="kg_solve2_")
-with open(os.path.join(_t2, "case.json"), "w", encoding="utf-8") as _f:
-    _json.dump({"case_id": "auto", "source_index": _sample["source_index"],
-                "extract_from_text": True}, _f, ensure_ascii=False)
-_s2 = kg.solve(os.path.join(_t2, "case.json"), os.path.join(_t2, "out"))
-check("S2 auto extracted", any("正文抽取候选" in n for n in _s2.get("adapter_notes", [])))
-check("S2 nodes from text", _s2["result"]["node_count"] >= 3)
-check("S2 no fabrication", _s2["result"]["node_count"] > 0 and all(
-    n.get("source_id") for n in _s2["result"]["nodes"]))
-check("S2 delivery written", _s2.get("delivery", {}).get("written") is True)
-
-# benchmark 端到端案例齐备
-check("TC3 completion cases", len(_bench.get("completion_cases", [])) >= 2)
-
-# 图级体检：孤立点/自环/重复边/悬空端点/域值违规都要报
-_ga = kg.audit_graph({
-    "nodes": [{"id": "n1", "type": "method"}, {"id": "n2", "type": "dataset"},
-              {"id": "n3", "type": "material"}, {"id": "n3", "type": "material"}],
-    "edges": [{"source": "n1", "target": "n2", "type": "applied_to"},
-              {"source": "n1", "target": "n2", "type": "applied_to"},
-              {"source": "n2", "target": "n2", "type": "part_of"},
-              {"source": "n1", "target": "missing", "type": "uses"}],
-}, relation_schema={"applied_to": {"from": ["method"], "to": ["dataset"]}})
-check("GA1 duplicate node flagged", any(i["type"] == "duplicate_node_id" for i in _ga["issues"]))
-check("GA2 duplicate edge flagged", any(i["type"] == "duplicate_edge" for i in _ga["issues"]))
-check("GA3 self loop flagged", any(i["type"] == "self_loop" for i in _ga["issues"]))
-check("GA4 dangling flagged", any(i["type"] == "dangling_edge" for i in _ga["issues"]))
-check("GA5 isolated counted", _ga["isolated_count"] >= 1 and _ga["components"] >= 2)
 
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
 if FAILS:

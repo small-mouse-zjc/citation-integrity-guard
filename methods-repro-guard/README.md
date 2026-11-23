@@ -20,7 +20,7 @@ methods-repro-guard/
 ├── README.md                      # 本文件
 ├── GITHUB_URL.txt                 # 公开仓库链接（可选）
 ├── scripts/
-│   └── methods_engine.py          # 纯标准库确定性引擎（8 子命令，含 solve/render-draft）
+│   └── methods_engine.py          # 纯标准库确定性引擎（6 子命令）
 ├── references/
 │   ├── element_checklist.md       # 六类要素清单
 │   ├── value_provenance.md        # 数值来源核验与补造识别
@@ -28,7 +28,7 @@ methods-repro-guard/
 │   └── output_contract.md         # 输出字段定义
 └── examples/
     ├── minimal_example.md         # 最小调用示例
-    ├── selftest.py                # 35 项自验收（含成稿/solve/参数名对齐）
+    ├── selftest.py                # 21 项自验收
     ├── smoke_input.json           # 冒烟输入
     └── smoke_output.json          # 冒烟输出
 ```
@@ -43,9 +43,7 @@ methods-repro-guard/
 ```bash
 python scripts/methods_engine.py --help
 python scripts/methods_engine.py check-completeness '{"section_text":"..."}'
-python scripts/methods_engine.py solve /input/case.json --out /app/output          # 端到端成稿+装配
-python scripts/methods_engine.py render-draft examples/smoke_input.json > draft.json
-python scripts/methods_engine.py pipeline examples/smoke_input.json --with-draft > result.json
+python scripts/methods_engine.py pipeline examples/smoke_input.json > result.json
 python examples/selftest.py
 ```
 
@@ -67,8 +65,7 @@ python examples/selftest.py
 ## 适用与限制
 
 - 适用：中英文方法与实验章节写作，可跨学科。
-- 数值核验按「参数名+数值」联合定位并含中文别名映射；数值存在但参数名不符记为弱证据（弱证据不算通过）；语义等价与实验条件是否同一仍须 Agent 核对。
-- `render-draft`/`solve` 只用真实字段成稿，无来源参数/数值标〔待核实〕，不补造；`solve` 自动适配材料文件（source_files/materials）并装配 result.json + delivery 回执。
+- 限制：脚本只做数值集合比对，不做语义等价判定（如数值张冠李戴须 Agent 核对）；不做外部真实性核验；不生成预制答案。
 
 ## 许可与复用
 

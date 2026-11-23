@@ -1,6 +1,6 @@
 # latex-build-guard · LaTeX 编译守门人
 
-一个面向真实 LaTeX 工程的可调用 Skill。既是从真实源码/日志端到端产出可编辑交付包并装配 result.json 的**完成器**，也是把编译错误定位、内容一致性、交付物校验、可复现记录四件事做成可运行、可复核确定性流程的**核验器**。编译是否通过须平台实测，脚本不臆造编译成功。
+一个面向真实 LaTeX 工程的可调用 Skill。把编译错误定位、内容一致性、交付物校验、可复现记录四件事，从模型的自由发挥变成可运行、可复核的确定性流程。
 
 ## 解决什么问题
 
@@ -20,7 +20,7 @@ latex-build-guard/
 ├── README.md                      # 本文件
 ├── GITHUB_URL.txt                 # 公开仓库链接（可选）
 ├── scripts/
-│   └── latex_engine.py            # 纯标准库确定性引擎（8 子命令，含 solve/render-draft）
+│   └── latex_engine.py            # 纯标准库确定性引擎（6 子命令）
 ├── references/
 │   ├── error_patterns.md          # 错误分类与修复策略
 │   ├── source_rules.md            # 源码结构与宏包规则
@@ -28,7 +28,7 @@ latex-build-guard/
 │   └── output_contract.md         # 输出字段定义
 └── examples/
     ├── minimal_example.md         # 最小调用示例
-    ├── selftest.py                # 54 项自验收（含成稿/适配/solve）
+    ├── selftest.py                # 23 项自验收
     ├── smoke_input.json           # 冒烟输入
     └── smoke_output.json          # 冒烟输出
 ```
@@ -43,9 +43,7 @@ latex-build-guard/
 ```bash
 python scripts/latex_engine.py --help
 python scripts/latex_engine.py classify-errors '{"compile_log":"! Undefined control sequence.\nl.5 \\foo"}'
-python scripts/latex_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
-python scripts/latex_engine.py render-draft examples/smoke_input.json > draft.json
-python scripts/latex_engine.py pipeline examples/smoke_input.json --with-draft > result.json
+python scripts/latex_engine.py pipeline examples/smoke_input.json > result.json
 python examples/selftest.py
 ```
 

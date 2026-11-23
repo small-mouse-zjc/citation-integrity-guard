@@ -22,11 +22,8 @@
 ## 2. 运行
 
 ```bash
-# 推荐一步到位：真实 case/PDF → 解析 → 装配 /app/output/result.json
-python scripts/pdf_layout_engine.py solve /input/case.json --out /app/output
-
-# 或从真实 PDF 导出 layout（多后端自动回退：PyMuPDF→pdfplumber→pdfminer）
-python scripts/pdf_layout_engine.py extract paper.pdf --case-id C1 > layout.json
+# 可选：从真实 PDF 导出 layout（需 PyMuPDF）
+python scripts/pdf_layout_engine.py extract paper.pdf > layout.json
 
 # 一键全流程
 python scripts/pdf_layout_engine.py pipeline examples/smoke_input.json > result.json
@@ -48,7 +45,7 @@ python -c "import sys; sys.path.insert(0,'scripts'); import pdf_layout_engine as
 
 ## 3. 示意输出（节选，标注为示例）
 
-`result.result.reading_text`（按双栏逐栏整段顺序）：
+`result.result.reading_text`（按双栏交错顺序）：
 ```
 Facies Classification with Deep Learning
 Abstract
@@ -67,4 +64,4 @@ Abstract
 
 ## 4. 装配正式输出
 
-真实任务直接用 `solve /input/case.json --out /app/output`：它自动定位平台给定 PDF、`extract` 多后端提取、跑全流程、按 `references/output_contract.md` 装配 `/app/output/result.json`（保留 `case_id`，并在 `delivery` 字段记录落盘回执）。无文字层/找不到 PDF 时如实返回 `needs_review`，不伪造内容。分步用法见上；完整样例见 `examples/smoke_input.json` 与 `examples/smoke_output.json`（均已标注为示例）。预算紧张用 `pipeline --compact`。
+真实任务把平台给定 PDF 用 `extract`（或平台工具）导成 layout，跑 `pipeline`，按 `references/output_contract.md` 补 `case_id` 与证据/边界字段，写 `/app/output/result.json`。完整样例见 `examples/smoke_input.json` 与 `examples/smoke_output.json`（均已标注为示例）。预算紧张用 `--compact`。

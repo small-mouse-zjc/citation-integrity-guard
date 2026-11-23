@@ -61,13 +61,10 @@ STATUS_UNCERTAIN = "needs_review"
 UNIT_RE = re.compile(
     r"\d+(?:\.\d+)?\s*(?:%|％|mD|md|kg|km2|km²|km|cm|mm|μm|um|nm|℃|°C|GPa|MPa|Pa|"
     r"mg|μg|g|mL|L|mmol|mol|ms|min|h|s|yr|years?|倍|次|层|口|个|m)(?![A-Za-z])", re.I)
-# 公式在中文句号/分号/逗号/空白处截断，不跨句；小数点(.)必须允许，否则 α=0.05 之类会被漏保护
-# 变量允许上标数字(⁰-⁹)，值允许任意非空白非中文标点字符，覆盖 R²=0.92 / k = 3.2
-FORMULA_RE = re.compile(r"[A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω_^²³¹⁰-⁹₀-₉]*\s*=\s*[^\s。；;，,、：:！!？?（）【】\[\]\"“”‘’]{1,40}")
+# 公式在句号/分号/逗号处截断，不跨句
+FORMULA_RE = re.compile(r"[A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω_^]*\s*=\s*[^。；;，,.]{2,40}")
 CITE_RE = re.compile(r"\[(\d+(?:\s*[,，]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]|\[@[A-Za-z0-9_\-:]+\]")
-# 化学式边界只用 ASCII 字母数字判定：Python3 的 \w 含中文，用 \b 会让“NaCl含量/CO₂浓度”这类
-# 化学式后紧跟中文的中文文献场景漏检，使 protect/verify 的化学式守门失效
-CHEM_RE = re.compile(r"(?<![A-Za-z0-9₀-₉])(?:H2SO4|H₂SO₄|CO2|CO₂|H2O|H₂O|CH4|CH₄|NaCl|SiO2|SiO₂|CaCO3|CaCO₃|Fe2O3|Fe₂O₃|SO4|SO₄)(?![A-Za-z0-9])")
+CHEM_RE = re.compile(r"\b(?:CO2|CO₂|H2O|H₂O|CH4|CH₄|NaCl|SiO2|SiO₂|CaCO3|CaCO₃|Fe2O3|Fe₂O₃|SO4|SO₄)\b")
 NEG_WORDS = ["not", "no", "never", "neither", "nor", "without", "hardly",
              "不", "未", "无", "非", "没有", "并非", "不能", "无法"]
 LIMIT_WORDS = ["only", "mainly", "primarily", "approximately", "about", "significantly",
@@ -106,13 +103,6 @@ def _get(p: Dict[str, Any], key: str, default=""):
     if not isinstance(p, dict):
         return default
     return p.get(key, default)
-
-
-def _has_word(text: str, w: str) -> bool:
-    """词命中：ASCII 词用词边界，中文/符号词用子串（\b 对中文无效）。"""
-    if re.match(r"^[A-Za-z0-9]", w):
-        return bool(re.search(r"\b" + re.escape(w) + r"\b", text, re.I))
-    return w in text
 
 
 # ---------------------------------------------------------------------------
@@ -435,15 +425,15 @@ def verify(payload: Dict[str, Any]) -> Dict[str, Any]:
         checks["citations"] = {"kept": not missing_cites, "missing": missing_cites}
         if missing_cites:
             issues.append({"type": "citation_lost", "id": pid, "missing": missing_cites})
-        # 否定词：原文有否定而译文完全无对应 → 提示（中文须用子串，\b 对中文无效）
-        src_neg = [w for w in NEG_WORDS if _has_word(src, w)]
+        # 否定词：原文有否定而译文完全无对应 → 提示
+        src_neg = [w for w in NEG_WORDS if re.search(r"\b" + re.escape(w) + r"\b", src, re.I)]
         zh_neg = [w for w in NEG_WORDS if w in zh]
         checks["negation"] = {"source": src_neg, "in_translation": zh_neg,
                               "kept": bool(src_neg) == bool(zh_neg)}
         if src_neg and not zh_neg:
             issues.append({"type": "negation_maybe_lost", "id": pid, "source_neg": src_neg})
         # 限定词
-        src_lim = [w for w in LIMIT_WORDS if _has_word(src, w)]
+        src_lim = [w for w in LIMIT_WORDS if re.search(r"\b" + re.escape(w) + r"\b", src, re.I)]
         zh_lim = [w for w in LIMIT_WORDS if w in zh]
         checks["limitation"] = {"source": src_lim, "in_translation": zh_lim,
                                 "kept": bool(src_lim) == bool(zh_lim)}
@@ -513,83 +503,7 @@ def evidence(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 5) 全流程
 # ---------------------------------------------------------------------------
-def audit_translation(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """逐段审计译文质量：漏译、疑似未译、长度异常、术语覆盖与冲突、数字丢失。
-
-    只做可计算、可回溯判定；措辞好坏仍由人工/模型判断，不臆断。
-    """
-    p = _as_payload(payload)
-    paras = _paragraphs(p)
-    trans = p.get("translations") or {}
-    target = str(p.get("target_lang") or "zh").lower()
-    issues: List[Dict[str, Any]] = []
-    used_terms = set()
-    matched_terms = 0
-    for i, para in enumerate(paras):
-        pid = str(para.get("id") or ("P%d" % (i + 1)))
-        src = str(para.get("text") or "")
-        tgt = str(trans.get(pid) or "")
-        if not tgt.strip():
-            issues.append({"paragraph": pid, "type": "missing_translation",
-                           "reason": "该段无译文（交付中应标〔待翻译〕）"})
-            continue
-        ratio = len(tgt) / max(1, len(src))
-        if ratio < 0.45 or ratio > 2.4:
-            issues.append({"paragraph": pid, "type": "length_outlier",
-                           "reason": "译文/原文长度比 %.2f 偏离常规，须核对漏译或扩写" % ratio})
-        cjk = len(re.findall(r"[\u4e00-\u9fff]", tgt)) / max(1, len(tgt))
-        if target.startswith("zh") and cjk < 0.15:
-            issues.append({"paragraph": pid, "type": "possibly_untranslated",
-                           "reason": "译文汉字占比仅 %.0f%%，疑似未真正翻译" % (cjk * 100)})
-        # 数字/单位保真：源与译文数字集合差异
-        src_nums = re.findall(r"\d+(?:\.\d+)?", src)
-        tgt_nums = re.findall(r"\d+(?:\.\d+)?", tgt)
-        if sorted(src_nums) != sorted(tgt_nums):
-            miss = [n for n in src_nums if n not in tgt_nums]
-            extra = [n for n in tgt_nums if n not in src_nums]
-            if miss or extra:
-                issues.append({"paragraph": pid, "type": "number_drift",
-                               "reason": "数字不一致：缺 %s / 多 %s" % (miss[:5], extra[:5])})
-    # 术语覆盖与冲突
-    all_tgt = "\n".join(str(trans.get(str(x.get("id") or ("P%d" % (j + 1))) or "", "") or "")
-                        for j, x in enumerate(paras))
-    for g in (p.get("glossary") or []):
-        src_t = str(g.get("source") or "")
-        tgt_t = str(g.get("target") or "")
-        if not src_t or not tgt_t:
-            continue
-        used_terms.add(src_t)
-        if tgt_t and tgt_t in all_tgt:
-            matched_terms += 1
-    covered = len(used_terms) and (matched_terms / len(used_terms)) or 0.0
-    by_src: Dict[str, set] = {}
-    by_tgt: Dict[str, set] = {}
-    for g in (p.get("glossary") or []):
-        s, t = str(g.get("source") or ""), str(g.get("target") or "")
-        if s and t:
-            by_src.setdefault(s, set()).add(t)
-            by_tgt.setdefault(t, set()).add(s)
-    for s, ts in by_src.items():
-        if len(ts) > 1:
-            issues.append({"type": "term_conflict", "term": s,
-                           "reason": "同一源术语出现多个译名：%s" % sorted(ts)})
-    for t, ss in by_tgt.items():
-        if len(ss) > 1:
-            issues.append({"type": "term_collision", "term": t,
-                           "reason": "同一译名对应多个源术语：%s" % sorted(ss)})
-    return {
-        "paragraphs": len(paras),
-        "translated": sum(1 for x in paras if str(trans.get(str(x.get("id") or "")) or "").strip()),
-        "glossary_coverage": round(covered, 3),
-        "issues": issues,
-        "issue_count": len(issues),
-        "advice": ("逐段审计未发现漏译/长度/数字/术语问题" if not issues else
-                   "发现 %d 处问题（%s）" % (len(issues), sorted({i["type"] for i in issues}))),
-    }
-
-
-def pipeline(payload: Dict[str, Any], compact: bool = False,
-             with_draft: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     p = _as_payload(payload)
     seg = segment(p)
     gloss = build_glossary(p)
@@ -602,7 +516,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     term_res = check_terms(p)
     ver = verify(p)
     ev = evidence(p)
-    aud = audit_translation(p)
 
     statuses = [s["status"] for s in (seg, gloss, lock, rest, align_res, term_res, ver, ev)]
     overall = STATUS_OK
@@ -611,8 +524,26 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     elif STATUS_PARTIAL in statuses:
         overall = STATUS_PARTIAL
     has_trans = bool(p.get("translations"))
-    # 完成器：with_draft=True 时由脚本用真实字段渲染双语对照成稿，不再只核验外部译文
-    draft_obj = render_draft(p) if with_draft else None
+    trans_map = p.get("translations") or {}
+    if not has_trans:
+        overall = STATUS_PARTIAL  # 只交核验表、不交真实译文 = 未完成主产物
+    trans_items = []
+    for i, para in enumerate(_paragraphs(p)):
+        pid = str(para.get("id") or f"P{i+1}")
+        src = str(para.get("text", ""))
+        tgt = str(trans_map.get(pid, "") or "")
+        trans_items.append({
+            "id": pid,
+            "index": i + 1,
+            "section": para.get("section", ""),
+            "page": para.get("page"),
+            "source": src,
+            "target": tgt,
+            "translated": bool(tgt.strip()),
+            "basis": ("目标语译文" if tgt.strip() else "待译"),
+        })
+    translated_count = sum(1 for x in trans_items if x["translated"])
+    untranslated_ids = [x["id"] for x in trans_items if not x["translated"]]
 
     result = {
         "segment_count": seg["stats"]["segment_count"],
@@ -624,16 +555,24 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         "verification": {"consistent": ver["consistent"], "issues": ver["issues"],
                          "needs_review": ver["needs_review"]},
         "evidence_index": ev["evidence"],
-        "translation_audit": aud,
         "lock_prompt": lock["lock_prompt"],
         "protected_for_translation": prot["protected"],
+        "translations": trans_items,
+        "bilingual": [{"id": x["id"], "source": x["source"], "target": x["target"]} for x in trans_items],
+        "translation_metrics": {
+            "total": len(trans_items),
+            "translated": translated_count,
+            "untranslated": len(trans_items) - translated_count,
+            "coverage": round(translated_count / max(1, len(trans_items)), 3),
+            "untranslated_ids": untranslated_ids,
+        },
         "summary": (
             f"段 {seg['stats']['segment_count']}；术语锁定 {gloss['stats']['locked_count']}/"
             f"{gloss['stats']['candidate_count']}；保护元素 {prot['stats']['tokens']}"
             f"（公式{prot['stats']['by_kind'].get('formula',0)}/"
             f"引用{prot['stats']['by_kind'].get('citation',0)}/"
             f"数字{prot['stats']['by_kind'].get('number_unit',0)}）；"
-            f"译文覆盖 {align_res['stats']['coverage']:.0%}；"
+            f"译文 {translated_count}/{len(trans_items)} 段；"
             f"核验问题 {ver['stats']['issue_count']}（待确认{ver['stats']['needs_review_count']}）"
         ),
     }
@@ -643,231 +582,8 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         out["pipeline"] = {"segment": seg, "glossary": gloss, "lock": lock,
                            "protect": prot, "restore": rest, "align": align_res,
                            "check_terms": term_res, "verify": ver, "evidence": ev}
-    if draft_obj:
-        result["bilingual_draft"] = draft_obj["bilingual_text"]
-        result["draft_detail"] = draft_obj
     out["result"] = result
     return out
-
-
-# ---------------------------------------------------------------------------
-# 完成器：真实输入适配 / 双语对照成稿 / result.json 装配 / 端到端 solve
-# ---------------------------------------------------------------------------
-def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
-    """真实输入适配器：把 source_files 指向的真实文献读成段落 + 合并内联字段。
-
-    支持：
-      - payload.paragraphs（内联，已结构化）
-      - payload.source_text（单篇纯文本，按空行/换行切段）
-      - payload.source_files（[路径] 或 {名:路径}）——读取 .txt/.md/.json 的真实文本
-      - payload.translation_files（{段号:路径} 或 {段号:译文文本}）——读取真实译文
-    读不到不臆造，记录到 adapter_notes，交给缺口清单提示。
-    """
-    import os as _os
-    work = dict(payload)
-    notes: List[str] = []
-
-    paras = list(_paragraphs(work))
-    if not paras and _get(work, "source_text"):
-        raw = str(_get(work, "source_text"))
-        chunks = [c.strip() for c in re.split(r"\n\s*\n|\n", raw) if c.strip()]
-        paras = [{"id": f"P{i+1}", "section": "", "kind": "body", "text": c}
-                 for i, c in enumerate(chunks)]
-        notes.append("source_text 切段 %d 段" % len(paras))
-
-    files = work.get("source_files") or []
-    if isinstance(files, dict):
-        files = list(files.values())
-    for rel in files:
-        path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
-        try:
-            with open(path, encoding="utf-8") as f:
-                raw = f.read()
-        except Exception:
-            notes.append("读取失败:%s" % _os.path.basename(path))
-            continue
-        if path.lower().endswith(".json"):
-            try:
-                data = json.loads(raw)
-                if isinstance(data, dict) and isinstance(data.get("paragraphs"), list):
-                    paras.extend(data["paragraphs"])
-                    notes.append("json段落:%s=%d" % (_os.path.basename(path), len(data["paragraphs"])))
-                    continue
-            except Exception:
-                pass
-        chunks = [c.strip() for c in re.split(r"\n\s*\n|\n", raw) if c.strip()]
-        name = _os.path.splitext(_os.path.basename(path))[0]
-        paras.extend({"id": f"{name}_P{i+1}", "section": name, "kind": "body", "text": c}
-                     for i, c in enumerate(chunks))
-        notes.append("文本文件:%s=%d段" % (_os.path.basename(path), len(chunks)))
-    work["paragraphs"] = paras
-
-    translations = dict(work.get("translations") or {})
-    tfiles = work.get("translation_files") or {}
-    if isinstance(tfiles, dict):
-        for pid, val in tfiles.items():
-            if translations.get(pid):
-                continue
-            v = str(val)
-            if _os.path.isabs(v) or _os.sep in v:
-                path = v if _os.path.isabs(v) else _os.path.join(case_dir, v)
-                try:
-                    translations[pid] = open(path, encoding="utf-8").read()
-                except Exception:
-                    notes.append("译文读取失败:%s" % pid)
-            else:
-                translations[pid] = v  # 内联译文文本，不臆造
-    if translations:
-        work["translations"] = translations
-    work["adapter_notes"] = notes
-    return work
-
-
-def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """用真实字段渲染【可编辑、可回原文的双语对照成稿草稿】——完成器核心。
-
-    硬约束：
-      - 只用真实 paragraphs 原文、真实 translations 译文、真实 glossary 术语；
-      - 无译文的段标 〔待翻译〕，不臆造译文；
-      - 每段给段号/section/page + 译法依据（术语/保护元素）+ 核验结论；
-      - 否定/限定疑似丢失、术语未定译名、缺译文 → 待确认清单，不写成既成事实。
-    """
-    p = _as_payload(payload)
-    seg = segment(p)
-    prot = protect(p)
-    trans = p.get("translations") or {}
-    glossary = p.get("glossary") or []
-
-    protected_map = {x["id"]: x.get("protected_text", "") for x in prot["protected"]}
-    token_kinds: Dict[str, List[str]] = {}
-    for x in prot["protected"]:
-        token_kinds[x["id"]] = [t["kind"] for t in x.get("tokens", [])]
-
-    blocks: List[Dict[str, Any]] = []
-    pending: List[str] = []
-    for s in seg["segments"]:
-        pid = s["id"]
-        src = s.get("text", "")
-        zh = str(trans.get(pid, ""))
-        if zh:
-            target = zh
-            status = "ok"
-        else:
-            target = "〔待翻译：本段无真实译文，须由模型在锁定术语/保护占位符约束下补全〕"
-            status = "needs_translation"
-            pending.append(pid)
-        used_terms = [g for g in glossary if isinstance(g, dict) and
-                      _get(g, "source") and _get(g, "source") in src]
-        blocks.append({
-            "id": pid, "section": s.get("section", ""), "page": s.get("page"),
-            "kind": s.get("kind", "body"), "source": src, "target": target,
-            "source_protected": protected_map.get(pid, ""),
-            "glossary_basis": [{"source": _get(g, "source"), "target": _get(g, "target")}
-                               for g in used_terms],
-            "protected_kinds": token_kinds.get(pid, []),
-            "status": status,
-        })
-
-    bilingual_text = "\n\n".join(
-        "[%s%s] %s\n原文: %s\n译文: %s" % (
-            b["id"], (" · " + str(b["section"])) if b["section"] else "",
-            "p" + str(b["page"]) if b["page"] else "",
-            b["source"], b["target"])
-        for b in blocks)
-
-    ver = verify(p)
-    confirm = ["术语『%s』未定译名" % c for c in build_glossary(p).get("needs_review", [])]
-    confirm += ["段 %s 否定/限定词疑似丢失，须人工确认" % pid
-                for pid in ver.get("needs_review", []) if isinstance(pid, str)]
-    unverified = [i for i in ver.get("issues", []) if isinstance(i, dict) and
-                  str(i.get("type", "")).endswith("_maybe_lost")]
-
-    all_ok = bool(blocks) and not pending and not confirm and not ver.get("issues")
-    return {
-        "case_id": _get(p, "case_id", ""),
-        "status": "draft" if all_ok else "partial",
-        "bilingual_draft": bilingual_text,
-        "bilingual_text": bilingual_text,
-        "blocks": blocks,
-        "source_refs": [b["id"] for b in blocks],
-        "pending_translation": pending,
-        "needs_author_confirmation": confirm,
-        "unverified_relations": unverified,
-        "uncertainty": [
-            "只用真实段落/译文/术语成稿；缺译文标〔待翻译〕，不臆造译文或术语译名",
-            "否定/限定、指代与因果关系是否保留属价值判断，须结合原文人工复核",
-        ],
-        "note": ("可编辑双语对照成稿草稿：段号+定位+原文+译文/待翻译+术语与保护依据+核验结论；"
-                 "非最终译文，缺译文须由模型在锁定约束下补全后再核验。"),
-    }
-
-
-def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
-    import os as _os
-    payload = dict(result)
-    if "case_id" not in payload:
-        payload["case_id"] = case_id
-    path = _os.path.join(out_dir, "result.json")
-    try:
-        _os.makedirs(out_dir, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
-        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
-    except Exception as e:
-        return {"written": False, "path": path, "error": type(e).__name__}
-
-
-def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
-    """端到端完成器：读 case.json → 适配真实材料 → 全流程 → 双语成稿 → 装配 result.json。"""
-    import os as _os
-    payload: Dict[str, Any] = {"case_id": ""}
-    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
-    if case_path and case_path != "-":
-        try:
-            loaded = _load(case_path)
-            if isinstance(loaded, dict):
-                payload = loaded
-        except Exception as e:
-            payload = {"case_id": "", "input_error": type(e).__name__}
-    cid = str(_get(payload, "case_id", "") or "")
-
-    work = _adapt_case(payload, case_dir)
-    if not _paragraphs(work):
-        result = {"case_id": cid, "status": STATUS_UNCERTAIN, "input_mode": "case",
-                  "result": {"summary": "输入无 paragraphs/source_text/source_files，无法成稿（不伪造译文）"},
-                  "needs_review": ["请提供真实文献段落或材料文件"]}
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    pl = pipeline(work, with_draft=True)
-    r = pl["result"]
-    draft = r.get("draft_detail") or {}
-    result = {
-        "case_id": cid,
-        "status": pl["status"],
-        "input_mode": "case",
-        "source_count": len(_paragraphs(work)),
-        "adapter_notes": work.get("adapter_notes", []),
-        "result": {
-            "bilingual_draft": r.get("bilingual_draft", draft.get("bilingual_text", "")),
-            "draft_text": r.get("bilingual_draft", draft.get("bilingual_text", "")),
-            "blocks": draft.get("blocks", []),
-            "segment_count": r["segment_count"],
-            "glossary_locked": r["glossary_locked"],
-            "aligned_coverage": r["aligned_coverage"],
-            "verification": r["verification"],
-            "evidence_index": r["evidence_index"],
-            "translation_audit": r.get("translation_audit"),
-            "lock_prompt": r["lock_prompt"],
-            "summary": r["summary"],
-            "status_checks": pl["status"],
-        },
-        "needs_review": draft.get("needs_author_confirmation", []) + r["verification"].get("needs_review", []),
-        "uncertainty": draft.get("uncertainty", []),
-    }
-    result["delivery"] = _write_solution(result, out_dir, cid)
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -884,21 +600,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="确定性科研文献翻译守门引擎")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("build_glossary", "lock_terms", "segment", "protect", "align",
-              "check_terms", "verify", "evidence", "pipeline", "render-draft"):
+              "check_terms", "verify", "evidence", "pipeline"):
         sp = sub.add_parser(c); sp.add_argument("input")
         if c == "build_glossary":
             sp.add_argument("--min-freq", type=int, default=2)
         if c == "pipeline":
             sp.add_argument("--compact", action="store_true")
-    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配材料)→ 全流程 → 双语成稿 → result.json")
-    sv.add_argument("case", help="case.json 路径")
-    sv.add_argument("--out", default="/app/output", help="交付目录")
     args = ap.parse_args(argv)
-
-    if args.cmd == "solve":
-        out = solve(args.case, args.out)
-        sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
-        return 0
     data = _load(args.input)
     p = _as_payload(data)
     if args.cmd == "build_glossary":
@@ -917,24 +625,12 @@ def main(argv=None):
         out = verify(p)
     elif args.cmd == "evidence":
         out = evidence(p)
-    elif args.cmd == "render-draft":
-        out = render_draft(p)
     elif args.cmd == "pipeline":
         out = pipeline(p, compact=args.compact)
     else:
         ap.error("未知命令"); return 2
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
     return 0
-
-def _write_solution(result, out_dir, case_id):
-    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
-    core = _write_solution_core(result, out_dir, case_id)
-    try:
-        from artifacts import write_artifacts
-        core["artifacts"] = write_artifacts(result, out_dir, "translation-guard")
-    except Exception as e:  # 渲染失败不影响 result.json 已落盘
-        core["artifacts_error"] = type(e).__name__
-    return core
 
 
 if __name__ == "__main__":

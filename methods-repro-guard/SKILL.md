@@ -1,160 +1,205 @@
 ---
 name: methods-repro-guard
-description: 方法与实验章节写作守门人。当任务涉及撰写或改进论文"方法/实验设置/参数/数据集与划分/对照实验/可复现性/限制条件"，需要把零散实验记录整理成可执行步骤、核对正文数值与配置日志代码是否一致、检查复现清单是否给全、把材料缺口和套话限制转成具体追问时使用本技能。通过确定性脚本做要素抽取与交叉核验，数值无来源与材料缺口一律显式标注交作者确认，绝不补造。不适用于与方法和实验章节无关的问答或纯语言润色。
+description: 方法与实验章节写作与复现守门。当任务要求把散落的实验记录、配置、日志、代码与数据说明整理成可执行、可复现的方法与实验章节，并核对步骤、设置、参数、数据集、对照、限制时使用。Agent 先读真实材料并写出完整章节，再用脚本核对六要素、数值来源、复现清单、参数表与缺口追问；不补造数值、不代作者回答缺口。
 ---
 
-# 方法与实验可复现守门人（Methods & Reproducibility Guard）
+# 方法与实验：可执行、可复现（Methods & Experiments Guard）
 
-面向学术论文"方法与实验"环节的结构化写作技能。目标不是"把段落写通顺"，而是让**每一类要素都写到、每个数值都能追溯到配置/日志/代码、复现所需的条件都给全、每处缺口都显式交作者确认**。
+交付**能直接进入论文的方法与实验章节**，不是检查报告。章节要写得全、写得准、做得着、说得住：读者能按步骤复做，参数与配置/日志一致，缺口显式交作者。
 
-围绕题面四个核心问题组织能力：
+| 题面四问 | 成稿要求 | 工具 |
+|---|---|---|
+| 写得全 | 步骤/设置/参数/数据/对照/复现限制六类要素齐全 | `check-completeness` |
+| 写得准 | 参数值、版本、划分、条件与配置/日志/代码一致 | `verify-values` + `build-param-table` |
+| 做得着 | 复现清单含代码版本、环境、种子、命令、数据获取 | `check-reproducibility` |
+| 说得住 | 缺口显式追问，限制落到具体失效场景 | `probe-gaps` |
 
-| 核心问题 | 含义 | 对应工具 |
-|---------|------|---------|
-| 写得全 | 六类要素齐全，不只留能读通的主干 | `check-completeness` |
-| 写得准 | 数值与配置/日志/代码一致，不补造 | `verify-values` + `build-param-table` |
-| 做得着 | 复现清单（版本/环境/种子/命令/数据）给全 | `check-reproducibility` |
-| 说得住 | 缺口显式追问、限制落到具体失效场景 | `probe-gaps` |
+## 何时触发 / 不触发
 
-## 何时触发 / 何时不触发
+**触发**：写/改方法、实验设置、实验步骤、参数表、数据集与划分、对照实验、复现清单、限制条件。
 
-**触发**：任务中出现以下任一信号——
-- 让撰写、改写、补全方法、实验设置、参数表、数据集与划分、对照实验、可复现性声明、限制条件；
-- 抱怨"方法写得太粗/复现不出来/参数对不上配置/数值不知道哪来的/限制都是套话"；
-- 要求把实验记录整理成可执行步骤、要求数值与配置日志核对、要求生成复现清单；
-- 要求标注材料缺口、追问实验细节、把限制落到具体场景。
+**不触发**：纯文献综述、引言写作、纯语言润色。误触发时说明边界，保持原文不变。
 
-**不触发**：纯语言润色、与方法实验无关的内容问答。被误触发时说明"这属于其他写作任务"并保持原文不变。
+## 铁律
 
-## 核心原则（贯穿所有动作）
-
-1. **六件成套**：方法与实验＝方法步骤 + 实验设置 + 参数 + 数据集与划分 + 对照实验 + 可复现与限制。六类须齐全，缺一即不完整。
-2. **来源优先**：每个数值、参数、条件都要能回到配置文件、实验日志、代码或作者确认。脚本按「参数名+数值」联合核验（含中文别名映射），数值存在但参数名不符记为弱证据，不当作通过；Agent 核对语义，结论必须给定位。
-3. **绝不补造**：数值在来源中找不到时，标为"补造嫌疑"交作者确认，**不要为了段落顺畅填一个看起来合理的数**。材料缺口同理。
-4. **写作与核验分离**：先用脚本做要素抽取与交叉核验，再由 Agent 做价值判断（数值是否同一条件、限制是否真成立），最后合并。
-5. **诚实标注**：材料缺失、配置冲突、参数无来源、数据集版本不明、权限不足——一律写入 `uncertainty` / `needs_author_confirmation`，不臆造数值或实验条件。
-6. **不交预制答案**：本技能处理平台给定案例，不得用预写好的方法章节或答案替代实际运行。
-7. **确定性动作交给脚本**：完整性、数值比对、复现清单、缺口追问必须用 `scripts/methods_engine.py` 实际运行，不靠模型心算。
-
-## 工具：methods_engine.py
-
-位置：技能目录下 `scripts/methods_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求。
-
-先确认可运行：
-```bash
-python scripts/methods_engine.py --help
-```
-
-### 子命令
-
-| 子命令 | 作用 | 关键输出 |
-|--------|------|---------|
-| `check-completeness` | 写得全：六要素完整性 | `elements`、`missing`、`complete` |
-| `verify-values` | 写得准：数值与来源交叉核验 | `claims`、`unsupported`、`all_supported` |
-| `check-reproducibility` | 做得着：复现清单 | `items`、`missing`、`reproducible` |
-| `probe-gaps` | 说得住：缺口追问 + 限制具体化 | `open_questions`、`generic_limitations` |
-| `build-param-table` | 参数表：名称/取值/单位/作用对象/来源 | `rows`、`missing_source` |
-| `render-draft` | 用真实字段渲染六要素可复做章节成稿草稿 | `draft_text`、`blocks`、`source_refs` |
-| `solve` | 端到端完成器：case.json →(适配材料)→ 成稿 → result.json | `result.draft_text`、`delivery` |
-| `pipeline` | 串联五步 + 汇总缺口（`--with-draft` 脚本成稿） | 完整结构化结果 |
-
-输入为 UTF-8 JSON。推荐一次跑完：
-```bash
-python scripts/methods_engine.py solve case.json --out /app/output            # 端到端成稿+装配
-python scripts/methods_engine.py render-draft input.json > draft.json          # 六要素成稿草稿
-python scripts/methods_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
-python scripts/methods_engine.py pipeline input.json > result.json             # 仅结构化检查
-```
-
-`input.json` 结构：
-```json
-{
-  "case_id": "案例标识",
-  "section_text": "方法章节正文文本",
-  "sources": {
-    "config.yaml": "lr: 0.001\nseed: 42\nbatch_size: 32",
-    "train.log": "epoch 100 acc 0.95"
-  },
-  "params": [
-    {"name":"学习率 lr","value":0.001,"unit":"","scope":"优化器","source":"config.yaml"}
-  ],
-  "gaps": [{"field":"数据集版本","reason":"材料未给出","source":"author_confirmation"}],
-  "limitations": ["在少样本场景下失效", "还有一些不足有待改进"],
-  "open_questions": ["基线版本是否与本文对齐？"],
-  "required_elements": ["steps","setup","params","data","baseline","repro_limit"],
-  "required_repro": ["code_version","env","seed","command","data_access","split_detail"],
-  "draft": "可选的章节草稿"
-}
-```
-
-字段说明见 `references/output_contract.md`。真实案例若给的是 PDF、代码仓库、配置文件或日志，先按题面把事实抽取为上述结构（数值原样保留、字段缺失如实留空并记录），再运行脚本。**须读取真实文件，不从题名或标签臆测内容。**
+1. **Agent 主写**：`method_experiment_draft` 必须由你写成完整章节；不要只交 `pipeline` 的检查结果，也不要让脚本代写。
+2. **不补造数值**：每个数值必须能在 case 的配置/日志/代码/表格中找到来源；找不到就标 `[待核实]`，不为了通顺补。
+3. **条件不串台**：训练/验证/测试、不同数据集、不同基线的条件分开写；同一数值只在同一条件下比较。
+4. **缺口交作者**：材料缺失、配置冲突、版本不明、参数无来源，写入 `uncertainty.open_questions` / `needs_author_confirmation`，不代答。
+5. **限制要具体**：不写“方法还有一些不足”；写清“在何种数据/尺度/条件/预算下失效或未验证”。
 
 ## 标准工作流
 
-接到任务后按此顺序执行，每步保留证据：
+### 1. 读真实材料
 
-1. **读输入**：读取 `/input/case.json` 与 `task.md`，确认 `case_id`、任务口径、事实材料（实验记录/配置/日志/代码/数据说明）、目标文体格式。**如实读真实文件。**
-2. **写得全**：运行 `check-completeness`。`missing` 中的要素须补写；材料确实没有的，写入 gaps 交作者确认，不得凭空补。
-3. **写得准**：运行 `verify-values` 与 `build-param-table`。`unsupported`（数值在来源中找不到）与 `missing_source`（参数无来源）逐条核对——回到配置/日志原文确认，确属补造的删除或改回真实值，来源缺失的标注交作者。
-4. **做得着**：运行 `check-reproducibility`。`missing` 中的复现项（版本/环境/种子/命令/数据获取/划分细节）按材料补齐；无法提供的显式说明原因。
-5. **说得住**：运行 `probe-gaps`。把 `open_questions` 与 `generic_limitations` 显式写进结果的待确认区；套话限制须改写为具体失效场景（何种数据/条件/范围下不成立）。Agent 不得代作者回答这些追问。
-6. **撰写成稿**：基于结构化结果把零散材料写成连贯的方法与实验章节。步骤写成有序可执行序列（每步输入/操作/输出/判断条件），训练/验证/测试分开描述，参数表与正文数值对齐，对照实验写成可比结论，限制落到具体场景。
-7. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与全部字段；可编辑章节稿另存为文件。每条改动附"类型 → 理由 → 来源定位"。
+```bash
+python scripts/case_io.py /input/case.json --out /app/work/case_texts.json
+```
 
-## 输出契约要点
+读 `case_texts.json`：确认 `case_id`、任务口径、材料形态（PDF/docx/配置/日志/代码/数据说明）、目标章节范围与输出契约。
 
-`result.json` 至少包含：`case_id`、`status`、`result`（五项结构化检查 + `method_experiment_draft` + `draft_detail`）、`evidence`、`uncertainty`。`solve` 额外含 `result.draft_text`/`blocks`/`source_refs` 与 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。完整字段见 `references/output_contract.md`。
+逐一打开真实文件，**不要根据文件名猜内容**。把材料分成：
+- 实验步骤/流程记录；
+- 配置（超参、硬件、软件版本、随机种子）；
+- 日志（训练/评测指标、轮次、异常）；
+- 代码（数据划分、预处理、模型/训练入口、命令）；
+- 数据说明（名称、版本、规模、划分、用途）；
+- 对照/基线（对象、版本、预算、指标、统计方式）。
+
+### 2. 建事实表（先于写作）
+
+在 `/app/work/facts.json` 记录：
+- `steps`：每步输入/操作/输出/判断条件；
+- `params`：名称、取值、单位、作用对象、来源（文件:行/字段）；
+- `datasets`：名称、版本、规模、预处理、划分比例与随机方式、各子集用途；
+- `baselines`：对象、版本、对照条件、指标、重复次数；
+- `repro`：代码版本、环境、依赖、种子、命令、数据获取；
+- `gaps`：材料没有或冲突的项，标 `source=author_confirmation`。
+
+**数值原样保留**，不四舍五入、不换算单位（除非材料明确给换算）。
+
+### 3. 写完整章节（核心）
+
+写 `/app/work/method_experiment_draft.md`，按以下结构（可按学科调整标题，但要素不能少）：
+
+```markdown
+# 方法
+
+## 3.1 总体流程
+（一段总览：输入→处理→模型/实验→输出；点明与本文贡献的对应）
+
+## 3.2 步骤
+1. **数据读取与预处理**：输入…；操作…；输出…；判断条件…
+2. **划分**：训练/验证/测试比例…；随机方式…；各子集用途…
+3. **模型/实验设置**：结构/参数…；硬件/软件…；种子/重复…
+4. **训练/评测**：轮次…；指标…；早停/选择准则…
+（每步都要有输入、操作、输出、条件，不把多步压成一句）
+
+## 3.3 参数
+（表格：名称 | 取值 | 单位 | 作用对象 | 来源；正文数值与表一致）
+
+## 3.4 数据集与划分
+（名称、版本、规模、预处理、划分、用途；版本/随机方式必须写）
+
+## 3.5 对照与评价
+（基线对象+版本；是否同预算/同划分；指标与统计方式；重复次数）
+
+## 3.6 复现与限制
+（代码版本、环境、依赖、种子、命令、数据获取；限制落到具体失效场景）
+```
+
+写作要求：
+- 步骤有序、可执行；每步写清输入/操作/输出/判断条件；
+- 训练、验证、测试分开；不同实验条件不混写；
+- 参数表与正文数值一致；单位、有效数字统一；
+- 对照写“同划分/同预算/同指标”，否则明确“不可直接比较”；
+- 限制写“在 X 数据/尺度/预算下未验证”，不写套话；
+- 材料没有的数值不编，写 `[待核实]` 并列入 gaps。
+
+### 4. 脚本核验（不代替写作）
+
+```bash
+python scripts/methods_engine.py pipeline /app/work/pipeline_input.json \
+  --draft-file /app/work/method_experiment_draft.md > /app/work/checks.json
+```
+
+`pipeline_input.json` 至少：
+
+```json
+{
+  "case_id": "案例标识",
+  "section_text": "从成稿中复制的正文（或事实表中的章节摘要）",
+  "sources": {"config.yaml": "lr: 0.001\nseed: 42", "train.log": "epoch 100 acc 0.95"},
+  "params": [{"name":"学习率","value":0.001,"unit":"","scope":"优化器","source":"config.yaml"}],
+  "gaps": [{"field":"数据集版本","reason":"材料未给出","source":"author_confirmation"}],
+  "limitations": ["在少样本条件下未验证"],
+  "open_questions": ["基线版本是否与本文对齐？"],
+  "required_elements": ["steps","setup","params","data","baseline","repro_limit"],
+  "required_repro": ["code_version","env","seed","command","data_access","split_detail"]
+}
+```
+
+看 `checks.json`：
+- `completeness.missing`：缺哪类要素 → 回成稿补写，不是只记录；
+- `value_verification.unsupported`：数值在来源找不到 → 回原文核对，确属补造则删/改真值；
+- `parameter_table.missing_source`：参数无来源 → 标 `[待核实]` 或补来源；
+- `reproducibility.missing`：复现项缺 → 能补则补，不能补写原因；
+- `gap_probe.generic_limitations`：套话限制 → 改成具体失效场景。
+
+**`method_experiment_draft` 少于 200 字符时 pipeline 会判 partial**：这表示你没有写章节，必须先完成第 3 步。
+
+### 5. 装配输出
+
+写 `/app/output/result.json`：
+
+```json
+{
+  "case_id": "与输入一致",
+  "status": "success | needs_attention | partial",
+  "result": {
+    "method_experiment_draft": "完整章节全文",
+    "draft_metrics": {"chars": 2500, "present": true},
+    "completeness": {...},
+    "value_verification": {...},
+    "reproducibility": {...},
+    "gap_probe": {...},
+    "parameter_table": {...},
+    "delivery": {"draft_md": "/app/output/method_experiment_draft.md", "checks_json": "/app/output/checks.json"},
+    "summary": "六要素齐全；参数 X 个均有来源；复现清单 Y 项；缺口 Z 条"
+  },
+  "evidence": {
+    "principles": {"写得全": "...", "写得准": "...", "做得着": "...", "说得住": "..."},
+    "source_location": {"学习率 0.001": ["config.yaml:3"]},
+    "unsupported_values": [],
+    "unsourced_params": []
+  },
+  "uncertainty": {
+    "open_questions": [...],
+    "needs_author_confirmation": [...],
+    "gap_count": 0,
+    "note": "数值是否同一条件、限制是否成立仍需作者确认"
+  }
+}
+```
+
+同时落盘：
+- `/app/output/method_experiment_draft.md`；
+- `/app/output/checks.json`；
+- `/app/output/parameter_table.csv`（参数表，便于复用）。
+
+### 6. 最终自检
+
+```bash
+python scripts/validate_result.py --result /app/output/result.json \
+  --outdir /app/output --case /input/case.json --main-field method_experiment_draft
+```
+
+`valid=false` 按 errors 修；不得只交检查结果而不交章节。
 
 ## 异常处理
 
 | 情形 | 处置 |
-|------|------|
-| 材料缺失 | 对应要素写入 gaps，`probe-gaps` 生成追问，不代填 |
-| 配置冲突（两处数值不一致） | 标入 uncertainty，列明冲突来源，交作者裁定 |
-| 参数无来源 | `missing_source` 标注，不臆造来源 |
-| 数据集版本不明 | 生成"请确认数据集版本"追问，正文先标注待定 |
-| 权限不足（代码/数据无法访问） | 记录受限原因，产出 partial 结果并标明限制 |
-| PDF/文件读取失败 | 如实记录失败原因，不编造内容 |
-| 语言/学科切换 | 中英文关键词规则均生效；`required_elements` 可按场景裁剪 |
+|---|---|
+| 配置两处数值冲突 | 不擅自选；列出冲突来源，正文标 `[待核实]`，交作者裁定 |
+| 参数无来源 | 标 `missing_source`，不臆造来源 |
+| 数据集版本不明 | 写“版本待确认”，列入 open_questions |
+| 代码/数据无法访问 | 记录权限限制，交付 partial，不编内容 |
+| 材料只有摘要没有细节 | 按已有细节写，缺口逐条列出；不补实验 |
+| PDF/docx 读取失败 | `case_io` 报错原因写入 uncertainty；尝试 pdftotext/PyMuPDF 后仍失败则 partial |
+| 语言/学科切换 | 中英文规则均适用；要素名可本地化，但六类不能少 |
 
-## 复用与扩展
+## 资源
 
-- `references/element_checklist.md`：六类要素的定义、判据与常见遗漏；
-- `references/value_provenance.md`：数值来源核验方法与补造识别；
-- `references/repro_template.md`：复现清单模板与限制具体化写法；
-- `references/output_contract.md`：输出字段定义与示例；
-- `examples/`：最小调用示例与 21 项自验收（`python examples/selftest.py`）。
+- `scripts/methods_engine.py`：六要素/数值核验/复现清单/缺口追问/参数表/`pipeline`（支持 `--draft-file`）
+- `scripts/case_io.py`：读 case.json/txt/md/docx/pdf
+- `scripts/validate_result.py`：result 契约与交付物自检
+- `references/element_checklist.md`：六类要素判据
+- `references/value_provenance.md`：数值来源核验
+- `references/repro_template.md`：复现清单模板
+- `references/output_contract.md`：字段契约
+- `examples/`：示例与自测
 
-本技能与 `intro-gap-architect`（引言与相关工作）、`citation-integrity`（引用一致性）互补：三者分别管方法实验、引言结构、引用规范，可串联覆盖论文前半部分。
+## 限制与边界
 
-
-## 可复现证据与冲分材料
-
-本 Skill 针对四问（写得全 / 写得准 / 做得着 / 说得住）配置了确定性检查机制，并提供可复现的公平对照证据：
-
-- `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
-  ```bash
-  python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
-  python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
-  ```
-- `examples/benchmark.json`：干净案例（验证不误报）+ 按四问注入缺陷的案例（验证能检出）。
-- `references/innovation_boundary.md`：相对通用对话模型/现有工具的创新边界与可复现路径。
-- `references/comparison_protocol.md`：公平对照协议与度量边界。
-- `references/failure_patterns.md`：失败模式库、降级优先级；`references/vocab.md`：判定词表。
-
-创新边界摘要：`methods_engine.py` 把 "写得全 / 写得准 / 做得着 / 说得住" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
-
-## 交付文件（solve 自动生成，评审可直接打开）
-
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`draft.md`（方法与实验成稿）、`params.csv`（参数表），以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
-
-## 统计报告充分性审计（stats_audit）
-
-方法章节除“六类要素齐全”外，新增统计报告清单，写入 `result.stats_audit`：
-
-- 关键项（critical）：样本量 n、重复次数、离散度（SD/SEM/CI）、统计检验名称；
-- 建议项：显著性水平 α/p、效应量、多重比较校正、统计软件与版本；
-- 输出 `present_count / score / missing_critical / missing_recommended`。
-
-缺关键项时 `complete=false`，并在 `advice` 中说明审稿人可能据此要求补分析；不臆造任何统计值。
+- 脚本只做确定性的集合/字段比对，不判断“实验设计是否合理”“限制是否真成立”；这些由 Agent 回材料核对并交作者确认。
+- 不联网、不补实验、不补数值；材料不足时诚实 partial。

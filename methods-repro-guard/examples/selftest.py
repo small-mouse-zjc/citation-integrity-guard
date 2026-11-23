@@ -27,6 +27,24 @@ FULL = ("方法步骤：首先预处理然后训练最后评估。实验设置�
         "参数：学习率为0.001。数据集划分比例8比2含预处理。与基线对比用accuracy指标。"
         "复现代码见github，命令python train.py，数据从公开数据集下载。限制：在少样本场景失效。")
 
+DRAFT = """# 方法
+## 3.1 总体流程
+本文方法由数据预处理、模型训练与评测三部分组成。输入为岩相数据与标签，输出为逐样本岩相类别；预处理完成去噪与归一化后进入训练，训练以交叉熵为损失，评测在独立测试集上计算 accuracy 与 F1。
+## 3.2 步骤
+1. 数据读取与预处理：输入原始薄片图像，执行去噪、裁剪与归一化，输出固定尺寸张量。
+2. 数据划分：按 8:2 划分训练与测试，固定随机种子 42，测试集不参与训练。
+3. 模型训练：使用 GPU 环境 Python 3.10，学习率 0.001，批量大小 32，训练 100 轮。
+4. 评测：在测试集上计算 accuracy 与 F1，重复 3 次取均值。
+## 3.3 参数
+学习率 0.001，批量大小 32，随机种子 42，训练轮数 100；来源为 config.txt。
+## 3.4 数据集与划分
+数据集为公开岩相数据，按 8:2 划分训练/测试，固定随机种子 42，预处理包括去噪与归一化。
+## 3.5 对照与评价
+基线为传统分类器，使用同一划分与同一评价指标 accuracy；本文方法重复 3 次，报告均值。
+## 3.6 复现与限制
+代码版本见仓库，环境 Python 3.10 + GPU，随机种子 42，命令 python train.py，数据从公开地址下载。限制：在少样本与跨区块场景下未验证。
+"""
+
 # --- 写得全 ---
 c_full = me.check_completeness(FULL)
 check("T1 六要素齐全", c_full["complete"] and c_full["present_count"] == 6)
@@ -84,7 +102,7 @@ payload = {
     "params": [params[0]],
     "gaps": [],
     "limitations": ["在少样本场景失效"],
-    "draft": "方法章节草稿",
+    "draft": DRAFT,
 }
 res = me.pipeline(payload)
 check("T16 pipeline 字段齐全", all(k in res["result"] for k in
@@ -124,56 +142,6 @@ check("TC1 对照benchmark可复现", _cmp_ok())
 _bench = _json.load(open(os.path.join(os.path.dirname(__file__), "benchmark.json"), encoding="utf-8"))
 check("TC2 四问对照完整", len(_bench.get("four_questions", [])) == 4 and
       len(_bench.get("cases", [])) >= 2)
-
-
-# ==================== 冲95+ 新增能力测试 ====================
-import tempfile as _tf, os as _os, json as _js
-
-# 参数名语义对齐：数值存在但参数名不符 → 弱证据，不算 supported
-v = me.verify_values("批量大小为32。准确率为0.95。",
-                     {"config.txt": "lr=0.001 batch=32 acc=0.95"})
-check("V1 name aligned found", any(c["status"] == "found" and c["parameter"] == "批量大小"
-                                   for c in v["claims"]))
-check("V2 weak not counted supported", v["all_supported"] is False or v["weak_count"] == 0)
-# 同值错配：正文"学习率为0.95"，来源只有 acc=0.95 → 不能因同值就通过
-v2 = me.verify_values("学习率为0.95。", {"config.txt": "acc=0.95"})
-c2 = v2["claims"][0] if v2["claims"] else {}
-check("V3 same-value wrong-name not found", c2.get("status") != "found",
-      str(c2.get("status")))
-
-# render-draft 六要素成稿
-draft_payload = _js.load(open(os.path.join(os.path.dirname(__file__), "smoke_input.json"), encoding="utf-8"))
-dr = me.render_draft(draft_payload)
-check("D1 draft status", dr["status"] in ("draft", "partial"))
-check("D2 draft text", len(dr.get("draft_text", "")) > 50)
-check("D3 six blocks", len([b for b in dr["blocks"] if b["element"] in
-      ["steps","setup","params","data","baseline","repro_limit"]]) == 6)
-check("D4 source refs", "config.txt" in dr["source_refs"])
-
-# clean 案例真正全绿
-check("D5 clean case ok", me.pipeline(draft_payload)["status"] == "ok")
-
-# solve 端到端 + 材料适配器
-td = _tf.mkdtemp(prefix="methods_solve_")
-open(_os.path.join(td, "config.txt"), "w", encoding="utf-8").write("lr=0.001 seed=42 batch=32 epochs=100")
-case = dict(draft_payload)
-case["sources"] = {}
-case["source_files"] = ["config.txt"]
-_js.dump(case, open(_os.path.join(td, "case.json"), "w", encoding="utf-8"), ensure_ascii=False)
-sv = me.solve(_os.path.join(td, "case.json"), _os.path.join(td, "out"))
-check("D6 solve status", sv["status"] in ("ok", "needs_attention", "partial"))
-check("D7 solve delivery written", sv.get("delivery", {}).get("written") is True)
-rj = _js.load(open(_os.path.join(td, "out", "result.json"), encoding="utf-8"))
-check("D8 solve result assembled", rj.get("case_id") == "smoke" and "result" in rj)
-check("D9 solve adapted materials", sv.get("source_count", 0) >= 1)
-
-# 统计报告审计：完整统计段应关键项齐备，空段应报缺
-_s_full = me.audit_stats("样本量 n = 30，重复三次，结果以均值±标准差表示。"
-                         "采用 t 检验，p < 0.05，效应量 Cohen's d = 0.6，"
-                         "多重比较用 Bonferroni 校正，统计软件 SPSS 26。")
-check("ST1 full stats complete", _s_full["complete"] is True and _s_full["present_count"] == 8)
-_s_bad = me.audit_stats("我们做了实验，结果很好。")
-check("ST2 empty stats flags critical", set(_s_bad["missing_critical"]) >= {"样本量", "重复次数", "离散度", "统计检验名称"})
 
 print("\n%d/%d 通过" % (CHECKS[0] - len(FAILS), CHECKS[0]))
 if FAILS:

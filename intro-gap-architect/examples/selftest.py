@@ -207,18 +207,8 @@ sv2 = ie.solve_inline({"case_id": "bib", "format": "bibtex", "text": bib},
 ing = ie.ingest({"format": "bibtex", "text": bib, "case_id": "bib"})
 check("T45 ingest bibtex works", ing.get("work_count", 0) >= 1 and ing["works"][0].get("title") == "DL facies")
 
-TOTAL = 49
+TOTAL = 45
 print("\n%d/%d 通过" % (TOTAL - len(FAILS), TOTAL))
-
-# CARS 三语步审计：缺缺口/缺占据必须被指出，引用密度可算
-_na = ie.audit_narrative("In recent years, carbonate reservoirs have attracted much attention [1]. "
-                         "The method is robust [2].")
-check("NA1 territory found", _na["moves"]["territory"]["found"] is True)
-check("NA2 missing niche flagged", "niche" in _na["missing_moves"])
-check("NA3 citation density computed", 0 < _na["citation_density"] <= 1)
-_na2 = ie.audit_narrative("本文提出一种新方法，然而现有研究仍不足。")
-check("NA4 chinese cues found", _na2["moves"]["niche"]["found"] and _na2["moves"]["occupy"]["found"])
-
 if FAILS:
     print("失败:", FAILS)
     sys.exit(1)

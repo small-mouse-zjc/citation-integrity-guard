@@ -48,34 +48,6 @@ def _resolve(result: Dict[str, Any], expr: str):
 def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
     r = ENGINE.pipeline(payload)
     result = r.get("result", {}) if isinstance(r, dict) else {}
-
-    # 真实朴素基线成稿：把原文逐段平铺（不做术语锁定/占位保护/证据回链）
-    paras = ENGINE._paragraphs(payload)
-    baseline_lines = []
-    for para in paras:
-        baseline_lines.append("%s" % str(para.get("text", "")))
-    baseline_text = "\n\n".join(baseline_lines)
-    # Skill 成稿：用真实字段渲染双语对照草稿
-    draft = ENGINE.render_draft(payload)
-    skill_text = draft.get("bilingual_text", "")
-    skill_translated = len(draft.get("blocks", [])) - len(draft.get("pending_translation", []))
-    draft_cmp = {
-        "baseline_text": baseline_text or "〔基线无可用材料〕",
-        "baseline_chars": len(baseline_text),
-        "baseline_parts": len(paras),
-        "skill_text": skill_text,
-        "skill_chars": len(skill_text),
-        "skill_parts": len(draft.get("blocks", [])),
-        "skill_translated_parts": skill_translated,
-        "skill_glossary_basis": sum(len(b.get("glossary_basis", []))
-                                    for b in draft.get("blocks", [])),
-        "skill_protected_kinds": sum(len(b.get("protected_kinds", []))
-                                     for b in draft.get("blocks", [])),
-        "note": ("基线=原文逐段平铺（无术语锁定/占位保护/证据回链，真实生成的朴素稿）；"
-                 "Skill=四问成稿草稿（段号+定位+术语与保护依据+待翻译标注）。"
-                 "仅比较结构与覆盖证据，不编造质量分；正式质量对照由平台白板给出。"),
-    }
-
     dims = []
     for dim, baseline, field, gate in PROFILE["dimensions"]:
         flagged, positives = _resolve(result, field)
@@ -95,7 +67,6 @@ def compare(payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "comparison",
         "four_questions": PROFILE["four"],
         "dimensions": dims,
-        "draft_comparison": draft_cmp,
         "summary": {
             "four_questions_covered": len(PROFILE["four"]) == 4 and len(dims) == 4,
             "dimensions_with_evidence": fired,

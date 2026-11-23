@@ -12,7 +12,7 @@ citation-integrity/
   README.md                         # 本文件
   GITHUB_URL.txt                    # 作品公开链接
   scripts/
-    citation_engine.py              # 确定性处理引擎（11 子命令，含 solve/render-draft，纯标准库）
+    citation_engine.py              # 确定性处理引擎（9 子命令，纯标准库）
   references/
     dedup_rules.md                  # 去重判据与置信度表
     format_gb7714.md                # GB/T 7714—2015 映射规则
@@ -26,7 +26,7 @@ citation-integrity/
     smoke_input.json                # 示例输入
     smoke_output.json               # 示例输出（标注为示例，非正式案例结果）
     testset.json                    # 14 道边界回归测试题集（可复用）
-    selftest.py                     # 55 项自验收测试（含成稿/适配/solve/未引标注）
+    selftest.py                     # 33 项自验收测试（覆盖率证据）
 ```
 
 ## 快速开始
@@ -34,9 +34,7 @@ citation-integrity/
 ```bash
 # 环境：Python 3.8+，无第三方依赖
 python scripts/citation_engine.py --help
-python scripts/citation_engine.py solve /input/case.json --out /app/output
-python scripts/citation_engine.py render-draft examples/smoke_input.json > draft.json
-python scripts/citation_engine.py pipeline examples/smoke_input.json --with-draft > result.json
+python scripts/citation_engine.py pipeline examples/smoke_input.json
 ```
 
 ## 功能

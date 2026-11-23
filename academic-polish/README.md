@@ -1,38 +1,39 @@
-# 学术语言润色守门/完成器（academic-polish）
+# academic-polish-source-preserving
 
-写作02「学术语言润色」参赛 Skill。面向真实科研稿件，交付"润色后完整文本 + 逐句修改说明"，并守住原意、限定强度、数值与引用。
+学术语言润色的**保源最小编辑** Skill。面向科研论文、摘要、基金、学位论文、审稿回复等真实文本：先把事实台账与术语表建好，再由 Agent 逐句做语法/术语/语域修改，最后用确定性脚本核对数字、引用、否定、限定强度、术语与段落是否守恒。
 
 ## 快速开始
 
 ```bash
-# 自检
-python examples/selftest.py
+# 1. 读 case（支持 json/txt/md/docx/pdf）
+python scripts/case_io.py /input/case.json --out /app/work/case_texts.json
 
-# 确定性检查（守门）
-python scripts/polish_engine.py pipeline --compact examples/smoke_input.json
+# 2. 建事实台账
+python scripts/polish_audit.py ledger --input /app/work/source.txt \
+  --termbase /app/work/termbase.csv --out /app/work/fact_ledger.json
 
-# 逐句成稿草稿（完成器）
-python scripts/polish_engine.py render-draft examples/smoke_input.json
+# 3. 写改文（Agent 完成）→ /app/work/polished.md
 
-# 端到端一次交付（推荐）
-python scripts/polish_engine.py solve /input/case.json --out /app/output
+# 4. 保源核验
+python scripts/polish_audit.py check --source /app/work/source.txt \
+  --revised /app/work/polished.md --termbase /app/work/termbase.csv \
+  --out /app/work/audit.json
 
-# 公平对照证据
-python scripts/compare_engine.py examples/smoke_input.json
+# 5. 装配后自检
+python scripts/validate_result.py --result /app/output/result.json \
+  --outdir /app/output --case /input/case.json
 ```
-
-## 设计要点
-
-- **完成器**：`solve` 从真实 case 出发，读材料 → 四问检查 → 逐句成稿 → 装配 `result.json` + `delivery` 回执。
-- **四问机制**：改得对（硬错误检测）/ 说得像（术语回扫 + 语域诊断）/ 没改坏（守护元素 + 限定强度守恒）/ 讲得清（逐句原文-改文-理由）。
-- **不臆造**：无真实润色文标〔待润色〕，无真实改文不做守恒核验，不确定进 `needs_review`。
 
 ## 目录
 
-- `SKILL.md`：技能说明、触发边界、调用方式。
-- `scripts/polish_engine.py`：主引擎。
-- `scripts/compare_engine.py`：公平对照。
-- `examples/`：selftest / benchmark / 最小示例 / 冒烟数据。
-- `references/`：输出契约与规则文档。
+- `SKILL.md`：五不变量、六阶段、输出契约
+- `scripts/case_io.py`：case/文本/docx/pdf 读取
+- `scripts/polish_audit.py`：事实台账 + 保源核验
+- `scripts/validate_result.py`：结果契约自检
+- `scripts/office_io.py`：无依赖 docx 读写
+- `references/`：协议、限定梯度、术语规则、编辑分类、输出契约
+- `examples/`：正例、反例、自测
 
-纯 Python 标准库，无网络与第三方依赖，Python 3.8+ 可运行。
+## 限制
+
+不生成新论证、不补文献/数据；只做语言层最小编辑。脚本不判断学术质量，只判断守恒与结构。

@@ -66,24 +66,3 @@
 ## 装配正式 result.json
 
 真实任务按 `references/output_contract.md` 保留 `case_id` 与所有字段；平台还会要求 `output_contract` 中的"证据与边界/运行状态"字段——把 `evidence_index`、`verification.problems`、`unreadable`、`needs_review` 填入对应项。可编辑产物（reading_text、表格 Markdown）另存 `/app/output/` 下文件。预算紧张时用 `pipeline --compact`，只输出 `status/summary/bibliography` 类摘要与核验结论。
-
-## solve 端到端输出（完成器）
-
-`solve` 直接吃 `/input/case.json` + 真实 PDF，输出在标准 result 之上增加：
-
-```json
-{
-  "case_id": "...",
-  "status": "success | partial | needs_review",
-  "input_mode": "pdf | inline_layout",
-  "pdf_path": "/input/paper.pdf",
-  "extract": {"backend":"pymupdf","stats":{},"backends_tried":[]},
-  "delivery": {"written":true,"path":"/app/output/result.json","bytes":12345},
-  "result": { "reading_text":"...", "summary":"..." }
-}
-```
-
-- `delivery`：装配回执，`written=true` 且 `bytes>0` 才代表 result.json 真正落盘；失败在 `error` 字段说明，不静默吞错。
-- `tables[].merges`：合并单元格结构标注（`rowspan_cont` / `colspan_anchor`，含 row/col）；Markdown 中以 `↕` 表示合并续位。
-- `formulas[].superscript` / `subscript`：基于 span size 还原的上下标文本；`rendered` 用 `^{}`/`_{}` 标注，不再丢失。
-- `status=needs_review` 且 `result.summary` 说明原因时，代表无文字层/无后端/找不到 PDF，如实标注，不伪造。

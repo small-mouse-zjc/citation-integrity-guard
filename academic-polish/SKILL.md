@@ -1,112 +1,178 @@
 ---
-name: academic-polish
-description: 学术语言润色守门与完成器。当任务涉及科研稿件语法句法修正、术语全篇一致性、学术语气与语域贴合、语义保持与最小编辑、中英文表达质量改进，或需要"润色后完整文本＋逐句修改说明"的交付与核验时使用本技能。通过确定性脚本把高置信度硬错误检测、术语锁定回扫、语域诊断、数字单位引用图表与限定强度守护、逐句原文—改文—理由对照做准确，并对无真实改文处标〔待润色〕、对不确定处显式标注而非臆造。不适用于纯内容创作或与润色核验无关的问答。
+name: academic-polish-source-preserving
+description: 学术语言润色（保源最小编辑）。当任务要求对科研稿件/摘要/基金/审稿回复做语法句法修正、术语全篇统一、学术语域调整、语义保持润色，并交付润色后完整文本与逐句修改说明时使用。先建事实台账与术语表，再由 Agent 逐句做最小编辑，最后用确定性脚本核对数字、引用、否定、限定强度、术语与段落是否守恒；不代替模型写作、不补造事实、不把整段重写当润色。
 ---
 
-# 学术语言润色守门/完成器（Academic Polish）
+# 学术语言润色：保源最小编辑（Academic Polish, Source-Preserving）
 
-面向真实科研稿件的润色技能。本技能既是从真实 case 出发、端到端交付可编辑润色成稿的**完成器**，也是把题面四问（**改得对 / 说得像 / 没改坏 / 讲得清**）做成确定性、可回溯动作的**核验器**。润色措辞由模型完成，但脚本会读取真实输入、切句、建守护清单、渲染逐句成稿草稿、核验限定强度守恒并自动装配 `/app/output/result.json`。目标不是"文字更漂亮"，而是**硬错误真改掉、术语全篇统一、原意数值引用不丢、每处修改能回原文并说明理由**。
+核心目标不是"文字更漂亮"，而是**改得对、说得像、没改坏、讲得清**：语法与表达真的变好，术语全篇统一，数字/引用/否定/限定强度一个不丢，每处改动能回原文并说明理由。
 
-## 何时触发 / 何时不触发
+## 何时触发 / 不触发
 
-**触发**：科研论文/摘要/基金/学位/审稿回复的语法修正、术语统一、语域改写、语义保持润色、中英表达质量改进、逐句修改说明、改写前后核验。
+**触发**：论文摘要/正文/引言/方法/讨论、基金申请书、学位论文、审稿回复、中英学术文本的语法修正、术语统一、语域改写、逐句修改说明、改写前后核验。
 
-**不触发**：纯内容创作、与润色核验无关的内容问答、纯事实查询。被误触发时说明边界，不擅自改写。
+**不触发**：纯内容创作、新增论证/文献/数据、纯翻译、与润色无关的问答。误触发时说明边界，保持原文不变。
 
-## 核心原则（题面四问）
+## 五条不变量（任何修改都不能破）
 
-1. **改得对**：`detect_grammar` 只标高置信度硬错误（重复词、双冠词、句首小写、标点重复、中英粘连），给出原文与理由，不替模型重写整段——避免"换种说法掩盖错误"。
-2. **说得像**：`check_terms` 让术语表真正执行全篇一致性回扫；`check_register` 诊断口语化/绝对化/宣传化/人称误用，按目标语域给建议。
-3. **没改坏**：`protect` 把数字单位、引用编号、图表指向、公式、化学式、限定词、否定词抽成守护清单；`check_preserve` 逐项核对原文与真实改文，限定强度被加强或削弱、否定丢失、引用被改即告警。
-4. **讲得清**：`segment` + `evidence` + `render_draft` 逐句给"原文—改文—修改类型—理由—守护依据—核验结论"，第三方可据此判断这处该不该改。
+1. **N 数字与单位守恒**：数值、百分比、范围、样本量、年份、单位、公式编号不得改值、增删或换单位；原文没有的数字不得补。
+2. **C 引用与交叉引用守恒**：`[1,2]`、`(Smith, 2020)`、`\cite{}`、图/表/式编号必须原样保留；不得新增原文没有的引用。
+3. **H 断言强度守恒**：原文的 may/might/could/suggest/indicate/可能/或许/初步 等限定不得改成 prove/demonstrate/证明/证实；原文的否定（not/no/never/不/未/无）不得丢失。
+4. **T 术语与缩写守恒**：同一概念全篇同一写法；术语表锁定的译名/缩写/大小写必须执行；不得自造新译名。
+5. **M 最小编辑**：只改语法、搭配、冗余、连接、语域与句内清晰度；不整段重写、不改变论证顺序、不删限定条件、不把作者判断改成事实。
 
-## 诚实边界（不臆造）
+## 编辑分类（每条改动必须归入 G/T/R）
 
-- 脚本**不替代模型做润色措辞**。无真实 `polished` 文本的句一律标〔待润色〕，绝不臆造改文或术语写法。
-- 无真实改文时 `check_preserve` 不做守恒核验，显式写"无真实 polished 文本，无法核限定强度守恒"。
-- 硬错误检测为保守高置信度模式，未标句子不等于无误，须通读复核；限定强度、因果边界、语域贴合属价值判断，进 `needs_review`。
+| 类型 | 允许改 | 不允许 |
+|---|---|---|
+| **G** Grammar & mechanics | 主谓一致、时态、单复数、冠词、介词、拼写、标点、重复词、断句 | 改数字/引用/否定/限定 |
+| **T** Terminology & consistency | 术语统一、缩写首次展开、单位写法、大小写、图表编号格式 | 换概念、换译名、改引用 |
+| **R** Register & cohesion | 口语→书面、冗余删减、连接词、句内逻辑、客观化 | 加强/削弱断言、添加原文没有的解释 |
 
-## 工具：polish_engine.py
+遇到不属于 G/T/R 的"想改写内容"的冲动，一律不做；需要作者确认的写入 `uncertainty`。
 
-位置 `scripts/polish_engine.py`，纯 Python 标准库、无网络、无第三方依赖，3.8+ 可运行。
+## 六阶段工作流（必须按顺序）
+
+### 1. 读输入，建事实台账
 
 ```bash
-python scripts/polish_engine.py --help
+python scripts/case_io.py /input/case.json --out /app/work/case_texts.json --dump-text /app/work/source.txt
 ```
 
-子命令：`segment` / `protect` / `detect_grammar` / `check_terms` / `check_register` /
-`check_preserve` / `verify` / `evidence` / `pipeline`（`--compact` / `--with-draft`）/
-`render-draft` / `solve`。
+先读 `case_texts.json` 的 `texts.items` 与 `contract.fields`，确认：
+- `case_id`、任务口径（润色哪些章节/是否双语/目标语域/字数限制）；
+- 源文本（可能是 `.md/.txt/.docx/.pdf`；docx/pdf 已由 `case_io` 抽取）；
+- 是否有术语表、风格指南、必须保留的句子、禁用表达；
+- 平台 `output_contract` 要求哪些字段（结果里要原样覆盖）。
 
-### 中间表示（polish JSON）
+然后建台账：
+
+```bash
+python scripts/polish_audit.py ledger --input /app/work/source.txt \
+  --termbase /app/work/termbase.csv --out /app/work/fact_ledger.json
+```
+
+台账含段落、句子、数字、引用、限定词、否定词、标题、图表指向、术语。**逐项读一遍**，把它们当作后续不可丢的锚点。
+
+### 2. 锁定术语与语域
+
+- 若 case 提供术语表，复制为 `/app/work/termbase.csv`（列：`source,target,forbidden`），缺失字段留空。
+- 若未提供，从台账中挑出高频专业术语、缩写、变量名，建最小术语表；只锁"原文已经确定"的写法，不新造译名。
+- 读 `references/terminology.md` 与 `references/hedge_ladder.md`，确定目标语域与限定强度梯度。
+
+### 3. 逐句最小编辑（Agent 主写）
+
+**先写完整改文，再谈核验。** 按段落顺序逐句改：
+- 只做 G/T/R 三类改动；每句改完对照原文，确认 N/C/H 未变；
+- 长句可拆分、短句可合并，但不得丢限定条件、不得改因果/让步/否定方向；
+- 术语按表锁定；缩写首次出现展开，后文统一；
+- 不添加原文没有的事实、评价、文献、数据、机制解释；
+- 原文清楚且无误的句子**保持不动**，不要为了"看起来改过"而重写。
+
+把改文写入 `/app/work/polished.md`（段落间空行）。同时维护 `changes` 列表：每条含 `source_sentence`、`revised_sentence`、`type`（G/T/R）、`reason`、`source_ref`（段号/句号）。
+
+若 case 要求双语/对照，另存 `/app/work/bilingual.md`，逐段原文—译文对应；没有要求则不额外生成。
+
+### 4. 全篇一致性回扫
+
+改完通读一遍，专查：
+- 同一术语/缩写是否全篇同一写法（标题、摘要、正文、图注、结论）；
+- 时态、语态、人称是否统一；
+- 数字格式（小数位、千分位、百分号、单位空格）是否统一；
+- 图表/公式/章节编号是否连续，首次提及是否在前；
+- 段落之间连接是否自然，是否有重复句、漏句、错位。
+
+### 5. 保源核验（脚本）
+
+```bash
+python scripts/polish_audit.py check \
+  --source /app/work/source.txt --revised /app/work/polished.md \
+  --termbase /app/work/termbase.csv --out /app/work/audit.json
+```
+
+看 `gate`：
+- `pass`：进入装配；
+- `review`：逐条读 `violations`，能改则改，改不了写进 `uncertainty`；
+- `fail`：**必须修到没有 critical 才能交付**。典型 critical：`number_missing`、`citation_missing`、`negation_dropped`、`hedge_dropped`、`paragraph_dropped`。修完重跑，直到 `gate != fail`。
+
+`violations` 每条都带原文句、改文句、定位；逐条处理，不要只看计数。
+
+### 6. 装配输出
+
+写 `/app/output/result.json`，至少包含：
 
 ```json
 {
-  "case_id": "案例标识",
-  "target_register": "journal",
-  "source_lang": "en",
-  "paragraphs": [
-    {"id":"P1","section":"Abstract","kind":"body","text":"原文段落"}
-  ],
-  "glossary": [{"source":"porosity","target":"孔隙度","scope":"global"}],
-  "polished": {"P1":"真实润色段落文本（可选）"}
+  "case_id": "与输入一致",
+  "status": "success | partial | needs_attention",
+  "result": {
+    "polished_text": "润色后的完整文本",
+    "paragraphs": [
+      {"id": "P1", "source_ref": "原文段1", "text": "改文段1", "changes": ["S1"]}
+    ],
+    "changes": [
+      {"id": "S1", "type": "G", "source_sentence": "...", "revised_sentence": "...",
+       "reason": "...", "source_ref": "P1-S1"}
+    ],
+    "termbase": [{"source": "...", "target": "...", "forbidden": "..."}],
+    "audit": {"gate": "pass", "counts": {...}, "violations": [...]},
+    "summary": "一段话：改了哪几类、保住了哪些硬事实、还剩哪些需作者确认"
+  },
+  "evidence": {
+    "principles": {"改得对": "...", "说得像": "...", "没改坏": "...", "讲得清": "..."},
+    "preserved": {"numbers": [...], "citations": [...], "hedges": [...], "negations": [...]},
+    "audit_ref": "/app/work/audit.json"
+  },
+  "uncertainty": {
+    "needs_author_confirmation": ["术语X是否应译为Y"],
+    "not_polished": ["因原文不清/缺上下文未改的句子"],
+    "note": "脚本只做守恒检查；措辞质量与原意忠实度由 Agent 逐句复核"
+  }
 }
 ```
 
-## 真实输入字段（solve 适配）
+同时落盘：
+- `/app/output/polished.md`（完整改文）；
+- `/app/output/changes.json`（逐条改动）；
+- `/app/output/audit.json`（核验结果）；
+- 若 case 明确要求 Word：`python scripts/office_io.py write --input /app/output/polished.md --out /app/output/polished.docx`，并在 `result.delivery` 记录路径。
 
-`solve` 从 case.json 出发，支持以下真实字段（详见 `references/output_contract.md`）：
-- `paragraphs`：内联结构化段落；
-- `source_text`：单篇纯文本，按空行/换行切段；
-- `source_files`：`[路径]` 或 `{名:路径}`，读 `.txt/.md/.json` 真实稿件；
-- `glossary_file`：术语表文件（.json 或两列 TSV/CSV）；
-- `polished` / `polished_files`：真实润色文本（`{段号:文本}` 或 `{段号:路径}`）。
-
-## 端到端一次交付（推荐）
+最后自检：
 
 ```bash
-python scripts/polish_engine.py solve /input/case.json --out /app/output
+python scripts/validate_result.py --result /app/output/result.json \
+  --outdir /app/output --case /input/case.json
 ```
 
-一次运行完成：真实材料适配 → 四问检查 → 逐句润色成稿 → 装配 `/app/output/result.json`，
-返回 `delivery`（`written/path/bytes`）回执。`result.json` 含
-`polished_draft`/`draft_text`/`blocks`/`verification`/`evidence_index` 与 `case_id`。
+`valid=false` 时按 errors 修，不要带病交付。
 
-## 公平对照
+## 异常处理
 
-```bash
-python scripts/compare_engine.py examples/smoke_input.json
-```
+| 情形 | 处置 |
+|---|---|
+| case 是 PDF 且无文字层 | `case_io` 会报 `pdf_text_unavailable`；如实标 partial，不猜内容 |
+| docx 有批注/修订痕迹 | 纯文本读取会丢失痕迹；在 uncertainty 说明，必要时请作者提供干净版 |
+| 源文本语言混杂 | 分语言段落处理；术语按各自语言锁定；不强行统一 |
+| 术语表冲突 | 不擅自选一个；列入 `needs_author_confirmation`，正文保持原写法 |
+| 原文句子本身有事实/逻辑问题 | 不代作者改事实；标 `needs_author_confirmation`，只做语言层修正 |
+| 字数限制与保源冲突 | 优先保 N/C/H；删减只删冗余表达，并在 changes 说明 |
+| 无法确定该不该改 | 不改，列入 `not_polished`；宁少改，不乱改 |
 
-对照只呈现四问检查机制的可运行证据与逐句成稿结构，**不编造平台质量分/效率分**；
-正式质量对照由平台固定案例与白板给出。
+## 资源
 
-## 交付文件（solve 自动生成，评审可直接打开）
+- `scripts/case_io.py`：读 case.json / txt / md / docx / pdf，抽取文本与 output_contract 字段
+- `scripts/polish_audit.py`：事实台账 `ledger` + 保源核验 `check`（数字/引用/否定/限定/术语/段落/标题/图表指向）
+- `scripts/validate_result.py`：result.json 契约与交付物自检
+- `scripts/office_io.py`：无依赖 docx 读写
+- `references/protocol.md`：五不变量与六阶段细则
+- `references/hedge_ladder.md`：限定强度梯度与改法
+- `references/terminology.md`：术语表格式与锁定规则
+- `references/edit_taxonomy.md`：G/T/R 分类与正反例
+- `references/output_contract.md`：字段契约
+- `examples/`：最小示例、正例/反例、自测
 
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`comparison.md`（原稿/改稿对照）、`polished.md`（润色后全文）、`fixes.md`（逐条改动）、`glossary.csv`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+## 限制与边界
 
-## 资源清单
-
-- `scripts/polish_engine.py`：主引擎（守门 + 完成器）。
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
-- `scripts/compare_engine.py`：公平对照证据引擎。
-- `examples/`：selftest、benchmark、最小示例、冒烟输入输出。
-- `references/`：输出契约、守护规则、语域指南、术语格式、失败模式、创新边界、核验清单、词表。
-
-## 限制
-
-- 不调用外部润色/翻译服务，不臆造润色措辞；真实改文由模型在锁定约束下补全。
-- 硬错误检测面向高置信度模式，不保证覆盖全部语法错误。
-- 资源规模遵守 ≤50 个 UTF-8 文本文件、单文件 ≤500KB、总计 ≤2MB、无软链。
-
-## 润色成稿审计（polish_audit）
-
-在守护元素守恒之外，新增**断言强度守恒**与排版审计，结果写入 `result.polish_audit`：
-
-- `claim_strength_upgrade`（major）：原文 hedged/neutral，润色后被改成 demonstrate/prove 类强断言——学术上最危险的改写；
-- `claim_strength_downgrade`：原文 strong，被弱化成 may/might；
-- `straight_quotes` / `double_space` / `space_before_punct` / `hyphen_range`：可自动定位的排版硬伤；
-- `sentence_too_long`：单句 >50 词；
-- `metrics`：平均/最长句长、长句比例、断言强度分布。
-
-润色原则：可以更流畅，但不能改变证据强度；审计报 major 时必须回退。
+- 本技能不生成新论证、不补文献、不补数据；只做语言层最小编辑。
+- 脚本不判断"这句话学术不学术"，只判断守恒与结构；语域质量由 Agent 负责。
+- 不联网；不虚构术语译名；拿不准的写法一律交作者确认。

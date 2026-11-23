@@ -40,7 +40,7 @@ description: Nanopublication（纳米出版物）构建与核验守门人。当�
 
 ## 工具：nanopub_engine.py
 
-位置：技能目录下 `scripts/nanopub_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求、不调用外部服务（8 子命令，含 solve/render-draft）。
+位置：技能目录下 `scripts/nanopub_engine.py`，纯 Python 3 标准库，无第三方依赖、无网络请求、不调用外部服务。
 
 先确认可运行：
 ```bash
@@ -56,19 +56,12 @@ python scripts/nanopub_engine.py --help
 | `check-provenance` | 追得回：来源链路 | `complete`、`missing`（含字段级 identifier_format） |
 | `check-export` | 读得懂：导出结构 | `machine_readable`、`serializable`、`missing_fields`、`issues` |
 | `check-quality` | 质量检查：跨断言 | `duplicate_assertions`、`ambiguous_subjects`、`subject_count` |
-| `render-draft` | 用真实字段渲染可编辑 Nanopublication 交付稿（无断言标〔待补〕） | `draft_text`、`nanopublications`、`export_text` |
-| `solve` | 端到端完成器：case.json →(适配材料)→ 成稿 → result.json | `result.draft_text`、`delivery` |
-| `pipeline` | 串联以上（`--with-draft` 出交付稿） | `status`、`result`、`evidence`、`uncertainty` |
+| `pipeline` | 串联以上，产出 nanopublication 结构 | `status`、`result`、`evidence`、`uncertainty` |
 
-每个子命令既可 `python scripts/nanopub_engine.py <cmd> input.json` 单独调用，也可由 Agent 在流程中按字段调用其 Python 函数。输入为 UTF-8 JSON。端到端交付首选 `solve`：
+每个子命令既可 `python scripts/nanopub_engine.py <cmd> input.json` 单独调用，也可由 Agent 在流程中按字段调用其 Python 函数。输入为 UTF-8 JSON。推荐一次跑完：
 ```bash
-python scripts/nanopub_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
-python scripts/nanopub_engine.py render-draft input.json > draft.json        # 仅渲染交付稿
-python scripts/nanopub_engine.py pipeline input.json --with-draft > result.json  # 带成稿的全流程
-python scripts/nanopub_engine.py pipeline input.json > result.json             # 仅结构化检查
+python scripts/nanopub_engine.py pipeline input.json > result.json
 ```
-
-`solve` 适配的真实输入字段：`paragraph`/`source_text`（论文文本）、`source_files`（[路径]，读 .txt/.md 或含断言/元数据的 .json）、`assertions`/`assertions_file`、`source_metadata`/`metadata_file`。读不到不臆造，记入 `adapter_notes`；无真实断言标〔待补〕，不臆造断言或证据。
 
 `input.json` 结构：
 ```json
@@ -93,16 +86,20 @@ python scripts/nanopub_engine.py pipeline input.json > result.json             #
 接到任务后按此顺序执行，每步保留证据：
 
 1. **读输入**：读取 `/input/case.json` 与 `task.md`，确认 `case_id`、论文材料、问题边界与证据范围。**如实读真实材料。**
-2. **拆得细**：通读目标段落，用 `check-assertion` 核验每条候选断言。把复合句拆成多条，给每条补条件/限定词，直到 `issues` 中无 compound/overbroad/no_relation 警告。**断言由 Agent 依原文拆分，脚本判结构。**
+2. **拆得细**：先跑 `plan-assertions` 得到候选槽与建议下限：
+   ```bash
+   python scripts/nanopub_engine.py plan-assertions input.json > plan.json
+   ```
+   通读目标段落，按候选槽把复合句拆成多条，给每条补条件/限定词；断言数不得低于 `recommended_min_assertions`，且每个原句至少被一条断言覆盖。再用 `check-assertion` 核验每条，直到 `issues` 中无 compound/overbroad/no_relation 警告。**断言由 Agent 依原文拆分，脚本判结构。**
 3. **对得上**：为每条断言回原文找最小证据片段与位置，用 `bind-evidence` 核验。过长证据截取直接支撑部分，无词面重叠的标 `indirect` 并人工确认，缺锚点回原文补页码/图号。
 4. **追得回**：从论文首页与题录采六项来源元数据，用 `check-provenance` 核验 `complete=true`；缺项如实标注 missing，标识符核对 DOI/PMID 格式，不臆造。
-5. **读得懂**：用 `pipeline`（内含 `check-export`）产出 nanopublications，确认 `machine_readable=true`、`missing_fields` 为空、格式在 json/jsonld/rdf 内。
+5. **读得懂**：用 `pipeline`（内含 `check-export`）产出 nanopublications，确认 `machine_readable=true`、`missing_fields` 为空、格式在 json/jsonld/rdf 内；同时看 `result.assertion_coverage`，若 `ok=false` 先补断言/补覆盖，不要带病导出。
 6. **质量复核**：看 `check-quality` 的 `duplicate_assertions` 与 `ambiguous_subjects`，合并重复、核对主体关系方向。
-7. **装配输出**：直接 `python scripts/nanopub_engine.py solve /input/case.json --out /app/output` 完成端到端交付（自动适配材料、渲染交付稿、写 result.json + delivery 回执）；或按 `references/output_contract.md` 手工装配。每条断言附"原文定位 → 断言 → 证据 → 来源 → 置信度依据"。`needs_review` 列出项须逐条人工复核。
+7. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与全部字段；每条断言附"原文定位 → 断言 → 证据 → 来源 → 置信度依据"。`uncertainty.needs_review` 列出的索引须逐条人工复核。
 
 ## 输出契约要点
 
-`result.json` 至少包含：`case_id`、`status`、`result`（六项结构化检查 + nanopublications；`solve` 额外含 `draft_text`/`nanopublications`/`export_text`）、`evidence`、`uncertainty`。`solve` 另有 `delivery`（落盘回执，written=true 且 bytes>0 才算交付成功）。`status=ok` 要求所有证据绑定成功 + 来源完整 + 导出合规 + 无重复断言。完整字段见 `references/output_contract.md`。
+`result.json` 至少包含：`case_id`、`status`（ok/needs_attention）、`result`（六项结构化检查 + nanopublications）、`evidence`（四原则落实 + unbound_assertions + missing_provenance）、`uncertainty`（needs_review + 说明脚本只做结构校验的价值判断边界）。`status=ok` 要求所有证据绑定成功 + 来源完整 + 导出合规 + 无重复断言。完整字段见 `references/output_contract.md`。
 
 ## 异常处理
 
@@ -133,7 +130,6 @@ python scripts/nanopub_engine.py pipeline input.json > result.json             #
 本 Skill 针对四问（拆得细 / 对得上 / 追得回 / 读得懂）配置了确定性检查机制，并提供可复现的公平对照证据：
 
 - `scripts/compare_engine.py`：对同一输入给出"基线常见失败 vs Skill 四问检查机制"的对照，客观呈现观测值，**不编造平台质量分**（正式对照由平台固定案例与白板给出）。
-- `scripts/artifacts.py`：交付物渲染器（result → deliverable.md + 领域文件，纯标准库）
   ```bash
   python scripts/compare_engine.py examples/smoke_input.json    # 单案例机制对照
   python scripts/compare_engine.py examples/benchmark.json      # 干净+缺陷两案例
@@ -145,17 +141,12 @@ python scripts/nanopub_engine.py pipeline input.json > result.json             #
 
 创新边界摘要：`nanopub_engine.py` 把 "拆得细 / 对得上 / 追得回 / 读得懂" 中每问的易错动作固化为脚本判定，价值判断须建立在其可回溯证据之上；材料不足时诚实降级为 `partial`/`needs_attention`，不臆造事实、数值或来源。
 
-## 交付文件（solve 自动生成，评审可直接打开）
 
-`solve /input/case.json --out /app/output` 在 `result.json` 之外还会写出：`assertions.csv`（断言清单）、`nanopublications.json`（机器可读导出）、`export.txt`、`fixes.md`，以及 `deliverable.md`（人读版：概要 / 主结果 / 需人工确认 / 文件清单）。这些文件全部由 `result` 渲染而来，字段缺失就不生成对应文件、不补造；`delivery.artifacts` 里逐个记录文件名、字节数与用途。
+## 交付前自检（必须）
 
-## 段落自动拆解为原子断言（split）
+```bash
+python scripts/validate_result.py --result /app/output/result.json --outdir /app/output --case /input/case.json --main-field nanopublications
+```
 
-新增 `split_assertions()` 与 CLI 子命令 `split`：
+`valid=false` 时按 errors 修；`result.nanopublications` 为空、顶层缺 `case_id/status/result/evidence/uncertainty`、或声明的产物路径不存在，都不得声称完成。
 
-- 输入只有段落、没有手工断言时，自动按句/从句拆成原子断言（英文按标点与连接词，中文按逗号/分号/句号）；
-- 每条断言推断主语/宾语、关系词与置信度，并保留证据字符偏移与 `para n` 锚点，可回原文；
-- 受控关系词边界匹配（increases/reduces/improves/achieves 等），避免子串误命中；
-- `solve` 在“有段落无断言”时自动调用，写出 `split_report`，状态为 `partial`（不是失败）。
-
-CLI 示例：`python scripts/nanopub_engine.py split case.json --out out/`

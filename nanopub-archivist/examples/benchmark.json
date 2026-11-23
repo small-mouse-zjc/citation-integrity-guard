@@ -1,126 +1,68 @@
 {
-  "schema": "intro-style-benchmark/v1",
-  "purpose": "阅读14 Nanopublication 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
-  "work": "nanopub-archivist",
-  "four_questions": [
-    "拆得细",
-    "对得上",
-    "追得回",
-    "读得懂"
-  ],
-  "cases": [
-    {
-      "case_id": "smoke",
-      "type": "clean",
-      "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
-      "input": {
-        "case_id": "smoke",
-        "paragraph": "在碳酸盐岩薄片中，CNN方法达到0.92准确率[3]。",
-        "assertions": [
-          {
-            "text": "CNN方法在碳酸盐岩薄片达到0.92准确率",
-            "subject": "CNN方法",
-            "relation": "improves",
-            "object": "0.92准确率",
-            "evidence": "实验显示CNN准确率0.92",
-            "evidence_type": "direct",
-            "anchor": "§4",
-            "confidence": "high"
-          }
-        ],
-        "source_metadata": {
-          "paper": "Deep facies",
-          "authors": [
-            "Smith, A."
-          ],
-          "year": 2023,
-          "version": "v1",
-          "source": "Fuel",
-          "identifier": "doi:10.1016/j.fuel.2023.01"
-        },
-        "export_format": "json"
-      }
+ "schema": "intro-style-benchmark/v1",
+ "purpose": "阅读14 Nanopublication 公平对照案例：clean 验证不误报，defect 验证能检出。非平台正式案例/白板。",
+ "work": "nanopub-archivist",
+ "four_questions": [
+  "拆得细",
+  "对得上",
+  "追得回",
+  "读得懂"
+ ],
+ "cases": [
+  {
+   "case_id": "smoke",
+   "type": "clean",
+   "desc": "结构完整的正常输入，用于与缺陷案例对照展示；其中需人工确认的项属预期提示，不代表误报",
+   "input": {
+    "case_id": "smoke",
+    "paragraph": "在碳酸盐岩薄片中，CNN方法达到0.92准确率[3]。",
+    "assertions": [
+     {
+      "text": "CNN方法在碳酸盐岩薄片达到0.92准确率",
+      "subject": "CNN方法",
+      "relation": "improves",
+      "object": "0.92准确率",
+      "evidence": "实验显示CNN准确率0.92",
+      "evidence_type": "direct",
+      "anchor": "§4",
+      "confidence": "high"
+     }
+    ],
+    "source_metadata": {
+     "paper": "Deep facies",
+     "authors": [
+      "Smith, A."
+     ],
+     "year": 2023,
+     "version": "v1",
+     "source": "Fuel",
+     "identifier": "doi:10.1016/j.fuel.2023.01"
     },
-    {
-      "case_id": "smoke-DEFECT",
-      "type": "defect",
-      "desc": "按四问注入典型缺陷，Skill 应检出并标注",
-      "input": {
-        "case_id": "smoke-DEFECT",
-        "paragraph": "在碳酸盐岩薄片中，CNN方法达到0.92准确率[3]。",
-        "assertions": [
-          {
-            "text": "CNN方法在碳酸盐岩薄片达到0.92准确率",
-            "subject": "CNN方法",
-            "relation": "improves",
-            "object": "0.92准确率",
-            "evidence": "实验显示CNN准确率0.92",
-            "evidence_type": "direct",
-            "anchor": "§4",
-            "confidence": "high"
-          }
-        ],
-        "source_metadata": {},
-        "export_format": "json"
-      }
-    }
-  ],
-  "completion_cases": [
-    {
-      "case_id": "np-inline-full",
-      "type": "end_to_end",
-      "desc": "内联 assertions+metadata：solve 应成稿并装配 result.json",
-      "input_ref": "cases[0].input",
-      "expect": {
-        "status": "ok",
-        "delivery_written": true,
-        "draft_nonempty": true
-      }
-    },
-    {
-      "case_id": "np-real-no-assertion",
-      "type": "end_to_end",
-      "desc": "真实 source_files 文本、无断言：标〔待补：无真实断言〕、不臆造、诚实降级",
-      "input": {
-        "case_id": "real",
-        "source_files": [
-          "paper.txt"
-        ],
-        "source_metadata": {
-          "paper": "Deep facies",
-          "authors": [
-            "Smith, A."
-          ],
-          "year": 2023,
-          "version": "v1",
-          "source": "Fuel",
-          "identifier": "doi:10.1016/j.fuel.2023.01"
-        }
-      },
-      "companion_files": {
-        "paper.txt": "CNN在碳酸盐岩薄片达到0.92准确率[3]。"
-      },
-      "expect": {
-        "adapter_read": true,
-        "no_fabrication": true,
-        "delivery_written": true
-      }
-    },
-    {
-      "case_id": "np-assertions-file",
-      "type": "adapter",
-      "desc": "assertions_file 读真实断言 JSON",
-      "input": {
-        "case_id": "files",
-        "assertions_file": "assertions.json"
-      },
-      "companion_files": {
-        "assertions.json": "{\"assertions\":[{\"text\":\"CNN准确率0.92\",\"subject\":\"CNN\",\"relation\":\"improves\",\"object\":\"0.92\",\"evidence\":\"实验CNN准确率0.92\",\"anchor\":\"§4\"}]}"
-      },
-      "expect": {
-        "assertions_read": 1
-      }
-    }
-  ],
-  "companion_note": "completion_cases 为端到端完成器/真实输入适配复现案例（非正式评测/白板）；cases 仍为四问机制对照的 clean+defect 两案。"
+    "export_format": "json"
+   }
+  },
+  {
+   "case_id": "smoke-DEFECT",
+   "type": "defect",
+   "desc": "按四问注入典型缺陷，Skill 应检出并标注",
+   "input": {
+    "case_id": "smoke-DEFECT",
+    "paragraph": "在碳酸盐岩薄片中，CNN方法达到0.92准确率[3]。",
+    "assertions": [
+     {
+      "text": "CNN方法在碳酸盐岩薄片达到0.92准确率",
+      "subject": "CNN方法",
+      "relation": "improves",
+      "object": "0.92准确率",
+      "evidence": "实验显示CNN准确率0.92",
+      "evidence_type": "direct",
+      "anchor": "§4",
+      "confidence": "high"
+     }
+    ],
+    "source_metadata": {},
+    "export_format": "json"
+   }
+  }
+ ]
 }

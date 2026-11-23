@@ -1,88 +1,46 @@
-# 输入输出字段契约（Output Contract）
+# 输出契约（output_contract）
 
-## 输入：polish JSON
+## 顶层
 
-| 字段 | 类型 | 说明 |
-|-|-|-|
-| `case_id` | str | 案例标识 |
-| `target_register` | str | 目标语域：`journal`/`thesis`/`grant`/`rebuttal`/`abstract` |
-| `source_lang` | str | 源语言：`en`/`zh`/`mixed` |
-| `paragraphs` | list[dict] | 真实稿件段落：`id`/`section`/`kind`/`text` |
-| `glossary` | list[dict] | 术语表：`source`/`target`/`scope` |
-| `polished` | dict | 真实润色文本 `{段号: 文本}`（可选；不提供则不臆造） |
+| 字段 | 类型 | 要求 |
+|---|---|---|
+| `case_id` | string | 与输入一致 |
+| `status` | string | `success` / `partial` / `needs_attention` |
+| `result` | object | 主产物 + 逐段/逐句改动 + 审计 |
+| `evidence` | object | 四问落实 + 守恒清单 + 审计路径 |
+| `uncertainty` | object | 待作者确认 + 未改项 + 说明 |
 
-## 输出：pipeline result.json
+## result
 
-```json
-{
-  "case_id": "案例标识",
-  "status": "success | partial | needs_review",
-  "has_polished": true,
-  "result": {
-    "paragraph_count": 2,
-    "sentence_count": 5,
-    "grammar_issues": 2,
-    "term_inconsistencies": 0,
-    "register_flags": 1,
-    "protected_tokens": 12,
-    "preservation": {"checked": true, "counts": {...}, "issue_count": 0},
-    "verification": {"consistent": false, "issues": [], "needs_review": []},
-    "evidence_index": [{"sentence_id":"P1_S1","para_id":"P1","protected_kinds":[...]}],
-    "summary": "段/句/守护元素/守恒核验/核验问题汇总"
-  }
-}
-```
+| 字段 | 必填 | 内容 |
+|---|---|---|
+| `polished_text` | 是 | 润色后的完整文本（段落空行分隔） |
+| `paragraphs` | 是 | `[{id, source_ref, text, changes[]}]`，与原文段落一一对应 |
+| `changes` | 是 | `[{id, type: G/T/R, source_sentence, revised_sentence, reason, source_ref}]` |
+| `termbase` | 否 | 本次执行的术语表 |
+| `audit` | 是 | `polish_audit.py check` 的 gate/counts/violations |
+| `delivery` | 否 | `{polished_md, polished_docx, changes_json, audit_json}` 路径 |
+| `summary` | 是 | 一行结论：改动类型、守恒结果、剩余待确认 |
 
-## 端到端交付（完成器 solve / render-draft）
+## evidence.principles
 
-### 真实输入字段（solve 适配）
+- `改得对`：硬错误/语法/搭配改了什么；
+- `说得像`：语域、术语、连接如何统一；
+- `没改坏`：N/C/H/T 如何核对、审计 gate；
+- `讲得清`：每条改动是否有 source_ref 与理由。
 
-| 字段 | 形态 | 说明 |
-|-|-|-|
-| `paragraphs` | 内联 list | 直接结构化段落 |
-| `source_text` | str | 纯文本，按空行/换行切段 |
-| `source_files` | `[路径]` 或 `{名:路径}` | 读 `.txt/.md/.json` 真实稿件 |
-| `glossary_file` | 路径 | 术语表文件（.json 或两列 TSV/CSV） |
-| `polished` | `{段号: 文本}` | 内联真实润色文本 |
-| `polished_files` | `{段号: 路径}` | 真实润色文本文件 |
+## evidence.preserved
 
-读不到不臆造，记入 `adapter_notes` 并交缺口清单。
+`numbers`、`citations`、`hedges`、`negations`、`terms` 的原文清单与改文核对结果。
 
-### 输出：solve result.json
+## uncertainty
 
-```json
-{
-  "case_id": "e2e-demo",
-  "status": "partial",
-  "input_mode": "case",
-  "source_count": 2,
-  "adapter_notes": ["source_text 切段 2"],
-  "result": {
-    "polished_draft": "[P1_S1] 原文: ...\n      改文: ...",
-    "draft_text": "...",
-    "blocks": [{"id":"P1_S1","source":"...","target":"...","change_types":[],
-                "reasons":[],"glossary_basis":[],"protected_kinds":[],"status":"needs_polish"}],
-    "verification": {"consistent": false, "issues": [], "needs_review": []},
-    "evidence_index": [],
-    "summary": "..."
-  },
-  "needs_review": [],
-  "uncertainty": [],
-  "delivery": {"written": true, "path": "/app/output/result.json", "bytes": 1234}
-}
-```
+- `needs_author_confirmation`：术语选择、事实歧义、无法判断的改写；
+- `not_polished`：因原文不清/缺上下文未改的句子；
+- `note`：脚本只做确定性检查，措辞质量由 Agent 负责。
 
-`delivery.written=true 且 bytes>0` 才视为交付成功。
+## status 判定
 
-### render-draft / pipeline --with-draft
-
-`render_draft` 产出逐句成稿草稿：`polished_text`、`blocks`、`pending_polish`、
-`needs_author_confirmation`、`term_inconsistencies`、`register_flags`、
-`preservation_issues`、`unverified_relations`、`uncertainty`。
-无真实改文的句 `target` 为〔待润色〕，`status=needs_polish`。
-
-## 装配正式 result.json（手工路径）
-
-若不用 `solve`，可分别运行子命令后按上表装配；必须保留 `case_id`、主结果、
-证据定位（evidence_index/blocks）、运行状态（status）、不确定性（needs_review/uncertainty）
-与修改记录，缺项显式标注，不得伪造。
+- `success`：gate=pass 或仅剩 warning，主产物完整；
+- `needs_attention`：gate=review，有 major 项待确认但仍交付；
+- `partial`：输入不可读/只完成部分章节/无法输出完整改文。

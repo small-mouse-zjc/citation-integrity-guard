@@ -21,7 +21,8 @@
 | `anchor_verification` | verify-anchors | `anchored_count`、`no_anchor`、`bad_anchor` |
 | `knowledge_normalization` | normalize-knowledge | `entries`、`merges`、`needs_review` |
 | `reading_card` | build-reading-card | 统一字段卡片（含 not_reported） |
-| `structured_notes` | 输入/Agent | 按论文章节组织、带锚点的可编辑笔记 |
+| `structured_notes` | Agent 主写 | 按论文章节组织、带锚点的完整笔记；正文合计 ≥200 字符，只交检查表判 `partial` |
+| `notes_metrics` | 引擎 | `count` / `chars` / `present` / `required_min_chars` |
 
 ## evidence 子字段
 
@@ -38,7 +39,7 @@
 
 ## status 判定（引擎）
 
-`ok`：章节对齐 + 字段齐 + 笔记全锚定 + 无待确认归一；否则 `needs_attention`。PDF 读取失败或严重缺失用 `partial`。
+`ok`：章节对齐 + 字段齐 + 笔记全锚定 + 无待确认归一 + `notes_metrics.present=true`；否则 `needs_attention`。`structured_notes` 为空或正文不足 200 字符，直接 `partial`（未交主产物）。PDF 读取失败或严重缺失用 `partial`。
 
 ## 阅读/解析结果要求
 
@@ -70,53 +71,3 @@
   }
 }
 ```
-
-
-## 端到端交付（完成器 solve / render-draft）
-
-### 真实输入字段（solve 适配）
-
-`solve case.json --out /app/output` 读取 case.json，支持以下真实输入字段（读不到不臆造，记入 `adapter_notes`）：
-
-- `paper_sections`：内联章节数组（优先）。
-- `paper_text`：论文全文，按段落/章节标题行切段为章节骨架。
-- `section_files`：`[路径]` 或 `{章节名:路径}`，读取 `.txt`/`.md`（切段）或 `.json`（含 `paper_sections`/`card`）。
-- `card` / `card_*`：六字段论文卡片（研究问题/数据/方法条件/主要发现/局限/结论前提）。
-- `notes`、`notes_text`（按行切条）、`notes_files`（`{锚点:路径}`）：真实笔记条目。
-- `valid_anchors`、`knowledge_points`、`dup_threshold`：锚点定位表、知识点与去重阈值。
-
-### 输出：solve result.json
-
-```json
-{
-  "case_id": "...",
-  "status": "ok | needs_attention | partial",
-  "input_mode": "case",
-  "source_count": 7,
-  "adapter_notes": ["notes_text 切条 2"],
-  "result": {
-    "draft_text": "# 逐章笔记\n## 摘要\n  - [n1] ...（第5页）\n# 论文卡片\n- 研究问题：...\n# 知识点\n- ...",
-    "chapter_blocks": [
-      {"section":"摘要","notes":[{"id":"n1","text":"...","anchor":"第5页"}],"status":"ok"}
-    ],
-    "reading_card": {"question":{"value":"...","status":"reported","label":"研究问题"}},
-    "knowledge_entries": [{"label":"CNN","definition":"...","anchor":"§2"}],
-    "section_alignment": {...}, "card_fields": {...}, "anchor_verification": {...},
-    "structured_notes": [...],
-    "summary": "逐章笔记 7 章；卡片 6/6 字段；锚点回链 2/2；知识点 2 条"
-  },
-  "needs_review": ["卡片字段『数据』未报告", "笔记 n3 锚点悬空/无效"],
-  "uncertainty": ["章节/笔记/卡片字段只取真实输入；缺的标〔待补〕，不臆造内容或锚点"],
-  "delivery": {"written":true,"path":"/app/output/result.json","bytes":5343}
-}
-```
-
-- `result.draft_text`：可编辑逐章结构化笔记成稿：逐章笔记 + 六字段卡片 + 知识点 + 锚点回链；**缺字段标〔待补：原文未报告〕、缺锚点标〔待补：无锚点〕，不臆造内容或锚点**。
-- `result.chapter_blocks`：逐章笔记（section → 命中笔记 → 锚点）；未被章节吸收的笔记进 `orphan_notes`（在 draft_detail 中）。
-- `result.reading_card`：六字段卡片，每字段 `status=reported|not_reported`。
-- `status`：`ok`=章节/字段/锚点/知识点齐全且核验干净；否则 `needs_attention`/`partial`，缺口进 `needs_review`。
-- `delivery`：落盘回执；`written=true` 且 `bytes>0` 才算交付成功。异常不静默吞错，写入 `input_error` 或显式降级。
-
-### render-draft / pipeline --with-draft
-
-`render-draft input.json` 与 `pipeline input.json --with-draft` 在输出中给出 `draft_detail`（含 `draft_text`/`chapter_blocks`/`reading_card`/`knowledge_entries`/`needs_author_confirmation`）；默认 `pipeline` 不含成稿。两者都不臆造内容，缺项标〔待补〕。

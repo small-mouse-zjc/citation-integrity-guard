@@ -1,0 +1,4 @@
+source,target,forbidden
+porosity,孔隙度,孔隙率;孔率
+permeability,渗透率,渗透性
+CNN,卷积神经网络,CNN网络;卷积网

@@ -1108,105 +1108,7 @@ def compare(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 9) 全流程
 # ---------------------------------------------------------------------------
-TYPE_RULES = {
-    "J": ("authors", "title", "journal", "year", "volume", "pages"),
-    "M": ("authors", "title", "publisher", "year"),
-    "C": ("authors", "title", "booktitle", "year", "pages"),
-    "D": ("authors", "title", "school", "year"),
-    "S": ("title", "number", "year"),
-    "P": ("authors", "title", "number", "year"),
-    "EB": ("authors", "title", "url", "year"),
-}
-TYPE_ALIAS = {"journal": "J", "article": "J", "j": "J", "book": "M", "m": "M",
-              "conference": "C", "inproceedings": "C", "c": "C", "thesis": "D",
-              "dissertation": "D", "d": "D", "standard": "S", "s": "S",
-              "patent": "P", "p": "P", "web": "EB", "online": "EB", "eb": "EB"}
-
-
-def _entry_type(e: Dict[str, Any]) -> str:
-    raw = str(e.get("type") or e.get("genre") or "").strip()
-    if raw.upper() in TYPE_RULES:
-        return raw.upper()
-    low = raw.lower()
-    if low in TYPE_ALIAS:
-        return TYPE_ALIAS[low]
-    # BibTeX/Crossref 常见复合类型与中文类型名
-    for key, val in (("journal", "J"), ("article", "J"), ("期刊", "J"),
-                     ("book", "M"), ("专著", "M"), ("图书", "M"),
-                     ("conference", "C"), ("proceedings", "C"), ("会议", "C"),
-                     ("thesis", "D"), ("dissertation", "D"), ("学位", "D"),
-                     ("patent", "P"), ("专利", "P"),
-                     ("standard", "S"), ("标准", "S"),
-                     ("web", "EB"), ("online", "EB"), ("网络", "EB")):
-        if key in low:
-            return val
-    return "?"
-
-
-def audit_references(entries: List[Dict[str, Any]],
-                     current_year: Optional[int] = None) -> Dict[str, Any]:
-    """逐条参考文献审计：类型标识、必备字段、年份合理性、DOI 形态与重复。
-
-    与“能排版”不同，这里回答“这条文献本身是否可被审稿人接受”。
-    """
-    from datetime import datetime
-    year_now = current_year or datetime.now().year
-    issues: List[Dict[str, Any]] = []
-    type_dist: Dict[str, int] = {}
-    scores: List[int] = []
-    doi_seen: Dict[str, int] = {}
-    for i, e in enumerate(entries, 1):
-        eid = str(e.get("id") or e.get("key") or ("ref%d" % i))
-        t = _entry_type(e)
-        type_dist[t] = type_dist.get(t, 0) + 1
-        if t == "?":
-            issues.append({"entry": eid, "type": "unknown_type",
-                           "reason": "未识别文献类型（应标注 [J]/[M]/[C]/[D]/[S]/[P]/[EB]）"})
-            fields = ("authors", "title", "year")
-        else:
-            fields = TYPE_RULES[t]
-        missing = [f for f in fields if not e.get(f)]
-        if missing:
-            issues.append({"entry": eid, "type": "missing_fields",
-                           "reason": "%s 类型缺必备字段：%s" % (t, "/".join(missing))})
-        yr = e.get("year")
-        try:
-            y = int(str(yr)[:4]) if yr else None
-        except Exception:
-            y = None
-        if y and (y > year_now or y < 1800):
-            issues.append({"entry": eid, "type": "implausible_year",
-                           "reason": "年份 %s 不在合理区间（1800–%d）" % (yr, year_now)})
-        doi = _norm_doi(str(e.get("doi") or ""))
-        if doi:
-            if not re.match(r"^10\.\d{4,9}/\S+$", doi):
-                issues.append({"entry": eid, "type": "malformed_doi",
-                               "reason": "DOI 形态异常：%s" % doi})
-            if doi in doi_seen:
-                issues.append({"entry": eid, "type": "duplicate_doi",
-                               "reason": "与第 %d 条 DOI 相同（%s）" % (doi_seen[doi], doi)})
-            else:
-                doi_seen[doi] = i
-        authors = e.get("authors")
-        if isinstance(authors, list) and len(authors) > 3 and any("et al" in str(a).lower() for a in authors):
-            issues.append({"entry": eid, "type": "author_etal_mix",
-                           "reason": "作者列表中混用 et al.，GB/T 7714 应列前 3 位后加“等”"})
-        # 条目完整度打分（0–100，按必备字段覆盖 + DOI 加分）
-        if fields:
-            got = sum(1 for f in fields if e.get(f))
-            base = int(round(got / len(fields) * 90))
-            scores.append(min(100, base + (10 if doi else 0)))
-    avg = round(sum(scores) / len(scores), 1) if scores else 0.0
-    return {
-        "entries": len(entries), "type_distribution": type_dist,
-        "avg_completeness": avg, "issues": issues, "issue_count": len(issues),
-        "advice": ("参考文献元数据未见硬伤" if not issues else
-                   "发现 %d 处问题（%s）" % (len(issues), sorted({x["type"] for x in issues}))),
-    }
-
-
-def pipeline(payload: Dict[str, Any], compact: bool = False,
-             with_draft: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
     """
     payload = {
       "case_id": str,
@@ -1228,7 +1130,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
     empty_input = (not entries) and (not str(manuscript or "").strip())
 
     norm = normalize(entries, threshold=threshold)
-    audit = audit_references(norm["entries"])
     ren = renumber(manuscript, norm["entries"], rewrite=True)
     fmt = format_bib(ren["entries"])
     # 一致性核验应基于改写后的正文：若发生了编号改写，用改写稿核验才能真正反映修复结果
@@ -1265,7 +1166,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
             "problems": ver["problems"],
             "order_violations": ver["order_violations"],
         },
-        "reference_audit": audit,
         "citation_placement": ({
             "stats": place["stats"], "advice": place["advice"],
             "gaps": [s["sentence"] for s in place["sentences"]
@@ -1291,8 +1191,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
         f"编号：{len(ren['mapping'])} 条，悬空 {len(ver['dangling_citations'])}、"
         f"未引 {len(ver['uncited_entries'])}、连续={'是' if not ver['numbering_gaps'] else '否'}",
         f"一致性：{'通过' if ver['consistent'] else '有问题'}",
-        f"文献审计：类型 {len(audit['type_distribution'])} 类、完整度均值 {audit['avg_completeness']}、"
-        f"问题 {audit['issue_count']}",
     ]
     if place:
         summary_lines.append(f"落点：缺引论断句 {place['stats']['citation_gaps']}")
@@ -1310,7 +1208,6 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
             "bibliography": result["bibliography"],
             "input_quality": result["input_quality"],
             "consistency": result["consistency"],
-            "reference_audit": result["reference_audit"],
             "citation_placement": result["citation_placement"],
             "claim_check": result["claim_check"],
         }
@@ -1329,225 +1226,11 @@ def pipeline(payload: Dict[str, Any], compact: bool = False,
             **({"place": place} if place else {}),
             **({"claims": claims} if claims else {}),
         }
-    if with_draft and not compact:
-        out["draft_detail"] = render_draft(payload)
     out["result"] = result
     if checks.get("compare_before"):
         out["comparison"] = compare(checks["compare_before"],
                                     {"manuscript": manuscript, "entries": ren["entries"]})
     return out
-
-
-# ---------------------------------------------------------------------------
-# 完成器：真实输入适配 / 引用成稿 / result.json 装配 / 端到端 solve
-# ---------------------------------------------------------------------------
-def _adapt_case(payload: Dict[str, Any], case_dir: str) -> Dict[str, Any]:
-    """真实输入适配器：把稿件/文献库文件读成 manuscript + entries。
-
-    支持：
-      - manuscript（内联）或 manuscript_file（.md/.txt/.tex/.json 路径）
-      - entries（内联）或 entries_file（JSON 条目数组 / {entries:[...]}）
-      - bib_file / bibliography_file（BibTeX/RIS/CNKI，调用已有 ingest 解析）
-      - checks（内联，可选 place/claims/compare_before）
-    读不到不臆造，记入 adapter_notes。
-    """
-    import os as _os
-    work = dict(payload)
-    log: List[str] = []
-
-    def read_text(key, file_key):
-        v = work.get(key)
-        if isinstance(v, str) and v.strip():
-            return v
-        rel = work.get(file_key)
-        if rel:
-            path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
-            try:
-                txt = open(path, encoding="utf-8").read()
-                log.append("读取%s:%s" % (key, _os.path.basename(path)))
-                return txt
-            except Exception:
-                log.append("读取失败:%s" % _os.path.basename(path))
-        return ""
-
-    ms = read_text("manuscript", "manuscript_file")
-    if ms:
-        work["manuscript"] = ms
-
-    entries = work.get("entries")
-    if not entries and work.get("entries_file"):
-        rel = work["entries_file"]
-        path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
-        try:
-            data = json.loads(open(path, encoding="utf-8").read())
-            work["entries"] = data.get("entries", data) if isinstance(data, dict) else data
-            log.append("条目文件")
-        except Exception:
-            log.append("条目读取失败")
-
-    for bf in ("bib_file", "bibliography_file"):
-        if work.get(bf):
-            rel = work[bf]
-            path = str(rel) if _os.path.isabs(str(rel)) else _os.path.join(case_dir, str(rel))
-            try:
-                txt = open(path, encoding="utf-8").read()
-                parsed = ingest(txt, "auto")
-                got = parsed.get("entries", []) if isinstance(parsed, dict) else []
-                if got and not work.get("entries"):
-                    work["entries"] = got
-                    log.append("文献库解析:%s=%d条" % (_os.path.basename(path), len(got)))
-            except Exception:
-                log.append("文献库读取失败:%s" % _os.path.basename(path))
-            break
-
-    work["adapter_notes"] = log
-    return work
-
-
-def render_draft(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """用真实字段渲染【可编辑、可回链的引用定稿稿件】——完成器核心。
-
-    硬约束：
-      - 正文只取 pipeline 改写后的真实正文（仅换引用标记、不改措辞）；
-      - 文后表按新编号排序；**未在正文引用的条目显式标注"未引"**，不伪装成正文引用
-        （修复 renumber 把未引条目塞进正文编号的隐患）；
-      - 缺引论断、可疑论断、悬空引用进待确认，不臆造来源。
-    """
-    pl = pipeline(payload)
-    r = pl["result"]
-    entries = list(payload.get("entries") or [])
-    # 真实改写正文
-    edited_ms = r.get("editable_manuscript", "") or payload.get("manuscript", "")
-    # 编号映射：只保留正文真实出现的条目作为"已引"
-    mapping = dict(r.get("number_mapping") or {})
-    cited_nums = set()
-    for m in pl.get("pipeline", {}).get("verify", {}).get("cited_numbers", []):
-        cited_nums.add(int(m))
-    uncited = [int(n) for n in pl.get("pipeline", {}).get("verify", {}).get("uncited_entries", [])]
-
-    refs_lines = []
-    for line in r.get("bibliography", []):
-        # 文后表行首编号
-        m = re.match(r"^\[?(\d+)\]?[\.、\s]", str(line))
-        num = int(m.group(1)) if m else None
-        tag = "〔未引：正文未出现，须确认是否保留〕" if (num is not None and num in uncited) else ""
-        refs_lines.append("- %s %s" % (str(line).lstrip("- ").strip(), tag))
-    refs_text = "\n".join(refs_lines) or "〔待补：无文献条目〕"
-
-    placement = r.get("citation_placement") or {}
-    gaps = placement.get("gaps", [])
-    claims = r.get("claim_check") or {}
-    suspicious = claims.get("suspicious_claims", [])
-    anomalies = claims.get("metadata_anomalies", [])
-    dangling = r.get("consistency", {}).get("problems", [])
-
-    draft_text = "\n\n".join([
-        "# 引用定稿稿件（可编辑）",
-        "## 改写后正文（仅替换引用标记）\n" + (edited_ms or "〔待补：无正文〕"),
-        "## 文后参考文献表（GB/T 7714，按新编号）\n" + refs_text,
-        "## 编号映射（旧→新）\n" + ("；".join("%s→%s" % (k, v) for k, v in mapping.items()) or "〔无映射〕"),
-        "# 待确认清单",
-        "\n".join([
-            "- 缺引论断句：%s" % g for g in gaps[:10]
-        ] + [
-            "- 可疑论断：%s" % (s.get("sentence", s) if isinstance(s, dict) else s) for s in suspicious[:10]
-        ] + [
-            "- 元数据异常：%s" % (a.get("message", a) if isinstance(a, dict) else a) for a in anomalies[:10]
-        ] + [
-            "- 编号/悬空问题：%s" % (p if isinstance(p, str) else p.get("type", str(p))) for p in dangling[:10]
-        ]) or "〔无待确认项〕",
-    ])
-
-    confirm = ["缺引论断句 %d 处须补来源" % len(gaps)] if gaps else []
-    confirm += ["可疑论断 %d 条须核对" % len(suspicious)] if suspicious else []
-    confirm += ["未在正文引用的条目 %d 条须确认是否保留" % len(uncited)] if uncited else []
-    all_ok = bool(edited_ms.strip()) and not gaps and not suspicious and not uncited and not dangling
-    return {
-        "case_id": payload.get("case_id", ""),
-        "status": "draft" if all_ok else "partial",
-        "draft_text": draft_text,
-        "edited_manuscript": edited_ms,
-        "bibliography": r.get("bibliography", []),
-        "number_mapping": mapping,
-        "cited_numbers": sorted(cited_nums),
-        "uncited_entries": uncited,
-        "source_refs": sorted(cited_nums),
-        "needs_author_confirmation": confirm,
-        "uncertainty": [
-            "正文仅替换引用标记、不改措辞；文献表按新编号排序，未引条目显式标注，不伪装成正文引用",
-            "引用落点/论断支撑/元数据真伪属价值判断，候选基于主题词重叠仅供定位，须人工核对",
-        ],
-        "note": ("可编辑引用定稿稿件：改写正文+文后表+编号映射+待确认清单；"
-                 "非最终定稿，缺引与可疑项须结合原文人工复核。"),
-    }
-
-
-def _write_solution_core(result: Dict[str, Any], out_dir: str, case_id: str) -> Dict[str, Any]:
-    import os as _os
-    payload = dict(result)
-    if "case_id" not in payload:
-        payload["case_id"] = case_id
-    path = _os.path.join(out_dir, "result.json")
-    try:
-        _os.makedirs(out_dir, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-        ok = _os.path.exists(path) and _os.path.getsize(path) > 0
-        return {"written": ok, "path": path, "bytes": _os.path.getsize(path) if ok else 0}
-    except Exception as e:
-        return {"written": False, "path": path, "error": type(e).__name__}
-
-
-def solve(case_path: str, out_dir: str) -> Dict[str, Any]:
-    """端到端完成器：读 case.json → 适配稿件/文献库 → 去重重编号校验 → 定稿 → 装配。"""
-    import os as _os
-    payload: Dict[str, Any] = {"case_id": ""}
-    case_dir = _os.path.dirname(_os.path.abspath(case_path)) if case_path != "-" else "."
-    if case_path and case_path != "-":
-        try:
-            loaded = _load_json_arg(case_path)
-            if isinstance(loaded, dict):
-                payload = loaded
-        except Exception as e:
-            payload = {"case_id": "", "input_error": type(e).__name__}
-    cid = str(payload.get("case_id", "") or "")
-
-    work = _adapt_case(payload, case_dir)
-    if not work.get("manuscript") and not work.get("entries"):
-        result = {"case_id": cid, "status": STATUS_PARTIAL, "input_mode": "case",
-                  "result": {"summary": "输入无正文/文献条目/材料文件，无法成稿（不伪造引用）"},
-                  "needs_review": ["请提供真实稿件与文献库（manuscript/entries/bib_file）"]}
-        result["delivery"] = _write_solution(result, out_dir, cid)
-        return result
-
-    pl = pipeline(work, with_draft=True)
-    draft = pl.get("draft_detail") or {}
-    r = pl["result"]
-    result = {
-        "case_id": cid,
-        "status": pl["status"],
-        "input_mode": "case",
-        "entry_count": len(work.get("entries", [])),
-        "adapter_notes": work.get("adapter_notes", []),
-        "result": {
-            "draft_text": draft.get("draft_text", ""),
-            "edited_manuscript": draft.get("edited_manuscript", ""),
-            "bibliography": draft.get("bibliography", []),
-            "number_mapping": draft.get("number_mapping", {}),
-            "cited_numbers": draft.get("cited_numbers", []),
-            "uncited_entries": draft.get("uncited_entries", []),
-            "consistency": r.get("consistency", {}),
-            "citation_placement": r.get("citation_placement"),
-            "claim_check": r.get("claim_check"),
-            "reference_audit": r.get("reference_audit"),
-            "input_quality": r.get("input_quality", {}),
-            "summary": r.get("summary", ""),
-        },
-        "needs_review": draft.get("needs_author_confirmation", []),
-        "uncertainty": draft.get("uncertainty", []),
-    }
-    result["delivery"] = _write_solution(result, out_dir, cid)
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1598,21 +1281,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("compare")
     sp.add_argument("input", help="JSON：含 before 与 after 两个 {manuscript, entries}")
 
-    sub.add_parser("render-draft", help="用真实字段渲染可编辑引用定稿稿件").add_argument("input", help="JSON 全量输入")
-    sv = sub.add_parser("solve", help="端到端完成器：case.json →(适配稿件/文献库)→ 定稿 → result.json")
-    sv.add_argument("case", help="case.json 路径")
-    sv.add_argument("--out", default="/app/output", help="交付目录")
-
     sp = sub.add_parser("pipeline")
     sp.add_argument("input", help="JSON：case_id/entries/manuscript")
     sp.add_argument("--compact", action="store_true", help="紧凑摘要模式，省 token")
-    sp.add_argument("--with-draft", action="store_true", help="脚本渲染定稿草稿")
 
     args = p.parse_args(argv)
-    if args.cmd == "solve":
-        out = solve(args.case, args.out)
-        sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
-        return 0
     data = _load_json_arg(args.input)
 
     if args.cmd == "normalize":
@@ -1641,10 +1314,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                            claims=data.get("claims"), low=args.low, high=args.high)
     elif args.cmd == "compare":
         out = compare(data.get("before", {}), data.get("after", {}))
-    elif args.cmd == "render-draft":
-        out = render_draft(data)
     elif args.cmd == "pipeline":
-        out = pipeline(data, compact=args.compact, with_draft=args.with_draft)
+        out = pipeline(data, compact=args.compact)
     else:
         p.error("未知命令")
         return 2
@@ -1652,16 +1323,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2))
     sys.stdout.write("\n")
     return 0
-
-def _write_solution(result, out_dir, case_id):
-    """写 result.json，并把 result 渲染成可读、可编辑的交付物（artifacts.py）。"""
-    core = _write_solution_core(result, out_dir, case_id)
-    try:
-        from artifacts import write_artifacts
-        core["artifacts"] = write_artifacts(result, out_dir, "citation-integrity")
-    except Exception as e:  # 渲染失败不影响 result.json 已落盘
-        core["artifacts_error"] = type(e).__name__
-    return core
 
 
 if __name__ == "__main__":

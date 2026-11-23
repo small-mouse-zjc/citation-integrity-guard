@@ -20,7 +20,7 @@ nanopub-archivist/
 ├── README.md                      # 本文件
 ├── GITHUB_URL.txt                 # 公开作品链接（可选加分）
 ├── scripts/
-│   └── nanopub_engine.py          # 纯标准库确定性引擎（8 子命令，含 solve/render-draft）
+│   └── nanopub_engine.py          # 纯标准库确定性引擎（6 子命令）
 ├── references/
 │   ├── assertion_rules.md         # 原子化判据与复合句拆分
 │   ├── evidence_binding.md        # 最小充分证据与锚点
@@ -29,7 +29,7 @@ nanopub-archivist/
 │   └── assertion_samples.md       # 20 条原子断言样例（可复用）
 └── examples/
     ├── minimal_example.md         # 最小调用示例
-    ├── selftest.py                # 46 项自验收（含成稿/适配/solve）
+    ├── selftest.py                # 23 项自验收
     ├── smoke_input.json           # 冒烟输入
     └── smoke_output.json          # 冒烟输出（引擎实际运行产物）
 ```
@@ -44,9 +44,7 @@ nanopub-archivist/
 ```bash
 python scripts/nanopub_engine.py --help
 python scripts/nanopub_engine.py check-assertion '{"text":"CNN在碳酸盐岩达到0.92准确率。"}'
-python scripts/nanopub_engine.py solve /input/case.json --out /app/output   # 端到端成稿+装配
-python scripts/nanopub_engine.py render-draft examples/smoke_input.json > draft.json
-python scripts/nanopub_engine.py pipeline examples/smoke_input.json --with-draft > result.json
+python scripts/nanopub_engine.py pipeline examples/smoke_input.json > result.json
 python examples/selftest.py
 ```
 

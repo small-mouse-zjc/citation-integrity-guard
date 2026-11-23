@@ -1,0 +1,10 @@
+{
+ "case_id":"smoke-04",
+ "works":[
+  {"id":"w1","title":"Deep learning for lithofacies","authors":["Smith, A."],"year":2023,"source":"Fuel","method":"CNN","limitations":"标注成本高","conclusion":"优于传统方法"},
+  {"id":"w2","title":"Semi-supervised facies","authors":["Li, B."],"year":2022,"source":"JPRSE","method":"semi-supervised","limitations":"依赖少量标签","conclusion":"减少标注"},
+  {"id":"w3","title":"Transformer facies","authors":["Wang, C."],"year":2024,"source":"Geophysics","method":"Transformer","limitations":"数据需求大","conclusion":"高精度"}
+ ],
+ "claims":[{"id":"c1","text":"本文提出低成本分组比较方法","evidence_refs":["表2"]}],
+ "evidence_index":{"表2":"分组矩阵结果"}
+}
