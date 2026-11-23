@@ -51,8 +51,8 @@ python scripts/citation_engine.py --help
 
 输入为 UTF-8 JSON。推荐使用 `pipeline` 一次完成：
 ```bash
-python scripts/citation_engine.py pipeline input.json > result.json
-python scripts/citation_engine.py pipeline input.json --compact > summary.json   # 额度紧张时用
+python scripts/citation_engine.py pipeline input.json --outdir /app/output > result.json
+python scripts/citation_engine.py pipeline input.json --compact --outdir /app/output > summary.json   # 额度紧张时用
 ```
 
 `input.json` 结构：
@@ -83,7 +83,7 @@ python scripts/citation_engine.py pipeline input.json --compact > summary.json  
    - 先跑 `place`：机械标出需要来源支撑却无引用的论断句（"挂得对"），候选文献只取真实条目，供定位不供最终判断。
    - 再跑 `claims`：确定性预筛元数据异常/编造线索/主题错配（"对得上"），**只对返回的 `suspicious_claims` 交模型或人工复核**，把逐句 O(n) 判断降到 O(可疑)。证据不足的句子显式标记，不擅自改论断。
 7. **一致性核验**：运行 `verify`，确认无悬空引用、无未引用条目、编号连续无重复、首次出现顺序正确（`order_violations`）。需要证明增益时用 `compare` 对修复前后逐项对照。
-8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有 output_contract 字段；`result.summary` 是一行紧凑结论。预算紧张时用 `pipeline --compact` 只输出摘要+文后表+核验结论。可编辑稿件/文献表另存为文件，每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
+8. **装配输出**：按 `references/output_contract.md` 写入 `/app/output/result.json`，保留 `case_id` 与所有 output_contract 字段；`pipeline --outdir /app/output` 会把改编号后的 `manuscript_updated.md` 与 `references.txt` 真实落盘，并在 `result.artifacts` 记录路径。`result.summary` 是一行紧凑结论。预算紧张时用 `pipeline --compact` 只输出摘要+文后表+核验结论。可编辑稿件/文献表另存为文件，每条改动附"原文 → 改文 → 类型 → 理由 → 证据定位"。
 
 ## 输出契约要点
 

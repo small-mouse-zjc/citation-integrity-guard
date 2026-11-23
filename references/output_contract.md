@@ -30,7 +30,9 @@
 
 ### 1. 目标产物
 - `result.bibliography`：可编辑的文后参考文献表（GB/T 7714 顺序编码制）。
-- 可编辑稿件：正文引用编号已按 `number_mapping` 同步更新，另存为文件（如 `/app/output/manuscript_updated.md`），并在结果中给出文件路径字段 `artifacts.manuscript`。
+- `result.editable_manuscript`：正文引用编号已按 `number_mapping` 同步更新的完整稿件。
+- `result.artifacts.manuscript`：`pipeline --outdir` 实际落盘的 `manuscript_updated.md` 路径；`result.artifacts.bibliography` 为 `references.txt` 路径。只写真实存在的正文，不用模板补空。
+- 也可另存 Office/PDF，但必须由真实源文件渲染，不得伪造。
 
 ### 2. 事实与来源映射
 - `result.evidence.dedup_decisions`：每条合并的判据、置信度、证据（可回溯到文献库记录）。

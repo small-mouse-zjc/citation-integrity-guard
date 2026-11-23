@@ -1108,7 +1108,8 @@ def compare(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 9) 全流程
 # ---------------------------------------------------------------------------
-def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
+def pipeline(payload: Dict[str, Any], compact: bool = False,
+             outdir: Optional[str] = None) -> Dict[str, Any]:
     """
     payload = {
       "case_id": str,
@@ -1212,6 +1213,26 @@ def pipeline(payload: Dict[str, Any], compact: bool = False) -> Dict[str, Any]:
             "claim_check": result["claim_check"],
         }
 
+    # 把可编辑稿件与文后表真实落盘；只写已有内容，不用模板补空
+    if outdir:
+        import os
+        out_dir = os.path.abspath(outdir)
+        os.makedirs(out_dir, exist_ok=True)
+        artifacts: Dict[str, str] = {"outdir": out_dir}
+        manuscript = str(result.get("editable_manuscript", "") or "").strip()
+        if manuscript:
+            ms_path = os.path.join(out_dir, "manuscript_updated.md")
+            with open(ms_path, "w", encoding="utf-8") as f:
+                f.write(manuscript + "\n")
+            artifacts["manuscript"] = ms_path
+        bibliography = result.get("bibliography") or []
+        if bibliography:
+            bib_path = os.path.join(out_dir, "references.txt")
+            with open(bib_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(str(x) for x in bibliography) + "\n")
+            artifacts["bibliography"] = bib_path
+        result["artifacts"] = artifacts
+
     out: Dict[str, Any] = {
         "case_id": payload.get("case_id", ""),
         "status": overall,
@@ -1284,6 +1305,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp = sub.add_parser("pipeline")
     sp.add_argument("input", help="JSON：case_id/entries/manuscript")
     sp.add_argument("--compact", action="store_true", help="紧凑摘要模式，省 token")
+    sp.add_argument("--outdir", default=None,
+                    help="把改编号后的可编辑稿件与文后表写到该目录，并在 result.artifacts 记录路径")
 
     args = p.parse_args(argv)
     data = _load_json_arg(args.input)
@@ -1315,7 +1338,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif args.cmd == "compare":
         out = compare(data.get("before", {}), data.get("after", {}))
     elif args.cmd == "pipeline":
-        out = pipeline(data, compact=args.compact)
+        out = pipeline(data, compact=args.compact, outdir=args.outdir)
     else:
         p.error("未知命令")
         return 2
