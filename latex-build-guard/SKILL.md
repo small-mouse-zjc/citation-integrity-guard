@@ -74,7 +74,7 @@ python scripts/latex_engine.py pipeline input.json > result.json
 ## 标准工作流（必须按顺序执行）
 
 1. **读输入**：读 `/input/case.json` 与 `task.md`，确认 `case_id`、工程目录、主文件、目标模板、要改的章节/公式/表格/引用、输出契约字段。**逐个打开真实文件**，不从文件名猜内容。
-2. **落盘副本**：把工程复制到 `/app/work/latex`，在副本上改，原始输入不动；同时先保存一份诚实基线（`git diff` 或文件副本）。
+2. **落盘副本**：把工程复制到 `/app/work/latex`，在副本上改，原始输入不动；同时先保存一份诚实基线（`git diff` 或文件副本）。**若 case.json 只给 `main_tex` 文本或 `files` 表、没有真实工程目录，先按原样把每个文件写到 `/app/work/latex/`（不增删内容、不改编码），再进入编译。**
 3. **基线编译**：跑 `compile_latex.py`。记下 `compile_ok`、`errors`、`missing_files`、`pages`。这是后续对照的基线。
 4. **修错**：用 `classify-errors` 对日志分类，按 `file:line` 逐条修：
    - 缺宏包/类文件：确认镜像是否已装；不可安装则改用等价宏包或移除依赖，并在记录中说明；
